@@ -77,8 +77,13 @@ jobs:
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
           git add gitVersion.txt Project.xml source/states/mainMenuState/MainMenuState.hx
-          git commit -m "chore: Release version ${{ steps.parse-version.outputs.version_name }} ${{ steps.parse-version.outputs.version_number_int_with_timestamp }}"
-          git push
+    
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: Release version ${{ steps.parse-version.outputs.version_name }} ${{ steps.parse-version.outputs.version_number_int_with_timestamp }}"
+            git push
+          fi
           
   mobile-build:
     name: "Mobile Build (macOS 14)"
