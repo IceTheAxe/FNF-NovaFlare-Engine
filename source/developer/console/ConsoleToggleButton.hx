@@ -21,6 +21,7 @@ class ConsoleToggleButton extends Sprite {
     public function new() {
         super();
         createButton();
+        visible = false;
         openfl.Lib.current.stage.addEventListener(Event.RESIZE, onResize);
     }
     
