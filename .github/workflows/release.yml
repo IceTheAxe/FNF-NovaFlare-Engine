@@ -67,8 +67,8 @@ jobs:
       - name: Update MainMenuState.hx
         run: |
           echo "Updating MainMenuState.hx..."
-          sed -i "s/\(public static var novaFlareEngineVersion:String = '\)[^']*/\1${{ steps.parse-version.outputs.version_name }}/" source/states/MainMenuState.hx
-          sed -i "s/\(public static var novaFlareEngineDataVersion:Float = \)[0-9.]*/\1${{ steps.parse-version.outputs.version_number }}/" source/states/MainMenuState.hx
+          sed -i "s/\(public static var novaFlareEngineVersion:String = '\)[^']*/\1${{ steps.parse-version.outputs.version_name }}/" source/states/mainMenuState/MainMenuState.hx
+          sed -i "s/\(public static var novaFlareEngineDataVersion:Float = \)[0-9.]*/\1${{ steps.parse-version.outputs.version_number }}/" source/states/mainMenuState/MainMenuState.hx
           echo "Updated MainMenuState.hx version variables"
 
       - name: Commit all changes
