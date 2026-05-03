@@ -30,8 +30,9 @@ jobs:
           current_timestamp=$(date +%Y%m%d%H%M)
           
           version_number_int=$(echo "$version_number" | tr -d '.')
-          version_number_int_with_timestamp="$version_number_int$current_timestamp"
-          
+          current_date=$(date +%y%m%d)
+          version_number_int_with_timestamp="${version_number_int}${current_date}"
+
           echo "Parsed version name: $version_name"
           echo "Parsed version number: $version_number"
           echo "Version number without dots: $version_number_int"
