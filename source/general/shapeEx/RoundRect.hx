@@ -1,4 +1,4 @@
-package general.shapeEX;
+package general.shapeEx;
 
 enum OriginType
 {

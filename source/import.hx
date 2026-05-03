@@ -97,7 +97,7 @@ import general.objects.Alphabet;
 import general.objects.BGSprite;
 import general.objects.AudioDisplay;
 import general.objects.state.general.*;
-import general.shapeEX.*;
+import general.shapeEx.*;
 
 import general.shaders.flixel.system.FlxShader;
 

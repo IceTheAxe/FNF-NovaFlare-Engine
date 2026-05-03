@@ -1,4 +1,4 @@
-package general.shapeEX;
+package general.shapeEx;
 
 import openfl.display.Sprite;
 import openfl.display.BlendMode;

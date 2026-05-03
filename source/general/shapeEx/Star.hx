@@ -1,4 +1,4 @@
-package general.shapeEX;
+package general.shapeEx;
 
 import openfl.display.GraphicsPathCommand;
 import openfl.display.GraphicsPathWinding;

@@ -1,4 +1,4 @@
-package general.shapeEX;
+package general.shapeEx;
 
 class SkewSegmentGradientRoundRect extends FlxSprite
 {

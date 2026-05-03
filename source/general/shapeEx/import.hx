@@ -1,4 +1,4 @@
-package general.shapeEX;
+package general.shapeEx;
 
 import flash.geom.Point;
 import flash.geom.Matrix;
