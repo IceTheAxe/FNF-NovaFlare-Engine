@@ -24,7 +24,7 @@ jobs:
         id: cache_strategy
         run: |
           if [[ "${{ github.event.workflow }}" == ".github/workflows/release.yml" ]]; then
-            echo "use_cache=true" >> $GITHUB_OUTPUT
+            echo "use_cache=false" >> $GITHUB_OUTPUT
           else
             echo "use_cache=false" >> $GITHUB_OUTPUT
           fi
