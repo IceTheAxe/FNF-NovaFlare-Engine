@@ -93,12 +93,11 @@ import general.backend.gc.*;
 import general.objects.VideoSprite;
 #end
 
-import general.shapeEX.*;
-
 import general.objects.Alphabet;
 import general.objects.BGSprite;
 import general.objects.AudioDisplay;
 import general.objects.state.general.*;
+import general.shapeEX.*;
 
 import general.shaders.flixel.system.FlxShader;
 

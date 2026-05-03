@@ -24,7 +24,6 @@ import flixel.graphics.FlxGraphic;
 import flixel.graphics.frames.FlxFilterFrames;
 
 import general.backend.thread.ThreadEvent;
-import general.shapeEX.Rect;
 import states.loadingState.backend.*;
 
 import states.freeplayState.FreeplayState;
