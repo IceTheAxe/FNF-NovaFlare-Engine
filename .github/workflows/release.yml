@@ -81,7 +81,6 @@ jobs:
           
   mobile-build:
     name: "Mobile Build (macOS 14)"
-    needs: installHaxelib
     uses: ./.github/workflows/MobileBuild.yml
     with:
       dependencies_to_update: 'all'
