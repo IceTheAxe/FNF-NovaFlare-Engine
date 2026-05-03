@@ -89,8 +89,6 @@ jobs:
     name: "macOS Build"
     needs: mobile-build
     uses: ./.github/workflows/MacBuild.yml
-    with:
-      dependencies_to_update: 'all'
 
   windows-build:
     name: "Windows Build"
