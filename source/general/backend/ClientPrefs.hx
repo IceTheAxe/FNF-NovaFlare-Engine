@@ -4,7 +4,7 @@ import flixel.util.FlxSave;
 import flixel.input.keyboard.FlxKey;
 import flixel.input.gamepad.FlxGamepadInputID;
 
-import states.TitleState;
+import states.titleState.TitleState;
 
 import games.backend.ExtraKeysHandler.EKNoteColor;
 
@@ -32,7 +32,7 @@ import lime.system.Display;
 	public var autoPause:Bool = true;
 	public var gcFreeZone:Bool = true;
 	#if mobile
-    public var AutoOrientation:Bool = false;
+    public var autoOrientation:Bool = false;
     #end
 
 	// Gameplay
@@ -46,8 +46,8 @@ import lime.system.Display;
 	public var playOpponent:Bool = false;
 	public var opponentCodeFix:Bool = false;
 	public var botOpponentFix:Bool = true;
-	public var HealthDrainOPPOMult:Float = 0.5;
-	public var HealthDrainOPPO:Bool = false;
+	public var healthDrainOPPOMult:Float = 0.5;
+	public var healthDrainOPPO:Bool = false;
 
 	// Backend
 	// Gameplay backend s
@@ -60,8 +60,8 @@ import lime.system.Display;
 	public var hitsoundVolume:Float = 0;
 	public var oldHscriptVersion:Bool = false;
 	public var pauseButton:Bool = #if mobile true #else false #end;
-	public var CompulsionPause:Bool = false;
-	public var CompulsionPauseNumber:Int = 3;
+	public var compulsionPause:Bool = false;
+	public var compulsionPauseNumber:Int = 3;
 	public var gameOverVibration:Bool = false;
 	public var ratingOffset:Int = 0;
 	public var noteOffset:Int = 0;
@@ -88,7 +88,7 @@ import lime.system.Display;
 	public var showRating:Bool = true;
 	public var opponentStrums:Bool = true;
 	public var judgementCounter:Bool = false;
-	public var KeyboardViewer:Bool = true;
+	public var keyboardViewer:Bool = true;
 	// TimeBar s
 	public var timeBarType:String = 'Time Left';
 	// HealthBar s
@@ -136,9 +136,9 @@ import lime.system.Display;
 	// User Interface
 	public var uiScale:Float = 1;
 
-	public var CustomFade:String = 'Move';
-	public var CustomFadeSound:Float = 0.5;
-	public var CustomFadeText:Bool = true;
+	public var customFade:String = 'Move';
+	public var customFadeSound:Float = 0.5;
+	public var customFadeText:Bool = true;
 	public var skipTitleVideo:Bool = false;
 	public var audioDisplayQuality:Int = 1;
 	public var audioDisplayUpdate:Int = 50;
@@ -150,8 +150,8 @@ import lime.system.Display;
 	public var showFPS:Bool = true;
 	public var rainbowFPS:Bool = true;
 	public var memoryType:String = 'Usage';
-	public var FPSScale:Float = 1;
-	public var WatermarkScale:Float = 1;
+	public var fpsScale:Float = 1;
+	public var watermarkScale:Float = 1;
 	public var showWatermark:Bool = true;
 
 	public var comboOffset:Array<Int> = [0, 0, 0, 0, 530, 470];
@@ -159,7 +159,7 @@ import lime.system.Display;
 	public var language:String = 'English';
 
 	public var developerMode:Bool = false;
-	public var DevConScale:Float = #if mobile 1.8 #else 1.5 #end;
+	public var devConScale:Float = #if mobile 1.8 #else 1.5 #end;
 
 	//For Extra Keys (maybe)
 	public var showKeybinds:Bool = false;
@@ -168,9 +168,9 @@ import lime.system.Display;
 	public var enableBpmZoom:Bool = true;
 	
 	//public var theme:Array<String> = ["Circle", "Straight", "None"];
-	//public var SongInfo:Array<String> = ["None", "Middle", "topLeft", "downLeft", "topRight", "downRight"];
+	//public var songInfo:Array<String> = ["None", "Middle", "topLeft", "downLeft", "topRight", "downRight"];
 	public var theme:String = "Circle";
-	public var SongInfo:String = "None";
+	public var songInfo:String = "None";
 	
 	//////////////////////////////////////////////////////////////////////////////////////
 

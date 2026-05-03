@@ -2,6 +2,8 @@ package states.freeplayState.objects.down;
 
 import flixel.input.keyboard.FlxKey;
 
+import states.mainMenuState.MainMenuState;
+
 class BackButton extends FlxSpriteGroup {
     var pressRect:Rect;
     var disRect:SkewRoundRect;

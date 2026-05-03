@@ -7,10 +7,10 @@ showFPS => Show your FPS
 showExtra => Show more data
 rainbowFPS => Change color with FPS
 memoryType => Memory showcase data
-FPSScale => Size
+fpsScale => Size
 
 
 Watermark => Watermark
 
 showWatermark => Visible
-WatermarkScale => Scale
+watermarkScale => Scale

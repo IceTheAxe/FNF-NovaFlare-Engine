@@ -14,8 +14,8 @@ Opponent => 对手设置
 playOpponent => 游玩对方铺面
 opponentCodeFix => 判定函数交换
 botOpponentFix => 模拟对手
-HealthDrainOPPO => 对手推条
-HealthDrainOPPOMult => 对手推条系数
+healthDrainOPPO => 对手推条
+healthDrainOPPOMult => 对手推条系数
 
 
 judgement => 判定设置

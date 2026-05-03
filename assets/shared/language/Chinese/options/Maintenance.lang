@@ -1,7 +1,7 @@
 Maintenance => 维护设置
 
 developerMode => 开发者模式
-DevConScale => 控制台大小
+devConScale => 控制台大小
 
 oldHscriptVersion => 兼容旧模组
 

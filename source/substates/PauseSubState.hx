@@ -1,4 +1,4 @@
-﻿package substates;
+package substates;
 
 import openfl.utils.Assets;
 
@@ -7,7 +7,7 @@ import flixel.util.FlxStringUtil;
 import developer.editors.ChartingState;
 
 import states.freeplayState.FreeplayState;
-import states.StoryMenuState;
+import states.storyMenuState.StoryMenuState;
 
 import options.OptionsState;
 

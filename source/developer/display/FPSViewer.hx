@@ -24,7 +24,7 @@ class FPSViewer extends Sprite
 
 		create();
 
-		scaleX = scaleY = ClientPrefs.data.FPSScale;
+		scaleX = scaleY = ClientPrefs.data.fpsScale;
 		visible = ClientPrefs.data.showFPS;
 	}
 

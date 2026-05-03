@@ -1,4 +1,4 @@
-﻿#if LUA_ALLOWED
+#if LUA_ALLOWED
 package scripts.lua;
 
 import haxe.Json;
@@ -15,8 +15,8 @@ import flixel.input.keyboard.FlxKey;
 import flixel.input.gamepad.FlxGamepadInputID;
 import flixel.math.FlxMatrix;
 
-import states.MainMenuState;
-import states.StoryMenuState;
+import states.mainMenuState.MainMenuState;
+import states.storyMenuState.StoryMenuState;
 import states.freeplayState.FreeplayState;
 
 import substates.PauseSubState;

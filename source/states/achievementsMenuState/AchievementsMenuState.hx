@@ -1,9 +1,11 @@
-﻿package states;
+package states.achievementsMenuState;
 
 import flixel.FlxObject;
 import flixel.util.FlxSort;
 
 import games.objects.Bar;
+
+import states.mainMenuState.MainMenuState;
 
 #if ACHIEVEMENTS_ALLOWED
 class AchievementsMenuState extends MusicBeatState
@@ -397,4 +399,3 @@ class ResetAchievementSubstate extends MusicBeatSubstate
 	}
 }
 #end
-

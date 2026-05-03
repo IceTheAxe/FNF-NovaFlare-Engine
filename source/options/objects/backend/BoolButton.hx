@@ -50,13 +50,8 @@ class BoolButton extends FlxSpriteGroup {
             // Check if mouse is over the button
             if (mouse.overlaps(bg)) {
                 // Mouse released
-                if (OptionsState.instance.mouseEvent.justReleased) {
-                    // Check if mouse is on left or right side
-                    var localX = mouse.getScreenPosition().x - this.x;
-                    var isRightSide = localX > bg.width / 2;
-                    
-                    // Change value based on mouse position
-                    change(isRightSide);
+                if (OptionsState.instance.mouseEvent.justPressed) {
+                    change(!follow.defaultValue);
                 }
             }
         }

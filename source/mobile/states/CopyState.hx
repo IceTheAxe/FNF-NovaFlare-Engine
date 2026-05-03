@@ -14,8 +14,8 @@ import openfl.system.System;
 
 import flixel.addons.util.FlxAsyncLoop;
 
-import states.TitleState;
-import states.backend.InitState;
+import states.titleState.TitleState;
+import states.backend.initState.InitState;
 
 class CopyState extends MusicBeatState
 {

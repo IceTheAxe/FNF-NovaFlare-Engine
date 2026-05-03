@@ -9,7 +9,7 @@ showComboNum => Show Combo Num
 showRating => Show Rating
 opponentStrums => Opponent Strums
 judgementCounter => Judgement Counter
-KeyboardViewer => Keyboard Display
+keyboardViewer => Keyboard Display
 
 
 TimeBar => Time Bar
@@ -43,5 +43,5 @@ scoreZoom => Score Zoom
 
 pauseButton => Pause Button
 
-CompulsionPause => Compulsion Pause
-CompulsionPauseNumber => Compulsion Pause Count
+compulsionPause => Compulsion Pause
+compulsionPauseNumber => Compulsion Pause Count

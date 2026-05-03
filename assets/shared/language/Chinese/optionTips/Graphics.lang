@@ -7,10 +7,10 @@ showFPS => 显示当前帧数
 showExtra => 显示更多性能数值
 rainbowFPS => 字体颜色跟随帧数进行变化
 memoryType => 运存展示数据类型
-FPSScale => FPS大小
+fpsScale => FPS大小
 
 
 Watermark => 水印设置
 
 showWatermark => 显示水印
-WatermarkScale => 水印大小
+watermarkScale => 水印大小

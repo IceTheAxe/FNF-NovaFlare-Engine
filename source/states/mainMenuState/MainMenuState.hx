@@ -1,4 +1,4 @@
-﻿package states;
+package states.mainMenuState;
 
 import haxe.Json;
 
@@ -22,7 +22,13 @@ import developer.editors.MasterEditorMenu;
 import options.OptionsState;
 
 import games.backend.WeekData;
-import states.ServerConnectState;
+import states.serverConnectState.ServerConnectState;
+import states.storyMenuState.StoryMenuState;
+import states.freeplayState.FreeplayState;
+import states.modsMenuState.ModsMenuState;
+import states.achievementsMenuState.AchievementsMenuState;
+import states.creditsState.CreditsState;
+import states.titleState.TitleState;
 
 import cpp.Lib;
 
@@ -31,8 +37,8 @@ import cpp.Lib;
 class MainMenuState extends MusicBeatState
 {
 	public static var psychEngineVersion:String = '0.7.3'; // This is also used for Discord RPC
-	public static var novaFlareEngineDataVersion:Float = 2.6;
-	public static var novaFlareEngineVersion:String = '1.2.0-DEV';
+	public static var novaFlareEngineDataVersion:Float = 2.7;
+	public static var novaFlareEngineVersion:String = '1.2.0';
 	public static var novaFlareEngineCommit:String = 
 	    #if commit_sha
             haxe.macro.Compiler.getDefine("commit_sha");
@@ -325,11 +331,7 @@ class MainMenuState extends MusicBeatState
 		#end
 		#end
 
-		#if !mobile
-		FlxG.mouse.visible = true;
-		#else
-		FlxG.mouse.visible = false;
-		#end
+		FlxG.mouse.visible = !ClientPrefs.data.needMobileControl;
 
 		addVirtualPad(MainMenuStateC, A_B_E);
 		virtualPad.cameras = [camHUD];

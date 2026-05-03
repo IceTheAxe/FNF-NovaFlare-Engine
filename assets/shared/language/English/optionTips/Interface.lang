@@ -3,9 +3,9 @@ User Interface => User Interface
 
 UserInterface => UserInterface
 
-CustomFade => Custom fade type
-CustomFadeText => Custom fade text visible
-CustomFadeSound => Custom fade sound volume
+customFade => Custom fade type
+customFadeText => Custom fade text visible
+customFadeSound => Custom fade sound volume
 audioDisplayQuality => The analytical quality of music data
 audioDisplayUpdate => The reaction interval of the music analyzer
 freeplayOld => Use psych freeplay

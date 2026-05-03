@@ -1,5 +1,4 @@
-// ServerConnectState.hx
-package states;
+package states.serverConnectState;
 
 import flixel.FlxG;
 import flixel.FlxState;

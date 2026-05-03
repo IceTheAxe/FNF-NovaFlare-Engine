@@ -1,9 +1,9 @@
-﻿package substates;
+package substates;
 
 import flixel.FlxObject;
 import flixel.FlxSubState;
 
-import states.StoryMenuState;
+import states.storyMenuState.StoryMenuState;
 import states.freeplayState.FreeplayState;
 
 import games.backend.WeekData;

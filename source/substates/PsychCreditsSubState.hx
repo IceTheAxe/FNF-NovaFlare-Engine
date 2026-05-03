@@ -26,6 +26,7 @@ class PsychCreditsSubState extends MusicBeatSubstate
 
 	override function create()
 	{
+		FlxG.mouse.visible = !ClientPrefs.data.needMobileControl;
 		#if DISCORD_ALLOWED
 		// Updating Discord Rich Presence
 		DiscordClient.changePresence("In the Menus", null);

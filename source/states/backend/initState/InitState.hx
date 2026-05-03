@@ -1,4 +1,4 @@
-﻿package states.backend;
+package states.backend.initState;
 
 import sys.thread.Thread;
 
@@ -13,11 +13,12 @@ import openfl.events.KeyboardEvent;
 
 import flixel.input.gamepad.FlxGamepad;
 
-import states.StoryMenuState;
-import states.backend.OutdatedState;
-import states.MainMenuState;
+import states.storyMenuState.StoryMenuState;
+import states.backend.flashingState.FlashingState;
+import states.backend.outdatedState.OutdatedState;
+import states.mainMenuState.MainMenuState;
 import states.freeplayState.FreeplayState;
-import states.TitleState;
+import states.titleState.TitleState;
 
 import scripts.init.InitScriptData;
 
@@ -36,7 +37,7 @@ import hxvlc.flixel.FlxVideoSprite;
 
 #if android
 import general.backend.device.AppData;
-import states.backend.PirateState;
+import states.backend.pirateState.PirateState;
 #end
 
 class InitState extends MusicBeatState
@@ -167,13 +168,13 @@ class InitState extends MusicBeatState
         // 检查assets/version.txt存不存在且里面保存的上一个版本号与当前的版本号一不一致，如果不一致或不存在，强制启动copy。
         if (!FileSystem.exists(Paths.getSharedPath('version.txt')))
         {
-            sys.io.File.saveContent(Paths.getSharedPath('version.txt'), 'now version: ' + Std.string(states.MainMenuState.novaFlareEngineVersion) + '\n' + 'commit: ' + Std.string(states.MainMenuState.novaFlareEngineCommit));
+            sys.io.File.saveContent(Paths.getSharedPath('version.txt'), 'now version: ' + Std.string(states.mainMenuState.MainMenuState.novaFlareEngineVersion) + '\n' + 'commit: ' + Std.string(states.mainMenuState.MainMenuState.novaFlareEngineCommit));
             FlxG.switchState(new CopyState(true));
             return;
         }
         else
         {
-            var expectedContent = 'now version: ' + Std.string(states.MainMenuState.novaFlareEngineVersion) + '\n' + 'commit: ' + Std.string(states.MainMenuState.novaFlareEngineCommit);
+            var expectedContent = 'now version: ' + Std.string(states.mainMenuState.MainMenuState.novaFlareEngineVersion) + '\n' + 'commit: ' + Std.string(states.mainMenuState.MainMenuState.novaFlareEngineCommit);
             var actualContent = sys.io.File.getContent(Paths.getSharedPath('version.txt'));
             
             if (actualContent != expectedContent)
@@ -396,4 +397,3 @@ class InitState extends MusicBeatState
 		}
 	}
 }
-

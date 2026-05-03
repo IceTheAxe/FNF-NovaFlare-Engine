@@ -1,4 +1,4 @@
-﻿package substates;
+package substates;
 
 /*
 	ResultsScreen made by NF|beihu (北狐丶逐梦)
@@ -29,7 +29,7 @@ import general.objects.state.ResultShape;
 
 import states.freeplayState.FreeplayState;
 import states.freeplayState.shader.BlurFilter;
-import states.MainMenuState;
+import states.mainMenuState.MainMenuState;
 
 import games.backend.Highscore;
 import games.backend.diffCalc.DiffRating;
@@ -325,11 +325,7 @@ class ResultsScreen extends MusicBeatSubstate
 
 		startTween();
 
-		#if !mobile
-		FlxG.mouse.visible = true;
-		#else
-		FlxG.mouse.visible = false;
-		#end
+		FlxG.mouse.visible = !ClientPrefs.data.needMobileControl;
 	}
 
 	var closeCheck:Bool = false;
@@ -859,7 +855,7 @@ class ResultsScreen extends MusicBeatSubstate
 
 		isTransIn = TransIn;
 
-		if (ClientPrefs.data.CustomFade == 'Move')
+		if (ClientPrefs.data.customFade == 'Move')
 		{
 			loadRight = new FlxSprite(isTransIn ? 0 : 1280, 0).loadGraphic(Paths.image('menuExtend/CustomFadeTransition/loadingR'));
 			loadRight.scrollFactor.set();
@@ -891,8 +887,8 @@ class ResultsScreen extends MusicBeatSubstate
 			add(EventText);
 			EventText.cameras = [camOther];
 
-			FlxG.sound.play(Paths.sound('loading_close_move'), ClientPrefs.data.CustomFadeSound);
-			if (!ClientPrefs.data.CustomFadeText)
+			FlxG.sound.play(Paths.sound('loading_close_move'), ClientPrefs.data.customFadeSound);
+			if (!ClientPrefs.data.customFadeText)
 			{
 				EventText.text = '';
 				WaterMark.text = '';
@@ -971,8 +967,8 @@ class ResultsScreen extends MusicBeatSubstate
 			add(EventText);
 			EventText.cameras = [camOther];
 
-			FlxG.sound.play(Paths.sound('loading_close_alpha'), ClientPrefs.data.CustomFadeSound);
-			if (!ClientPrefs.data.CustomFadeText)
+			FlxG.sound.play(Paths.sound('loading_close_alpha'), ClientPrefs.data.customFadeSound);
+			if (!ClientPrefs.data.customFadeText)
 			{
 				EventText.text = '';
 				WaterMark.text = '';

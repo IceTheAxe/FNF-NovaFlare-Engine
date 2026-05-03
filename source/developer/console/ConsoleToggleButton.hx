@@ -1,6 +1,8 @@
 package developer.console;
 
+import general.backend.ClientPrefs;
 import openfl.display.Sprite;
+import openfl.events.Event;
 import openfl.events.MouseEvent;
 import openfl.text.TextField;
 import openfl.text.TextFormat;
@@ -19,6 +21,7 @@ class ConsoleToggleButton extends Sprite {
     public function new() {
         super();
         createButton();
+        openfl.Lib.current.stage.addEventListener(Event.RESIZE, onResize);
     }
     
     private function createButton():Void {
@@ -35,8 +38,7 @@ class ConsoleToggleButton extends Sprite {
         label.selectable = false;
         addChild(label);
         
-        x = openfl.Lib.current.stage.stageWidth - 90;
-        y = 20;
+        updatePosition();
         
         addEventListener(MouseEvent.CLICK, function(e) {
             Console.show();
@@ -44,7 +46,18 @@ class ConsoleToggleButton extends Sprite {
         });
     }
     
+    private function updatePosition():Void {
+        x = openfl.Lib.current.stage.stageWidth - 90;
+        y = 20;
+    }
+    
+    private function onResize(e:Event):Void {
+        updatePosition();
+    }
+    
     public static function show():Void {
+        if (!ClientPrefs.data.developerMode)
+            return;
         instance.visible = true;
     }
     

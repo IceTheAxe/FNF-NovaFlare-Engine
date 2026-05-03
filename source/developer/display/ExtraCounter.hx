@@ -33,7 +33,7 @@ class ExtraCounter extends Sprite
 			addChild(label);
 		}
 
-		graphMonitor = new GraphMonitor(0, 80, 350, 200);
+		graphMonitor = new GraphMonitor(0, 0, 350, 200);
 		graphMonitor.setBackground(FlxColor.fromRGB(100, 100, 100, 255), 0.3);
 		graphMonitor.maxHistory = 40;
 
@@ -49,7 +49,7 @@ class ExtraCounter extends Sprite
         graphMonitor.addMonitor("Update Frame", "TPS", function() return DataCalc.updateFPS, 0, function() return ClientPrefs.data.framerate, 0xFFFF005D, 0xFF00FF91);
         graphMonitor.addMonitor("Draw Frame", "FPS", function() return DataCalc.drawFPS, 0, function() return (ClientPrefs.data.lockRender ? ClientPrefs.data.drawFramerate : ClientPrefs.data.framerate), 0xFFFF005D, 0xFF00FF91);
 		graphMonitor.addMonitor("App Mem", "MB", function() return DataCalc.appMem, 0, 4096, 0xFF00FF91, 0xFFFF005D);
-		graphMonitor.addMonitor("GC Mem", "MB", function() return DataCalc.gcMem, 0, 10, 0xFF00FF91, 0xFFFF005D);
+		graphMonitor.addMonitor("GC Mem", "MB", function() return DataCalc.gcMem, 0, 1024, 0xFF00FF91, 0xFFFF005D);
 		addChild(graphMonitor);
 
 		typeName.x -= 10;
@@ -58,6 +58,12 @@ class ExtraCounter extends Sprite
 
 	public function update():Void
 	{
+		var devMode = ClientPrefs.data.developerMode;
+		bgSprite.visible = !devMode;
+		typeName.visible = !devMode;
+		typeData.visible = !devMode;
+		graphMonitor.visible = devMode;
+
 		for (label in [this.typeData, this.typeName])
 		{
 			var maxValue:Float = ClientPrefs.data.lockRender ? ClientPrefs.data.drawFramerate : ClientPrefs.data.framerate;

@@ -1,4 +1,4 @@
-﻿package states;
+package states.titleState;
 
 import haxe.Json;
 
@@ -13,10 +13,12 @@ import flixel.input.gamepad.FlxGamepad;
 
 import general.shaders.ColorSwap;
 
-import states.StoryMenuState;
-import states.MainMenuState;
-import states.backend.FlashingState;
-import states.backend.OutdatedState;
+import states.storyMenuState.StoryMenuState;
+import states.mainMenuState.MainMenuState;
+import states.backend.flashingState.FlashingState;
+import states.backend.outdatedState.OutdatedState;
+import states.backend.scaleSimulationState.ScaleSimulationState;
+import states.freeplayState.FreeplayState;
 
 import games.backend.WeekData;
 import games.backend.Highscore;
@@ -92,7 +94,7 @@ class TitleState extends MusicBeatState
 		//ClientPrefs.loadPrefs();
 
 		if (ExtraKeysHandler.instance.data.scales == null)
-			MusicBeatState.switchState(new states.backend.ScaleSimulationState());
+			MusicBeatState.switchState(new ScaleSimulationState());
 
 		Highscore.load();
 
@@ -661,4 +663,3 @@ class TitleState extends MusicBeatState
 	    return Std.isOfType(value, Float); 
 	}
 }
-

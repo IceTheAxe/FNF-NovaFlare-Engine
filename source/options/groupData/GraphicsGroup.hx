@@ -21,7 +21,7 @@ class GraphicsGroup extends OptionCata
 		var option:Option = new Option(this, 'rainbowFPS', BOOL);
 		addOption(option);
 
-		var option:Option = new Option(this, 'FPSScale', FLOAT, [0, 5, 1]);
+		var option:Option = new Option(this, 'fpsScale', FLOAT, [0, 5, 1]);
 		option.onChange = () -> changeWatermark();
 		addOption(option);
 		
@@ -34,7 +34,7 @@ class GraphicsGroup extends OptionCata
 		option.onChange = () -> changeWatermark();
 		addOption(option);
 
-		var option:Option = new Option(this, 'WatermarkScale', FLOAT, [0, 5, 1]);
+		var option:Option = new Option(this, 'watermarkScale', FLOAT, [0, 5, 1]);
 		option.onChange = () -> changeWatermark();
 		addOption(option);
 
@@ -43,12 +43,12 @@ class GraphicsGroup extends OptionCata
 
 	function changeWatermark() {
 		Main.fpsVar.visible = ClientPrefs.data.showFPS;
-		Main.fpsVar.scaleX = Main.fpsVar.scaleY = ClientPrefs.data.FPSScale;
+		Main.fpsVar.scaleX = Main.fpsVar.scaleY = ClientPrefs.data.fpsScale;
 		//Main.fpsVar.change();
 		if (Main.watermark != null)
 		{
-			Main.watermark.scaleX = Main.watermark.scaleY = ClientPrefs.data.WatermarkScale;
-			Main.watermark.y += (1 - ClientPrefs.data.WatermarkScale) * Main.watermark.bitmapData.height;
+			Main.watermark.scaleX = Main.watermark.scaleY = ClientPrefs.data.watermarkScale;
+			Main.watermark.y += (1 - ClientPrefs.data.watermarkScale) * Main.watermark.bitmapData.height;
 			Main.watermark.visible = ClientPrefs.data.showWatermark;
 		}
 	}

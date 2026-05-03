@@ -71,7 +71,7 @@ class Console extends Sprite {
     
     public function new() {
         super();
-        scaleX = scaleY = ClientPrefs.data.DevConScale;
+        scaleX = scaleY = ClientPrefs.data.devConScale;
         createConsoleUI();
     }
     
@@ -410,7 +410,7 @@ class Console extends Sprite {
     
     public static function show():Void {
         consoleInstance.visible = true;
-        consoleInstance.updateScale(ClientPrefs.data.DevConScale);
+        consoleInstance.updateScale(ClientPrefs.data.devConScale);
         ConsoleToggleButton.hide();
     }
     

@@ -1,4 +1,4 @@
-﻿package scripts.init;
+package scripts.init;
 
 import crowplexus.iris.Iris;
 
@@ -111,19 +111,19 @@ class InitScriptData {
         Iris.proxyImports.set("shaders.WiggleEffect", general.shaders.WiggleEffect);
 
         //states
-        Iris.proxyImports.set("states.AchievementsMenuState", states.AchievementsMenuState);
-        Iris.proxyImports.set("states.CreditsState", states.CreditsState);
-        Iris.proxyImports.set("states.FlashingState", states.backend.FlashingState);
+        Iris.proxyImports.set("states.AchievementsMenuState", states.achievementsMenuState.AchievementsMenuState);
+        Iris.proxyImports.set("states.CreditsState", states.creditsState.CreditsState);
+        Iris.proxyImports.set("states.FlashingState", states.backend.flashingState.FlashingState);
 
         //Iris.proxyImports.set("states.FreeplayState", states.freeplayState.FreeplayState); 为啥要加注释啊 ——dmmchh
 
         Iris.proxyImports.set("states.LoadingState", states.loadingState.LoadingState);
-        Iris.proxyImports.set("states.MainMenuState", states.MainMenuState);
-        Iris.proxyImports.set("states.ModsMenuState", states.ModsMenuState);
-        Iris.proxyImports.set("states.OutdatedState", states.backend.OutdatedState);
-        Iris.proxyImports.set("states.ScaleSimulationState", states.backend.ScaleSimulationState);
-        Iris.proxyImports.set("states.StoryMenuState", states.StoryMenuState);
-        Iris.proxyImports.set("states.TitleState", states.TitleState);
+        Iris.proxyImports.set("states.MainMenuState", states.mainMenuState.MainMenuState);
+        Iris.proxyImports.set("states.ModsMenuState", states.modsMenuState.ModsMenuState);
+        Iris.proxyImports.set("states.OutdatedState", states.backend.outdatedState.OutdatedState);
+        Iris.proxyImports.set("states.ScaleSimulationState", states.backend.scaleSimulationState.ScaleSimulationState);
+        Iris.proxyImports.set("states.StoryMenuState", states.storyMenuState.StoryMenuState);
+        Iris.proxyImports.set("states.TitleState", states.titleState.TitleState);
         Iris.proxyImports.set("states.PlayState", games.PlayState);
 
         //states.editors
@@ -234,16 +234,16 @@ class InitScriptData {
         Iris.proxyImports.set("WiggleEffect", general.shaders.WiggleEffect);
 
         //states
-        Iris.proxyImports.set("AchievementsMenuState", states.AchievementsMenuState);
-        Iris.proxyImports.set("CreditsState", states.CreditsState);
-        Iris.proxyImports.set("FlashingState", states.backend.FlashingState);
+        Iris.proxyImports.set("AchievementsMenuState", states.achievementsMenuState.AchievementsMenuState);
+        Iris.proxyImports.set("CreditsState", states.creditsState.CreditsState);
+        Iris.proxyImports.set("FlashingState", states.backend.flashingState.FlashingState);
         Iris.proxyImports.set("FreeplayState", states.freeplayState.FreeplayState);
         Iris.proxyImports.set("LoadingState", states.loadingState.LoadingState);
-        Iris.proxyImports.set("MainMenuState", states.MainMenuState);
-        Iris.proxyImports.set("ModsMenuState", states.ModsMenuState);
-        Iris.proxyImports.set("OutdatedState", states.backend.OutdatedState);
-        Iris.proxyImports.set("StoryMenuState", states.StoryMenuState);
-        Iris.proxyImports.set("TitleState", states.TitleState);
+        Iris.proxyImports.set("MainMenuState", states.mainMenuState.MainMenuState);
+        Iris.proxyImports.set("ModsMenuState", states.modsMenuState.ModsMenuState);
+        Iris.proxyImports.set("OutdatedState", states.backend.outdatedState.OutdatedState);
+        Iris.proxyImports.set("StoryMenuState", states.storyMenuState.StoryMenuState);
+        Iris.proxyImports.set("TitleState", states.titleState.TitleState);
         Iris.proxyImports.set("PlayState", games.PlayState);
 
         //states.editors

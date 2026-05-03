@@ -3,7 +3,7 @@ package substates;
 import flixel.FlxSubState;
 
 import states.freeplayState.FreeplayState;
-import states.MainMenuState;
+import states.mainMenuState.MainMenuState;
 
 class ErrorSubState extends MusicBeatSubstate
 {
@@ -23,7 +23,7 @@ class ErrorSubState extends MusicBeatSubstate
 	{
 		super();
 		error = stack + "\n\nError message saved";
-		FlxG.mouse.visible = true;
+		FlxG.mouse.visible = !ClientPrefs.data.needMobileControl;
 	}
 
 	override function create()
@@ -107,9 +107,7 @@ class ErrorSubState extends MusicBeatSubstate
 	{
 		bg = FlxDestroyUtil.destroy(bg);
 		errorText = FlxDestroyUtil.destroy(errorText);
-		#if mobile
 		FlxG.mouse.visible = false;
-		#end
 		super.destroy();
 	}
 }

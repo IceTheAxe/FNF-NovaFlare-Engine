@@ -6,7 +6,7 @@ import flixel.util.FlxGradient;
 import flixel.FlxSubState;
 import flixel.FlxObject;
 
-import states.MainMenuState;
+import states.mainMenuState.MainMenuState;
 
 class CustomFadeTransition extends FlxSubState
 {
@@ -47,7 +47,7 @@ class CustomFadeTransition extends FlxSubState
 
 		cameras = [FlxG.cameras.list[FlxG.cameras.list.length - 1]];
 
-		if (ClientPrefs.data.CustomFade == 'Move')
+		if (ClientPrefs.data.customFade == 'Move')
 		{
 			loadRight = new FlxSprite(isTransIn ? 0 : 1280, 0).loadGraphic(Paths.image('menuExtend/CustomFadeTransition/loadingR'));
 			loadRight.scrollFactor.set();
@@ -79,9 +79,9 @@ class CustomFadeTransition extends FlxSubState
 			{
 				try
 				{
-					FlxG.sound.play(Paths.sound('loading_close_move'), ClientPrefs.data.CustomFadeSound);
+					FlxG.sound.play(Paths.sound('loading_close_move'), ClientPrefs.data.customFadeSound);
 				}
-				if (!ClientPrefs.data.CustomFadeText)
+				if (!ClientPrefs.data.customFadeText)
 				{
 					EventText.text = '';
 					WaterMark.text = '';
@@ -134,10 +134,10 @@ class CustomFadeTransition extends FlxSubState
 			{
 				try
 				{
-					FlxG.sound.play(Paths.sound('loading_open_move'), ClientPrefs.data.CustomFadeSound);
+					FlxG.sound.play(Paths.sound('loading_open_move'), ClientPrefs.data.customFadeSound);
 				}
 				EventText.text = 'COMPLETED !';
-				if (!ClientPrefs.data.CustomFadeText)
+				if (!ClientPrefs.data.customFadeText)
 				{
 					EventText.text = '';
 					WaterMark.text = '';
@@ -200,9 +200,9 @@ class CustomFadeTransition extends FlxSubState
 			{
 				try
 				{
-					FlxG.sound.play(Paths.sound('loading_close_alpha'), ClientPrefs.data.CustomFadeSound);
+					FlxG.sound.play(Paths.sound('loading_close_alpha'), ClientPrefs.data.customFadeSound);
 				}
-				if (!ClientPrefs.data.CustomFadeText)
+				if (!ClientPrefs.data.customFadeText)
 				{
 					EventText.text = '';
 					WaterMark.text = '';
@@ -247,10 +247,10 @@ class CustomFadeTransition extends FlxSubState
 			{
 				try
 				{
-					FlxG.sound.play(Paths.sound('loading_open_alpha'), ClientPrefs.data.CustomFadeSound);
+					FlxG.sound.play(Paths.sound('loading_open_alpha'), ClientPrefs.data.customFadeSound);
 				}
 				EventText.text = 'COMPLETED !';
-				if (!ClientPrefs.data.CustomFadeText)
+				if (!ClientPrefs.data.customFadeText)
 				{
 					EventText.text = '';
 					WaterMark.text = '';

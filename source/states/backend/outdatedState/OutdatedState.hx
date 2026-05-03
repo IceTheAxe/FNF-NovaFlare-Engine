@@ -1,6 +1,7 @@
-package states.backend;
+package states.backend.outdatedState;
 
-import states.MainMenuState;
+import states.mainMenuState.MainMenuState;
+import states.titleState.TitleState;
 
 class OutdatedState extends MusicBeatState
 {

@@ -1,4 +1,4 @@
-﻿package states.freeplayState;
+package states.freeplayState;
 
 import haxe.Json;
 import haxe.ds.ArraySort;
@@ -11,7 +11,9 @@ import developer.editors.ChartingState;
 
 import options.OptionsState;
 
-import states.MainMenuState;
+import states.mainMenuState.MainMenuState;
+import states.storyMenuState.StoryMenuState;
+import states.modsMenuState.ModsMenuState;
 import states.freeplayState.shader.BlurFilter;
 import states.freeplayState.backend.*;
 import states.freeplayState.objects.detail.*;
@@ -115,9 +117,7 @@ class FreeplayState extends MusicBeatState
 
 		instance = this;
 
-		#if !mobile
-		FlxG.mouse.visible = true;
-		#end
+		FlxG.mouse.visible = !ClientPrefs.data.needMobileControl;
 
 		mouseEvent = new MouseEvent();
 		add(mouseEvent);

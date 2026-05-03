@@ -1,4 +1,4 @@
-package states.backend;
+package states.backend.passState;
 
 import server.online.LoginClient;
 
@@ -6,6 +6,8 @@ import flixel.FlxGame;
 import flixel.ui.FlxButton;
 import flixel.addons.ui.FlxInputText;
 import flixel.util.FlxSave;
+
+import states.backend.initState.InitState;
 
 class PassState extends FlxState {
     private var username:FlxInputText;

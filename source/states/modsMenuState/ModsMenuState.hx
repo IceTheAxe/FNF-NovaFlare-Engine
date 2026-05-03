@@ -1,4 +1,4 @@
-﻿package states;
+package states.modsMenuState;
 
 import haxe.Json;
 
@@ -16,6 +16,10 @@ import general.objects.AttachedSprite;
 import options.base.ModSettingsSubState;
 
 import games.backend.WeekData;
+
+import states.mainMenuState.MainMenuState;
+import states.titleState.TitleState;
+import states.freeplayState.FreeplayState;
 
 class ModsMenuState extends MusicBeatState
 {
@@ -349,7 +353,7 @@ class ModsMenuState extends MusicBeatState
 					MusicBeatState.switchState(new MainMenuState());
 				else
 				{
-					MusicBeatState.switchState(new states.freeplayState.FreeplayState());
+					MusicBeatState.switchState(new FreeplayState());
 				}
 				isFreePlay = false;
 			}
@@ -414,7 +418,7 @@ class ModsMenuState extends MusicBeatState
 			return;
 		}
 
-		if (Math.abs(FlxG.mouse.deltaX) > 10 || Math.abs(FlxG.mouse.deltaY) > 10)
+		if (!ClientPrefs.data.needMobileControl && (Math.abs(FlxG.mouse.deltaX) > 10 || Math.abs(FlxG.mouse.deltaY) > 10))
 		{
 			controls.controllerMode = false;
 			if (!FlxG.mouse.visible)

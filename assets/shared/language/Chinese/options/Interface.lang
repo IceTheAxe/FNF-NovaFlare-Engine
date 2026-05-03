@@ -1,8 +1,8 @@
 User Interface => 用户界面
 
-CustomFade => 过场动画类型
-CustomFadeText => 过场文本可见
-CustomFadeSound => 过场音量
+customFade => 过场动画类型
+customFadeText => 过场文本可见
+customFadeSound => 过场音量
 audioDisplayQuality => 音乐解析质量
 audioDisplayUpdate => 解析反应间隔
 freeplayOld => 旧版自由模式

@@ -1,10 +1,12 @@
-package states;
+package states.creditsState;
 
 import general.objects.AttachedSprite;
 import general.objects.state.CreditsShape;
 
 import substates.CreditsSubState;
 import substates.PsychCreditsSubState;
+
+import states.mainMenuState.MainMenuState;
 
 class CreditsState extends MusicBeatState
 {
@@ -382,6 +384,12 @@ class CreditsState extends MusicBeatState
 		if (FlxG.sound.music.volume < 0.7)
 		{
 			FlxG.sound.music.volume += 0.5 * FlxG.elapsed;
+		}
+
+		if (controls.BACK && !pressCheck)
+		{
+			FlxG.sound.play(Paths.sound('cancelMenu'));
+			backMenu();
 		}
 
 		mouseMove();

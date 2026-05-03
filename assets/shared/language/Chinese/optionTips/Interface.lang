@@ -3,9 +3,9 @@ User Interface => 用户界面
 
 UserInterface => 用户界面设置
 
-CustomFade => 自定义过场动画类型
-CustomFadeText => 自定义过场文本可见
-CustomFadeSound => 自定义过场音量
+customFade => 自定义过场动画类型
+customFadeText => 自定义过场文本可见
+customFadeSound => 自定义过场音量
 audioDisplayQuality => 对音乐解析的质量，数据越高运算需求越高
 audioDisplayUpdate => 音乐解析器的反应间隔时间
 freeplayOld => 使用Psych的FreePlay界面

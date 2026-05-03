@@ -1,4 +1,4 @@
-package states.backend;
+package states.backend.pirateState;
 
 import lime.app.Application;
 

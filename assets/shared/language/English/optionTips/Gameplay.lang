@@ -13,8 +13,8 @@ Opponent => Opponent
 playOpponent => Playing as opponent
 opponentCodeFix => GoodNoteHit and opponentNoteHit function exchange effort
 botOpponentFix => Script will thought you open the bot
-HealthDrainOPPO => Health Drain on opponent mode
-HealthDrainOPPOMult => Health drain multiplier on opponent mode
+healthDrainOPPO => Health Drain on opponent mode
+healthDrainOPPOMult => Health drain multiplier on opponent mode
 
 
 judgement => Judgement

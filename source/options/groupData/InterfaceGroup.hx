@@ -10,13 +10,13 @@ class InterfaceGroup extends OptionCata
 		addOption(option);
 
 		var CustomFadeArray:Array<String> = ['Move', 'Alpha'];
-		var option:Option = new Option(this, 'CustomFade', STRING, CustomFadeArray);
+		var option:Option = new Option(this, 'customFade', STRING, CustomFadeArray);
 		addOption(option);
 
-		var option:Option = new Option(this, 'CustomFadeText', BOOL);
+		var option:Option = new Option(this, 'customFadeText', BOOL);
 		addOption(option);
 
-		var option:Option = new Option(this, 'CustomFadeSound', FLOAT, [0, 1, 1]);
+		var option:Option = new Option(this, 'customFadeSound', FLOAT, [0, 1, 1]);
 		addOption(option);
 		
 

@@ -1,4 +1,4 @@
-﻿package;
+package;
 
 import general.backend.ClientPrefs;
 import haxe.io.Path;
@@ -25,13 +25,13 @@ import developer.console.ConsoleToggleButton;
 
 import general.objects.screen.MouseEffect;
 
-import states.TitleState;
-import states.backend.InitState;
-import states.backend.PassState;
+import states.titleState.TitleState;
+import states.backend.initState.InitState;
+import states.backend.passState.PassState;
 
 #if android
 import general.backend.device.AppData;
-import states.backend.PirateState;
+import states.backend.pirateState.PirateState;
 #end
 
 #if desktop
@@ -185,8 +185,8 @@ class Main extends Sprite
 		}
 		if (watermark != null)
 		{
-			watermark.scaleX = watermark.scaleY = ClientPrefs.data.WatermarkScale;
-			watermark.y += (1 - ClientPrefs.data.WatermarkScale) * watermark.bitmapData.height;
+			watermark.scaleX = watermark.scaleY = ClientPrefs.data.watermarkScale;
+			watermark.y += (1 - ClientPrefs.data.watermarkScale) * watermark.bitmapData.height;
 			watermark.visible = ClientPrefs.data.showWatermark;
 		}
 
@@ -217,7 +217,7 @@ class Main extends Sprite
 		#end
 	}
 
-	@:allow(states.backend.InitState)
+	@:allow(states.backend.initState.InitState)
 	static function resetSpriteCache(sprite:Sprite):Void
 	{
 		@:privateAccess {
@@ -226,7 +226,7 @@ class Main extends Sprite
 		}
 	}
 
-	@:allow(states.backend.InitState)
+	@:allow(states.backend.initState.InitState)
 	private static function initScriptModules() {
 		#if (MODS_ALLOWED && HSCRIPT_ALLOWED)
 		var paths:Array<String> = [];
@@ -269,7 +269,7 @@ class Main extends Sprite
 		#end
 	}
 
-	@:allow(states.backend.InitState)
+	@:allow(states.backend.initState.InitState)
 	static function toggleFullScreen(event:KeyboardEvent)
 	{
 		if (Controls.instance.justReleased('fullscreen'))

@@ -1,6 +1,6 @@
 package options;
 
-import states.MainMenuState;
+import states.mainMenuState.MainMenuState;
 import states.freeplayState.FreeplayState;
 
 import options.base.NewControlsSubState;
@@ -52,6 +52,8 @@ class OptionsState extends MusicBeatState
 			Paths.clearStoredMemory();
 			Paths.clearUnusedMemory();
 		}
+
+		FlxG.mouse.visible = !ClientPrefs.data.needMobileControl;
 		
 		persistentUpdate = persistentDraw = true;
 		instance = this;
@@ -468,12 +470,12 @@ class OptionsState extends MusicBeatState
 			FlxG.sound.play(Paths.sound('cancelMenu'));
 			ClientPrefs.saveSettings();
 			Main.fpsVar.visible = ClientPrefs.data.showFPS;
-			Main.fpsVar.scaleX = Main.fpsVar.scaleY = ClientPrefs.data.FPSScale;
+			Main.fpsVar.scaleX = Main.fpsVar.scaleY = ClientPrefs.data.fpsScale;
 			//Main.fpsVar.change();
 			if (Main.watermark != null)
 			{
-				Main.watermark.scaleX = Main.watermark.scaleY = ClientPrefs.data.WatermarkScale;
-				Main.watermark.y += (1 - ClientPrefs.data.WatermarkScale) * Main.watermark.bitmapData.height;
+				Main.watermark.scaleX = Main.watermark.scaleY = ClientPrefs.data.watermarkScale;
+				Main.watermark.y += (1 - ClientPrefs.data.watermarkScale) * Main.watermark.bitmapData.height;
 				Main.watermark.visible = ClientPrefs.data.showWatermark;
 			}
 			switch (stateType)

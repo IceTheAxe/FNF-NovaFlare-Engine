@@ -7,10 +7,10 @@ showFPS => Show FPS
 showExtra => Show Extra Data
 rainbowFPS => Rainbow FPS
 memoryType => Memory Type
-FPSScale => FPS Scale
+fpsScale => FPS Scale
 
 
 Watermark => Watermark
 
 showWatermark => Show Watermark
-WatermarkScale => Watermark Scale
+watermarkScale => Watermark Scale

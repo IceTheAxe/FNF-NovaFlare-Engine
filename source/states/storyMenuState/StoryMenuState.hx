@@ -1,4 +1,4 @@
-﻿package states;
+package states.storyMenuState;
 
 import openfl.utils.Assets;
 
@@ -14,6 +14,9 @@ import substates.ResetScoreSubState;
 import games.backend.WeekData;
 import games.backend.Highscore;
 import games.backend.Song;
+
+import states.mainMenuState.MainMenuState;
+import states.freeplayState.FreeplayState;
 
 class StoryMenuState extends MusicBeatState
 {
@@ -507,4 +510,3 @@ class StoryMenuState extends MusicBeatState
 		#end
 	}
 }
-

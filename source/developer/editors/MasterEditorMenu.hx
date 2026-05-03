@@ -1,6 +1,6 @@
-﻿package developer.editors;
+package developer.editors;
 
-import states.MainMenuState;
+import states.mainMenuState.MainMenuState;
 import states.freeplayState.FreeplayState;
 
 import games.backend.WeekData;

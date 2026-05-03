@@ -3,9 +3,9 @@ User Interface => User Interface
 
 UserInterface => User Interface
 
-CustomFade => Custom Fade
-CustomFadeText => Fade Text Visible
-CustomFadeSound => Fade Sound Volume
+customFade => Custom Fade
+customFadeText => Fade Text Visible
+customFadeSound => Fade Sound Volume
 audioDisplayQuality => Audio Display Quality
 audioDisplayUpdate => Audio Display Update
 freeplayOld => Old Freeplay

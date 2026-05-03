@@ -9,7 +9,7 @@ showComboNum => 显示连击数字
 showRating => 显示评级贴图
 opponentStrums => 显示对手箭头
 judgementCounter => 显示判定计数板
-KeyboardViewer => 显示键盘反馈
+keyboardViewer => 显示键盘反馈
 
 
 TimeBar => 时长条
@@ -43,5 +43,5 @@ scoreZoom => 击打箭头会使分数栏Beat
 
 pauseButton => 在游玩时左上角添加暂停按钮
 
-CompulsionPause => 你可以强制打开暂停菜单
-CompulsionPauseNumber => 按多少次暂停键强行打开暂停菜单
+compulsionPause => 你可以强制打开暂停菜单
+compulsionPauseNumber => 按多少次暂停键强行打开暂停菜单

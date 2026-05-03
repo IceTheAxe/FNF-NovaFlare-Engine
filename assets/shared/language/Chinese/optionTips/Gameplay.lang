@@ -14,8 +14,8 @@ Opponent => 对手设置
 playOpponent => 游玩对手的铺面，相当于你现在是对手
 opponentCodeFix => 把GoodNoteHit和opponentNoteHit函数触发进行交换
 botOpponentFix => 脚本会认为您打开了机器人
-HealthDrainOPPO => 对手也可以通过击中箭头推条
-HealthDrainOPPOMult => 对手的推条系数
+healthDrainOPPO => 对手也可以通过击中箭头推条
+healthDrainOPPOMult => 对手的推条系数
 
 
 judgement => 箭头判定设置

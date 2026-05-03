@@ -22,7 +22,7 @@ import modchart.Manager;
 
 import general.objects.AttachedSprite;
 
-import states.StoryMenuState;
+import states.storyMenuState.StoryMenuState;
 import states.freeplayState.FreeplayState;
 
 import developer.editors.ChartingState;
@@ -767,7 +767,7 @@ class PlayState extends MusicBeatState
 
 		keyboardViewer = new KeyboardViewer(ClientPrefs.data.comboOffset[4], ClientPrefs.data.comboOffset[5]);
 		keyboardViewer.antialiasing = ClientPrefs.data.antialiasing;
-		keyboardViewer.visible = ClientPrefs.data.KeyboardViewer;
+		keyboardViewer.visible = ClientPrefs.data.keyboardViewer;
 		add(keyboardViewer);
 		keyboardViewer.cameras = [camHUD];
 
@@ -2411,9 +2411,9 @@ class PlayState extends MusicBeatState
 					super.update(elapsed);
 					return;
 				}
-				else if (ret == LuaUtils.Function_Stop && ClientPrefs.data.CompulsionPause)
+				else if (ret == LuaUtils.Function_Stop && ClientPrefs.data.compulsionPause)
 				{
-					if (pressPaue < ClientPrefs.data.CompulsionPauseNumber)
+					if (pressPaue < ClientPrefs.data.compulsionPauseNumber)
 					{
 						pressPaue++;
 					}
@@ -4420,12 +4420,12 @@ class PlayState extends MusicBeatState
 			}
 		}
 
-		if (ClientPrefs.data.HealthDrainOPPO)
+		if (ClientPrefs.data.healthDrainOPPO)
 		{
 			if (health > 0.4)
 			{
 				if (!(guitarHeroSustains && note.isSustainNote))
-					health -= note.hitHealth * healthLoss * ClientPrefs.data.HealthDrainOPPOMult;
+					health -= note.hitHealth * healthLoss * ClientPrefs.data.healthDrainOPPOMult;
 				if (health <= 0.4)
 					health = 0.4;
 			}
@@ -4689,12 +4689,12 @@ class PlayState extends MusicBeatState
 			}
 		}
 
-		if (ClientPrefs.data.HealthDrainOPPO)
+		if (ClientPrefs.data.healthDrainOPPO)
 		{
 			if (health > 0.4)
 			{
 				if (!(guitarHeroSustains && note.isSustainNote))
-					health -= note.hitHealth * healthLoss * ClientPrefs.data.HealthDrainOPPOMult;
+					health -= note.hitHealth * healthLoss * ClientPrefs.data.healthDrainOPPOMult;
 				if (health <= 0.4)
 					health = 0.4;
 			}
