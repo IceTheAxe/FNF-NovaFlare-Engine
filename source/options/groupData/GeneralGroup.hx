@@ -13,6 +13,11 @@ class GeneralGroup extends OptionCata
 		var option:Option = new Option(this, 'General', TITLE);
 		addOption(option);
 
+		var langArray:Array<String> = languageArray();
+		var option:Option = new Option(this, 'language', STRING, langArray);
+		addOption(option);
+		option.onChange = onChangeLanguage;
+
 		var option:Option = new Option(this, 'framerate', INT, [24, #if mobile 1000 #else 2000 #end, 'TPS']);
 		addOption(option);
 		option.onChange = onChangeFramerate;
@@ -39,11 +44,6 @@ class GeneralGroup extends OptionCata
 
 		var option:Option = new Option(this, 'gameQuality', INT, [0, 3]);
 		addOption(option);
-
-		var langArray:Array<String> = languageArray();
-		var option:Option = new Option(this, 'language', STRING, langArray);
-		addOption(option);
-		option.onChange = onChangeLanguage;
 
 		var option:Option = new Option(this, 'antialiasing', BOOL);
 		addOption(option);
@@ -87,6 +87,29 @@ class GeneralGroup extends OptionCata
 		var option:Option = new Option(this, 'colorblindMode', STRING, [colorblindFilterArray, colorblindDisplayArray]);
 		addOption(option);
 		option.onChange = onChangeFilter;
+
+		//神秘偏移兄弟我已没招
+		var offsetFix:Float = 20;
+
+		for (option in optionArray) {
+			if (option != optionArray[1] && option != optionArray[0]) {
+				option.x -= offsetFix;
+				option.innerX -= offsetFix;
+			}
+		}
+
+		var offsetFix2:Float = 1035;
+
+		for (option in optionArray) {
+			if (option == optionArray[5] || option == optionArray[7] || option == optionArray[10] || option == optionArray[12]) {
+				option.x -= offsetFix2;
+				option.innerX -= offsetFix2;
+				if (option == optionArray[7])
+				{	
+					option.select.x += offsetFix2;
+				}
+			}
+		}
 
 		changeHeight(0); //初始化真正的height
 	}
@@ -211,5 +234,6 @@ class GeneralGroup extends OptionCata
 	{
 		Language.resetData();
 		OptionsState.instance.changeLanguage();
+		OptionsState.instance.cataGroup[0].optionArray[1].changeLangNation();
 	}
 }

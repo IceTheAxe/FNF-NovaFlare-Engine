@@ -49,6 +49,13 @@ class MaintenanceGroup extends OptionCata
 		var option:Option = new Option(this, 'filesCheckNew', STATE); //copystate
 		option.onChange = function() { changeState(6); };
 		addOption(option);
+
+		#if android
+		var storageFolderArray:Array<String> = ['NovaFlare Engine', 'NovaFlare Engine-1.2'];
+		var option:Option = new Option(this, 'storageFolder', STRING, storageFolderArray);
+		option.onChange = onChangeStorageFolder;
+		addOption(option);
+		#end
 		#end
 
 		changeHeight(0); //初始化真正的height
@@ -63,4 +70,22 @@ class MaintenanceGroup extends OptionCata
 	        Console.consoleInstance.updateScale(ClientPrefs.data.devConScale);
 	    }
 	}
+ 
+
+	#if android
+	function onChangeStorageFolder()
+	{
+		ClientPrefs.saveSettings();
+		
+		// Write the config file for next startup
+		var configFile:String = AndroidEnvironment.getExternalStorageDirectory() + '/.novaflare_storage_config';
+		try {
+			sys.io.File.saveContent(configFile, ClientPrefs.data.storageFolder);
+		} catch (e:Dynamic) {
+			trace('Failed to save storage config: $e');
+		}
+		
+		Sys.exit(0);
+	}
+	#end
 }

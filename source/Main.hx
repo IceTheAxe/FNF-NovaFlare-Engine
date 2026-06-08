@@ -16,6 +16,7 @@ import lime.app.Application;
 
 import flixel.graphics.FlxGraphic;
 import flixel.FlxGame;
+import flixel.util.FlxSave;
 
 import developer.display.FPSViewer;
 import developer.display.Graphics;
@@ -138,10 +139,28 @@ class Main extends Sprite
 
 		#if mobile
 		#if android
-		if (!FileSystem.exists(AndroidEnvironment.getExternalStorageDirectory() + '/.' + Application.current.meta.get('file')))
-			FileSystem.createDirectory(AndroidEnvironment.getExternalStorageDirectory() + '/.' + Application.current.meta.get('file'));
+		var defaultFolder:String = Application.current.meta.get('file');
+		var storageFolder:String = defaultFolder;
+
+		// Read saved storage folder preference from config file
+		var configFile:String = AndroidEnvironment.getExternalStorageDirectory() + '/.novaflare_storage_config';
+		try {
+			if (FileSystem.exists(configFile))
+			{
+				var savedFolder:String = sys.io.File.getContent(configFile).trim();
+				if (savedFolder != '' && savedFolder != null)
+					storageFolder = savedFolder;
+			}
+		} catch (e:Dynamic) {
+			trace('Failed to read storage config: $e');
+		}
+
+		if (!FileSystem.exists(AndroidEnvironment.getExternalStorageDirectory() + '/.' + storageFolder))
+			FileSystem.createDirectory(AndroidEnvironment.getExternalStorageDirectory() + '/.' + storageFolder);
 		#end
-		Sys.setCwd(SUtil.getStorageDirectory());
+		Sys.setCwd(SUtil.getStorageDirectory(
+			#if android EXTERNAL, storageFolder #else EXTERNAL #end
+		));
 		#end
 
 		#if android

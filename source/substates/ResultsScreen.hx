@@ -39,6 +39,9 @@ import games.backend.Replay.StateRecord;
 
 class ResultsScreen extends MusicBeatSubstate
 {
+	static public var isFromFreeplay:Bool = false;
+	static public var freeplayRecord:StateRecord = null;
+
 	var background:FlxSprite;
 
 	// BG
@@ -82,7 +85,7 @@ class ResultsScreen extends MusicBeatSubstate
 	static public var camOther:FlxCamera;
 
 	// camera
-	var game:Dynamic = PlayState.instance;
+	var game:Dynamic;
 
 	var ColorArray:Array<FlxColor> = [
 		0xFFFFFF00, // marvelous
@@ -106,6 +109,22 @@ class ResultsScreen extends MusicBeatSubstate
 	public function new(x:Float, y:Float)
 	{
 		super();
+
+		if (isFromFreeplay && freeplayRecord != null)
+		{
+			game = cast freeplayRecord;
+			var pct:Float = freeplayRecord.ratingPercent * 100;
+			game.ratingName = (pct >= 100) ? 'SS' : (pct >= 95) ? 'S' : (pct >= 90) ? 'A' : (pct >= 80) ? 'B' : (pct >= 70) ? 'C' : 'D';
+			game.nowTime = freeplayRecord.playDate;
+			game.opponent = freeplayRecord.playOpponent;
+			game.NoteTime = freeplayRecord.hitMapTime;
+			game.NoteMs = freeplayRecord.hitMapMs;
+			game.replayExam = null;
+		}
+		else
+		{
+			game = PlayState.instance;
+		}
 
 		camBG = new FlxCamera();
 		camBG.bgColor.alpha = 0;
@@ -184,7 +203,9 @@ class ResultsScreen extends MusicBeatSubstate
 		add(mesTextNumber);
 
 		mesTextAdd('SongName: ' + PlayState.SONG.song + ' - ' + Difficulty.getString());
-		if (!PlayState.replayMode)
+		if (isFromFreeplay)
+			mesTextAdd('Played Time: ' + game.nowTime);
+		else if (!PlayState.replayMode)
 			mesTextAdd('Played Time: ' + Date.now().toString());
 		else
 			mesTextAdd('Played Time: ' + game.nowTime);
@@ -253,7 +274,12 @@ class ResultsScreen extends MusicBeatSubstate
 		opTextAdd('', 2);
 
 		var opponent:String = 'Disable';
-		if (PlayState.replayMode)
+		if (isFromFreeplay)
+		{
+			if (game.opponent)
+				opponent = 'Enable';
+		}
+		else if (PlayState.replayMode)
 		{
 			if (game.opponent)
 				opponent = 'Enable';
@@ -265,7 +291,12 @@ class ResultsScreen extends MusicBeatSubstate
 		}
 		var flipChart:String = 'Disable';
 
-		if (PlayState.replayMode)
+		if (isFromFreeplay)
+		{
+			if (game.flipChart)
+				flipChart = 'Enable';
+		}
+		else if (PlayState.replayMode)
 		{
 			if (game.flipChart)
 				flipChart = 'Enable';
@@ -309,15 +340,22 @@ class ResultsScreen extends MusicBeatSubstate
 
 		//-------------------------
 
-		replayRect = new PressButton(20 + 640, 20 + 300 + 20 + 300 + 20, 190, 60, 'Replay', 0.5, replayFunction);
-		replayRect.alpha = 0;
-		add(replayRect);
+		if (!isFromFreeplay)
+		{
+			replayRect = new PressButton(20 + 640, 20 + 300 + 20 + 300 + 20, 190, 60, 'Replay', 0.5, replayFunction);
+			replayRect.alpha = 0;
+			add(replayRect);
 
-		saveReplayRect = new PressButton(20 + 640 + 190 + 10, 20 + 300 + 20 + 300 + 20, 190, 60, 'Save Rep.', 0.5, saveFunction);
-		saveReplayRect.alpha = 0;
-		add(saveReplayRect);
+			saveReplayRect = new PressButton(20 + 640 + 190 + 10, 20 + 300 + 20 + 300 + 20, 190, 60, 'Save Rep.', 0.5, saveFunction);
+			saveReplayRect.alpha = 0;
+			add(saveReplayRect);
 
-		backRect = new PressButton(20 + 640 + 190 + 10 + 190 + 10, 20 + 300 + 20 + 300 + 20, 190, 60, 'Back', 0.5, backFunction);
+			backRect = new PressButton(20 + 640 + 190 + 10 + 190 + 10, 20 + 300 + 20 + 300 + 20, 190, 60, 'Back', 0.5, backFunction);
+		}
+		else
+		{
+			backRect = new PressButton(20 + 640, 20 + 300 + 20 + 300 + 20, 600, 60, 'Back', 0.5, backFunction);
+		}
 		backRect.alpha = 0;
 		add(backRect);
 
@@ -337,6 +375,13 @@ class ResultsScreen extends MusicBeatSubstate
 
 		if (!closeCheck)
 		{
+			if (isFromFreeplay && FlxG.keys.justPressed.ESCAPE)
+			{
+				isFromFreeplay = false;
+				freeplayRecord = null;
+				close();
+				return;
+			}
 			if (FlxG.keys.justPressed.LEFT)
 			{
 				choose = FlxMath.wrap(choose - 1, 0, 2);
@@ -435,7 +480,18 @@ class ResultsScreen extends MusicBeatSubstate
 			highestCombo: game.highestCombo,
 			songMisses: game.songMisses,
 			hitMapTime: game.NoteTime,
-			hitMapMs: game.NoteMs
+			hitMapMs: game.NoteMs,
+			replayVersion: ClientPrefs.data.replayQuality ? 2 : 1,
+			sickCount: game.ratingsData[0].hits,
+			goodCount: game.ratingsData[1].hits,
+			badCount: game.ratingsData[2].hits,
+			shitCount: game.ratingsData[3].hits,
+			mania: PlayState.SONG.mania,
+			safeFrames: ClientPrefs.data.safeFrames,
+			ratingOffset: ClientPrefs.data.ratingOffset,
+			noteOffset: ClientPrefs.data.noteOffset,
+			botPlay: ClientPrefs.getGameplaySetting('botplay', 'bool'),
+			gameplaySettingsJson: haxe.Json.stringify(ClientPrefs.data.gameplaySettings)
 		};
 		game.replayExam.savePlayRecord(record);
 	}
@@ -446,6 +502,13 @@ class ResultsScreen extends MusicBeatSubstate
 	{
 		if (closeCheck)
 			return;
+		if (isFromFreeplay)
+		{
+			isFromFreeplay = false;
+			freeplayRecord = null;
+			close();
+			return;
+		}
 		if (getReadyBack)
 		{
 			NewCustomFadeTransition(false);
@@ -782,8 +845,11 @@ class ResultsScreen extends MusicBeatSubstate
 		new FlxTimer().start(1, function(tmr:FlxTimer)
 		{
 			FlxTween.tween(backRect, {alpha: 1}, 0.5);
-			FlxTween.tween(saveReplayRect, {alpha: 1}, 0.5);
-			FlxTween.tween(replayRect, {alpha: 1}, 0.5);
+			if (!isFromFreeplay)
+			{
+				FlxTween.tween(saveReplayRect, {alpha: 1}, 0.5);
+				FlxTween.tween(replayRect, {alpha: 1}, 0.5);
+			}
 		});
 	}
 
