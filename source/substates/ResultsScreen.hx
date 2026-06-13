@@ -36,6 +36,7 @@ import games.backend.diffCalc.DiffRating;
 import games.backend.Song;
 import games.backend.Replay;
 import games.backend.Replay.StateRecord;
+import states.loadingState.LoadingState;
 
 class ResultsScreen extends MusicBeatSubstate
 {
@@ -413,9 +414,12 @@ class ResultsScreen extends MusicBeatSubstate
 		if (getReadyReplay)
 		{
 			saveReplayData();
-			NewCustomFadeTransition(true);
 			PlayState.replayMode = true;
+			PlayState.isStoryMode = false;
 			closeCheck = true;
+			FlxTransitionableState.skipNextTransIn = true;
+			FlxTransitionableState.skipNextTransOut = true;
+			LoadingState.loadAndSwitchState(new PlayState());
 		}
 		else
 		{

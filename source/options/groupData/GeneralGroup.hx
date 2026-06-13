@@ -13,11 +13,6 @@ class GeneralGroup extends OptionCata
 		var option:Option = new Option(this, 'General', TITLE);
 		addOption(option);
 
-		var langArray:Array<String> = languageArray();
-		var option:Option = new Option(this, 'language', STRING, langArray);
-		addOption(option);
-		option.onChange = onChangeLanguage;
-
 		var option:Option = new Option(this, 'framerate', INT, [24, #if mobile 1000 #else 2000 #end, 'TPS']);
 		addOption(option);
 		option.onChange = onChangeFramerate;
@@ -88,30 +83,7 @@ class GeneralGroup extends OptionCata
 		addOption(option);
 		option.onChange = onChangeFilter;
 
-		//神秘偏移兄弟我已没招
-		var offsetFix:Float = 20;
-
-		for (option in optionArray) {
-			if (option != optionArray[1] && option != optionArray[0]) {
-				option.x -= offsetFix;
-				option.innerX -= offsetFix;
-			}
-		}
-
-		var offsetFix2:Float = 1035;
-
-		for (option in optionArray) {
-			if (option == optionArray[5] || option == optionArray[7] || option == optionArray[10] || option == optionArray[12]) {
-				option.x -= offsetFix2;
-				option.innerX -= offsetFix2;
-				if (option == optionArray[7])
-				{	
-					option.select.x += offsetFix2;
-				}
-			}
-		}
-
-		changeHeight(0); //初始化真正的height
+		changeHeight(0);
 	}
 
 	///////////////////////////////////////////////////////////////////////////
@@ -123,7 +95,7 @@ class GeneralGroup extends OptionCata
 
 		var data:Array<Float> = [640 * 360, 854 * 480, 960 * 540, 1280 * 720, 1366 * 768, 1600 * 900, 1920 * 1080, 2560 * 1440, 2560 * 1600, 3200 * 1800, 3840 * 2160];
 		var displayData:Array<String> = ["360P", "480P", "540P", "720P", "768P", "900P", "1080P", "1440P (2K)", "1600P", "1800P", "2160P (4K)"];
-		
+
 		for (i in 0...data.length)
 		{
 			if (maxReso > Math.floor(data[i]))
@@ -136,24 +108,6 @@ class GeneralGroup extends OptionCata
 		}
 
 		return [displayOutput, displayOutput];
-	}
-
-	function languageArray():Array<String> 
-	{
-		var output:Array<String> = [];
-		var contents:Array<String> = FileSystem.readDirectory(Paths.getPath('language'));
-		for (item in contents)
-		{
-			if (item == "JustSay")
-				continue; // JustSay不能被读取为语言文件
-			var itemPath = Paths.getPath('language') + '/' + item;
-			if (FileSystem.isDirectory(itemPath))
-			{
-				output.push(item);
-			}
-		}
-		Language.check();
-		return output;
 	}
 
 	///////////////////////////////////////////////////////////////
@@ -228,12 +182,5 @@ class GeneralGroup extends OptionCata
 	function onChangePause()
 	{
 		FlxG.autoPause = ClientPrefs.data.autoPause;
-	}
-
-	function onChangeLanguage()
-	{
-		Language.resetData();
-		OptionsState.instance.changeLanguage();
-		OptionsState.instance.cataGroup[0].optionArray[1].changeLangNation();
 	}
 }

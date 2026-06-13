@@ -235,6 +235,9 @@
 	<!-- Do whatever you want I'm tired uninstall and install everytime -->
 	<certificate path="key.keystore" password="novaFlare" alias="psychport" alias-password="novaFlare" if="android" unless="debug" />
 
+	<!-- Fix Android 16 back button -->
+	<config:android application="android:enableOnBackInvokedCallback=false" if="android" />
+	
 	<!--Avoid memory leaks with for loops in HScript-->
 	<haxedef name="loop_unroll_max_cost" value="25" />
 

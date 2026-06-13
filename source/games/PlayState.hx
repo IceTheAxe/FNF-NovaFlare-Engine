@@ -407,9 +407,6 @@ class PlayState extends MusicBeatState
 
 		replayExam = new Replay(this);
 		add(replayExam);
-		if (replayMode) {
-			replayExam.load();
-		}
 
 		camGame = initPsychCamera();
 		camHUD = new FlxCamera();
@@ -764,6 +761,10 @@ class PlayState extends MusicBeatState
 		replayTxt.cameras = [camHUD];
 
 		generateSong(SONG.song);
+
+		if (replayMode) {
+			replayExam.load();
+		}
 
 		keyboardViewer = new KeyboardViewer(ClientPrefs.data.comboOffset[4], ClientPrefs.data.comboOffset[5]);
 		keyboardViewer.antialiasing = ClientPrefs.data.antialiasing;

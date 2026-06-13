@@ -33,6 +33,13 @@ class MaintenanceGroup extends OptionCata
 		var option:Option = new Option(this, 'APP', TEXT);
 		addOption(option);
 
+		#if android
+		var storageFolderArray:Array<String> = ['NovaFlare Engine', 'NovaFlare Engine-1.2'];
+		var option:Option = new Option(this, 'storageFolder', STRING, storageFolderArray);
+		option.onChange = onChangeStorageFolder;
+		addOption(option);
+		#end
+
 		var option:Option = new Option(this, 'discordRPC', BOOL);
 		addOption(option);
 
@@ -49,13 +56,6 @@ class MaintenanceGroup extends OptionCata
 		var option:Option = new Option(this, 'filesCheckNew', STATE); //copystate
 		option.onChange = function() { changeState(6); };
 		addOption(option);
-
-		#if android
-		var storageFolderArray:Array<String> = ['NovaFlare Engine', 'NovaFlare Engine-1.2'];
-		var option:Option = new Option(this, 'storageFolder', STRING, storageFolderArray);
-		option.onChange = onChangeStorageFolder;
-		addOption(option);
-		#end
 		#end
 
 		changeHeight(0); //初始化真正的height

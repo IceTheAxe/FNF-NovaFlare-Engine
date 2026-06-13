@@ -448,7 +448,7 @@ class ReplaySave {
 	public static function savePlayRecord(frameData:Array<FrameSave>, stateRecord:StateRecord)
 	{
 		#if sys
-		BackendThread.run(() -> {
+		{
 			var srdSave:StringBuf = new StringBuf();
 			srdSave.add("{\n");
 			
@@ -564,7 +564,7 @@ class ReplaySave {
 			var txtFileName:String = StringTools.replace(fileName, ".rsd", ".txt");
 			var txtPath:String = folder + txtFileName;
 			File.saveContent(txtPath, txtSave.toString());
-		});
+		}
 		#end
 	}
 }
