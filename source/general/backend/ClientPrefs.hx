@@ -66,6 +66,7 @@ import lime.system.Display;
 	public var ratingOffset:Int = 0;
 	public var noteOffset:Int = 0;
 	public var replayQuality:Bool = true;
+	public var showReplayWatermark:Bool = true;
 	public var marvelousWindow:Int = 15;
 	public var sickWindow:Int = 45;
 	public var goodWindow:Int = 90;

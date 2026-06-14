@@ -42,8 +42,10 @@ class ResetButton extends FlxSpriteGroup
 
 	function updateTextDisplay(newText:String)
 	{
+		
 		text.text = newText;
-		text.x = rect.width / 2 - text.width / 2;
+		text.x = rect.x + rect.width / 2 - text.width / 2;
+		text.y = rect.y + rect.height / 2 - text.height / 2;
 	}
 
 	override function update(elapsed:Float)

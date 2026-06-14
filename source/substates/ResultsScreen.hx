@@ -42,6 +42,7 @@ class ResultsScreen extends MusicBeatSubstate
 {
 	static public var isFromFreeplay:Bool = false;
 	static public var freeplayRecord:StateRecord = null;
+	static public var savedModDir:String = '';
 
 	var background:FlxSprite;
 
@@ -414,9 +415,18 @@ class ResultsScreen extends MusicBeatSubstate
 		if (getReadyReplay)
 		{
 			saveReplayData();
-			PlayState.replayMode = true;
-			PlayState.isStoryMode = false;
 			closeCheck = true;
+
+			var songLowercase:String = Paths.formatToSongPath(PlayState.SONG.song);
+			var diff:Int = PlayState.storyDifficulty;
+			var poop:String = Highscore.formatSong(songLowercase, diff);
+			Mods.currentModDirectory = savedModDir;
+			PlayState.SONG = Song.loadFromJson(poop, songLowercase);
+			PlayState.isStoryMode = false;
+			PlayState.storyDifficulty = diff;
+			PlayState.replayMode = true;
+
+			LoadingState.prepareToSong();
 			FlxTransitionableState.skipNextTransIn = true;
 			FlxTransitionableState.skipNextTransOut = true;
 			LoadingState.loadAndSwitchState(new PlayState());

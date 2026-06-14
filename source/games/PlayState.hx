@@ -753,6 +753,14 @@ class PlayState extends MusicBeatState
 		if (ClientPrefs.data.downScroll)
 			replayTxt.y = timeBar.y - 78;
 
+		if (Main.getReplayOverlay() != null)
+		{
+			if (replayMode && ClientPrefs.data.showReplayWatermark)
+				Main.getReplayOverlay().showOverlay();
+			else
+				Main.getReplayOverlay().hideOverlay();
+		}
+
 		if (ClientPrefs.data.timeBarType == 'Song Name'){
 			timeTxt.size = 24;
 			timeTxt.y += 3;
@@ -3538,6 +3546,7 @@ class PlayState extends MusicBeatState
 		// Always show results after all scripts have run (even if Function_Stop was returned)
 		if (!transitioning)
 		{
+			ResultsScreen.savedModDir = Mods.currentModDirectory;
 			Mods.loadTopMod();
 			#if DISCORD_ALLOWED DiscordClient.resetClientID(); #end
 
@@ -4914,6 +4923,10 @@ class PlayState extends MusicBeatState
 		Note.globalRgbShaders = [];
 		games.backend.NoteTypesConfig.clearNoteTypesData();
 		instance = null;
+
+		if (Main.getReplayOverlay() != null)
+			Main.getReplayOverlay().hideOverlay();
+
 		@:privateAccess
 		FlxG.game._filters = [];
 		camGame.filters = camHUD.filters = camOther.filters = [];

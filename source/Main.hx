@@ -25,6 +25,7 @@ import developer.console.Console;
 import developer.console.ConsoleToggleButton;
 
 import general.objects.screen.MouseEffect;
+import general.objects.ReplayOverlay;
 
 import states.titleState.TitleState;
 import states.backend.initState.InitState;
@@ -64,6 +65,12 @@ class Main extends Sprite
 
 	public static var fpsVar:FPSViewer;
 	public static var watermark:Watermark;
+	private static var replayOverlay:ReplayOverlay;
+
+	public static function getReplayOverlay():ReplayOverlay
+	{
+		return replayOverlay;
+	}
 
 	#if mobile
 	public static final platform:String = "Phones";
@@ -211,6 +218,9 @@ class Main extends Sprite
 
 		var effect = new MouseEffect();
 		addChild(effect);
+
+		replayOverlay = new ReplayOverlay();
+		addChild(replayOverlay);
 
 		#if linux
 		var icon = Image.fromFile("icon.png");

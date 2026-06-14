@@ -468,6 +468,11 @@ class FreeplayState extends MusicBeatState
 
 		WeekData.setDirectoryFromWeek();
 		songGroup[curSelected].changeSelectAll(true);
+
+		#if windows
+		var currentWindow = lime.app.Application.current.window;
+		currentWindow.title = "NovaFlare Engine";
+		#end
 	}
 
 	function weekIsLocked(name:String):Bool

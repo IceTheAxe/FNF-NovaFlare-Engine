@@ -98,6 +98,9 @@ class GamePlayGroup extends OptionCata
 		var option:Option = new Option(this, 'replayQuality', BOOL);
 		addOption(option);
 
+		var option:Option = new Option(this, 'showReplayWatermark', BOOL);
+		addOption(option);
+
         #if android
 		var option:Option = new Option(this, 'gameOverVibration', BOOL);
 		addOption(option);
