@@ -936,7 +936,7 @@ class PlayState extends MusicBeatState
 	#if (LUA_ALLOWED || HSCRIPT_ALLOWED)
 	public function addTextToDebug(text:String, color:FlxColor)
 	{
-		//if (!ClientPrefs.data.developerMode) return;
+		if (!ClientPrefs.data.developerMode) return;
 		var newText:DebugLuaText = luaDebugGroup.recycle(DebugLuaText);
 		newText.text = text;
 		#if android
@@ -1740,11 +1740,7 @@ class PlayState extends MusicBeatState
 		//仅仅参加逻辑更新但是不参与渲染
 		try
 		{
-			var savedFmt = Song.detectedFormat;
-			var savedCE = Song.chartEngineVersion;
 			var eventsChart:SwagSong = Song.getChart('events', songName);
-			Song.detectedFormat = savedFmt;
-			Song.chartEngineVersion = savedCE;
 			if (eventsChart != null)
 				for (event in eventsChart.events) // Event Notes
 					for (i in 0...event[1].length)
@@ -2695,6 +2691,19 @@ class PlayState extends MusicBeatState
 			shaderUpdate(elapsed);
 		#end
 
+		nps = notesHitArray.length;
+		if (nps > maxNPS)
+			maxNPS = nps;
+
+		setOnLuas('nps', nps);
+		setOnLuas('maxFPS', maxNPS);
+
+		if (npsCheck != nps)
+		{
+			npsCheck = nps;
+			scoreTxtUpdate();
+		}
+
 		onUpdatePostArgs[0] = elapsed;
 		callOnScripts('onUpdatePost', onUpdatePostArgs);
 	}
@@ -3505,11 +3514,7 @@ class PlayState extends MusicBeatState
 						&& !ClientPrefs.getGameplaySetting('botplay')
 						&& !ClientPrefs.data.playOpponent)
 					{
-						var weekName = WeekData.weeksList[storyWeek];
-						StoryMenuState.weekCompleted.set(weekName, true);
-						// Also store unprefixed name for weekBefore matching
-						var dashIdx = weekName.indexOf('-');
-						if (dashIdx >= 0) StoryMenuState.weekCompleted.set(weekName.substr(dashIdx + 1), true);
+						StoryMenuState.weekCompleted.set(WeekData.weeksList[storyWeek], true);
 						Highscore.saveWeekScore(WeekData.getWeekFileName(), campaignScore, storyDifficulty);
 
 						FlxG.save.data.weekCompleted = StoryMenuState.weekCompleted;
@@ -3546,34 +3551,6 @@ class PlayState extends MusicBeatState
 			ResultsScreen.savedModDir = Mods.currentModDirectory;
 			Mods.loadTopMod();
 			#if DISCORD_ALLOWED DiscordClient.resetClientID(); #end
-
-			if (!ClientPrefs.getGameplaySetting('practice')
-				&& !ClientPrefs.getGameplaySetting('botplay')
-				&& !ClientPrefs.data.playOpponent)
-			{
-				for (i in 0...WeekData.weeksList.length)
-				{
-					var weekFile = WeekData.weeksLoaded.get(WeekData.weeksList[i]);
-					if (weekFile != null)
-					{
-						var found = false;
-						for (song in weekFile.songs)
-						{
-							if (song[0] == songName) { found = true; break; }
-						}
-						if (found)
-						{
-							var weekName = WeekData.weeksList[i];
-							StoryMenuState.weekCompleted.set(weekName, true);
-							var dashIdx = weekName.indexOf('-');
-							if (dashIdx >= 0) StoryMenuState.weekCompleted.set(weekName.substr(dashIdx + 1), true);
-							FlxG.save.data.weekCompleted = StoryMenuState.weekCompleted;
-							FlxG.save.flush();
-							break;
-						}
-					}
-				}
-			}
 
 			if (ClientPrefs.data.resultsScreen)
 			{
