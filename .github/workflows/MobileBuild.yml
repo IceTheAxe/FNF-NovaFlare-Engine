@@ -25,12 +25,7 @@ on:
         required: false
         default: ''
         
-jobs:
-  installHaxelib:
-    uses: ./.github/workflows/InstallHaxelib.yml
-    with:
-      dependencies_to_update: ${{ github.event.inputs.dependencies_to_update }}
-      
+jobs: 
   Android:
     runs-on: macos-14
     concurrency:
@@ -136,11 +131,22 @@ jobs:
           cd export/release/android/bin/app/build/outputs/apk/release/
           zip -r android.zip *.apk
 
+      - name: Create Haxelib zip package
+        run: |
+          zip -r Haxelib.zip ./haxelib
+
       - name: Upload Android Artifact
         uses: actions/upload-artifact@main
         with:
           name: androidBuild
           path: export/release/android/bin/app/build/outputs/apk/release/android.zip
+          if-no-files-found: error
+
+      - name: Upload Haxelib Artifact
+        uses: actions/upload-artifact@main
+        with:
+          name: Haxelib
+          path: Haxelib.zip
           if-no-files-found: error
 
       - name: Clear old Android cache
