@@ -161,6 +161,7 @@
 	<haxelib name="hxcpp-debug-server" if="debug"/>
 
 	<!--haxedef name="openfl_enable_experimental_update_queue"/-->
+	<haxedef name="openfl_always_render" if="ios" />
 
 	<haxedef name="HXCPP_ALIGN_ALLOC"/>
 	<haxedef name="HXCPP_GC_GENERATIONAL" />
@@ -241,7 +242,8 @@
 	<!--Avoid memory leaks with for loops in HScript-->
 	<haxedef name="loop_unroll_max_cost" value="25" />
 
-	<setenv name="ios.file-sharing" value="true" />
+	<setenv name="ios.UIFileSharingEnabled" value="true" />
+	<setenv name="ios.LSSupportsOpeningDocumentsInPlace" value="true" />
 
 	<!--Macro fixes-->
 	<haxeflag name="--macro" value="allowPackage('flash')" />

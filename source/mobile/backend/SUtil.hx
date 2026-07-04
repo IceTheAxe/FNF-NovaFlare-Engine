@@ -24,13 +24,16 @@ class SUtil
 			case EXTERNAL:
 				daPath = AndroidEnvironment.getExternalStorageDirectory() + '/.' + folderName;
 		}
-		daPath = haxe.io.Path.addTrailingSlash(daPath);
 		#elseif ios
-		daPath = LimeSystem.documentsDirectory;
+		var folderName:String = (folderOverride != null) ? folderOverride : lime.app.Application.current.meta.get("file");
+		if (folderName != null && folderName != '')
+			daPath = haxe.io.Path.addTrailingSlash(LimeSystem.documentsDirectory) + folderName;
+		else
+			daPath = LimeSystem.documentsDirectory;
 		#else
 		daPath = Sys.getCwd();
 		#end
-
+		daPath = haxe.io.Path.addTrailingSlash(daPath);
 		return daPath;
 	}
 

@@ -162,12 +162,13 @@ class Main extends Sprite
 			trace('Failed to read storage config: $e');
 		}
 
-		if (!FileSystem.exists(AndroidEnvironment.getExternalStorageDirectory() + '/.' + storageFolder))
-			FileSystem.createDirectory(AndroidEnvironment.getExternalStorageDirectory() + '/.' + storageFolder);
 		#end
-		Sys.setCwd(SUtil.getStorageDirectory(
+
+		var storageDirectory:String = SUtil.getStorageDirectory(
 			#if android EXTERNAL, storageFolder #else EXTERNAL #end
-		));
+		);
+		SUtil.mkDirs(storageDirectory);
+		Sys.setCwd(storageDirectory);
 		#end
 
 		#if android
