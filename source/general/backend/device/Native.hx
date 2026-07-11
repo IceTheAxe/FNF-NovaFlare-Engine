@@ -51,6 +51,43 @@ void getHandle() {
 		curHandle = data.handle;
 	}
 }
+
+void refreshWindowFrame() {
+	if (curHandle != (HWND)0) {
+		SetWindowPos(curHandle, 0, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+		RedrawWindow(curHandle, NULL, NULL, RDW_INVALIDATE | RDW_FRAME | RDW_UPDATENOW);
+		UpdateWindow(curHandle);
+	}
+}
+
+void forceWindowFocusRefreshNative() {
+	if (curHandle != (HWND)0) {
+		HWND foregroundHandle = GetForegroundWindow();
+		DWORD currentThread = GetCurrentThreadId();
+		DWORD foregroundThread = foregroundHandle != (HWND)0 ? GetWindowThreadProcessId(foregroundHandle, NULL) : 0;
+		BOOL attachedInput = FALSE;
+
+		if (foregroundThread != 0 && foregroundThread != currentThread) {
+			attachedInput = AttachThreadInput(currentThread, foregroundThread, TRUE);
+		}
+
+		SendMessage(curHandle, WM_NCACTIVATE, FALSE, 0);
+		refreshWindowFrame();
+		Sleep(10);
+
+		ShowWindow(curHandle, SW_SHOW);
+		BringWindowToTop(curHandle);
+		SetForegroundWindow(curHandle);
+		SetActiveWindow(curHandle);
+		SetFocus(curHandle);
+		SendMessage(curHandle, WM_NCACTIVATE, TRUE, 0);
+		refreshWindowFrame();
+
+		if (attachedInput) {
+			AttachThreadInput(currentThread, foregroundThread, FALSE);
+		}
+	}
+}
 ')
 #end
 class Native
@@ -144,7 +181,7 @@ class Native
 					success = true;
 				}
 
-				UpdateWindow(curHandle);
+				refreshWindowFrame();
 			}
 		');
 
@@ -154,6 +191,23 @@ class Native
 			windowBarColor = FlxColor.BLACK;
 			windowBarColor = curBarColor;
 		}
+		#end
+	}
+
+	public static function applyStartupDarkMode():Void
+	{
+		#if (cpp && windows)
+		setWindowDarkMode(true, true);
+		windowBarColor = FlxColor.BLACK;
+		windowTextColor = FlxColor.WHITE;
+		windowBorderColor = FlxColor.BLACK;
+
+		untyped __cpp__('
+			getHandle();
+			if (curHandle != (HWND)0) {
+				forceWindowFocusRefreshNative();
+			}
+		');
 		#end
 	}
 
@@ -172,7 +226,7 @@ class Native
 			if (curHandle != (HWND)0) {
 				const COLORREF targetColor = (COLORREF)intColor;
 				DwmSetWindowAttribute(curHandle, attributeCaptionColor, (LPCVOID)&targetColor, (DWORD)sizeof(targetColor));
-				UpdateWindow(curHandle);
+				refreshWindowFrame();
 			}
 		');
 		#end
@@ -195,7 +249,7 @@ class Native
 			if (curHandle != (HWND)0) {
 				const COLORREF targetColor = (COLORREF)intColor;
 				DwmSetWindowAttribute(curHandle, attributeTextColor, (LPCVOID)&targetColor, (DWORD)sizeof(targetColor));
-				UpdateWindow(curHandle);
+				refreshWindowFrame();
 			}
 		');
 		#end
@@ -218,7 +272,7 @@ class Native
 			if (curHandle != (HWND)0) {
 				const COLORREF targetColor = (COLORREF)intColor;
 				DwmSetWindowAttribute(curHandle, attributeBorderColor, (LPCVOID)&targetColor, (DWORD)sizeof(targetColor));
-				UpdateWindow(curHandle);
+				refreshWindowFrame();
 			}
 		');
 		#end

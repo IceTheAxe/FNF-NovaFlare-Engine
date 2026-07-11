@@ -123,6 +123,10 @@ class Main extends Sprite
 		}
 
 		setupGame();
+
+		#if (cpp && windows)
+		general.backend.device.Native.applyStartupDarkMode();
+		#end
 	}
 
 	private function setupGame():Void
