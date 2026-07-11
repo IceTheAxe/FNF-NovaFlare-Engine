@@ -187,6 +187,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@main
+        with:
+          # Last NF revision confirmed to render correctly on iOS.
+          ref: 9a35f06a9361430e1fc99f5a3c1db0f226687fd1
         
       - name: Select Xcode 16.4
         uses: maxim-lobanov/setup-xcode@v1
@@ -197,6 +200,39 @@ jobs:
         uses: krdlab/setup-haxe@master
         with:
           haxe-version: 4.3.7
+
+      - name: Pin last known working iOS haxelib revisions
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+
+          revisions = {
+              "lime": "3d8911e184cbc5bab60cb2873ce68c766478e0ba",
+              "hxcpp": "b427a6ca602e2b61679bc8d565fb2025c1a6aa8d",
+              "openfl": "d2be85a399593d5c40348456caa577d411ea63a3",
+              "flixel": "eb1bf5fad260cec01a76fb734b17711e21a90954",
+              "flixel-ui": "fad939eaae74b224c50c48a2776542cc4df45b53",
+          }
+
+          with open("hmm.json", "r", encoding="utf-8") as source:
+              manifest = json.load(source)
+
+          found = set()
+          for dependency in manifest["dependencies"]:
+              name = dependency.get("name")
+              if name in revisions:
+                  dependency["ref"] = revisions[name]
+                  found.add(name)
+
+          missing = set(revisions) - found
+          if missing:
+              raise SystemExit(f"Missing iOS dependencies in hmm.json: {sorted(missing)}")
+
+          with open("hmm.json", "w", encoding="utf-8") as target:
+              json.dump(manifest, target, ensure_ascii=False, indent=2)
+              target.write("\n")
+          PY
    
       - name: Determine iOS cache strategy
         id: ios_cache
