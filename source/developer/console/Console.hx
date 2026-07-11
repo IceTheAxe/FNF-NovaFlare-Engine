@@ -1,755 +1,890 @@
 package developer.console;
 
+import general.backend.ClientPrefs;
+import general.backend.Paths;
+import haxe.Timer;
+import lime.system.Clipboard;
+import openfl.Lib;
 import openfl.display.Sprite;
+import openfl.events.Event;
+import openfl.events.KeyboardEvent;
 import openfl.events.MouseEvent;
+import openfl.geom.Rectangle;
 import openfl.text.TextField;
 import openfl.text.TextFormat;
+import openfl.text.TextFormatAlign;
 import openfl.ui.Mouse;
 import openfl.ui.MouseCursor;
-import openfl.geom.Rectangle;
-import openfl.text.TextFieldAutoSize;
+
+private typedef ConsoleLogLine = {
+	var time:Float;
+	var level:String;
+	var message:String;
+	var color:Int;
+	var match:String;
+}
 
 class Console extends Sprite {
-    public static var consoleInstance(get, null):Console;
-    private var textContainer:Sprite;
-    private var output:TextField;
-    private var buffer:Array<String> = [];
-    private var isDragging:Bool = false;
-    private var dragOffsetX:Float = 0;
-    private var dragOffsetY:Float = 0;
-    private var isScrolling:Bool = false;
-    private var scrollStartY:Float = 0;
-    private var scrollStartV:Float = 0;
-    private var captureEnabled:Bool = true;
-    private var autoScroll:Bool = true;
-    
-    private var currentWidth:Float;
-    private var currentHeight:Float;
-    
-    // 按钮引用
-    private var captureButton:Sprite;
-    private var autoScrollButton:Sprite;
-    private var clearButton:Sprite;
-    private var closeButton:Sprite;
-    private var maximizeButton:Sprite;
-    private var minimizeButton:Sprite; 
-    
-    private var pendingLogs:Array<String> = [];
-    private var pendingColoredLogs:Array<{head:String, message:String, color:Int}> = [];
-    private var renderTimer:haxe.Timer = null;
-    private var maxBatchSize:Int = 100; // 每批处理的最大日志数
-    private var maxLogLines:Int = 1000; // 最大日志行数
-    private var renderDelay:Int = 100; // 渲染延迟(毫秒)
-    private var outputLineCount:Int = 0;
-    
-    private static var _consoleInstance:Console = null;
-    
-    // 参考线
-    private var dragReference:Sprite;
-    private var lastWidth:Float = 0;
-    private var lastHeight:Float = 0;
-    
-    //窗口大小
-    private var minWidth:Float = 400;
-    private var minHeight:Float = 300;
-    private var resizeHandle:Sprite;
-    private var isResizing:Bool = false;
-    private var startResizeX:Float = 0;
-    private var startResizeY:Float = 0;
-    private var startWidth:Float = 0;
-    private var startHeight:Float = 0;
-    
-    private var isMaximized:Bool = false;
-    private var normalSize:Rectangle = new Rectangle();
-    
-    private static function get_consoleInstance():Console {
-        if (_consoleInstance == null) {
-            _consoleInstance = new Console();
-        }
-        return _consoleInstance;
-    }
-    
-    public function new() {
-        super();
-        scaleX = scaleY = ClientPrefs.data.devConScale;
-        createConsoleUI();
-    }
-    
-    private function createConsoleUI():Void {
-        var initialWidth = openfl.Lib.current.stage.stageWidth * 0.4;
-        var initialHeight = openfl.Lib.current.stage.stageHeight * 0.3;
-        
-        currentWidth = initialWidth;
-        currentHeight = initialHeight;
+	public static var consoleInstance(get, null):Console;
 
-        normalSize = new Rectangle(0, 0, initialWidth, initialHeight);
-        
-        dragReference = new Sprite();
-        dragReference.visible = false;
-        addChild(dragReference);
-        
-        graphics.beginFill(0x333333, 0.8);
-        graphics.drawRoundRect(0, 0, initialWidth, initialHeight, 10);
-        graphics.endFill();
-        
-        textContainer = new Sprite();
-        textContainer.x = 15;
-        textContainer.y = 50;
-        textContainer.scrollRect = new Rectangle(0, 0, initialWidth - 30, initialHeight - 100);
-        addChild(textContainer);
-        
-        output = new TextField();
-        output.defaultTextFormat = new TextFormat(Paths.font('Lang-ZH.ttf'), 14, 0xFFFFFF);
-        output.width = initialWidth - 30;
-        output.autoSize = TextFieldAutoSize.LEFT;
-        output.multiline = true;
-        output.wordWrap = true;
-        output.selectable = false;
-        output.htmlText = "";
-        output.addEventListener(MouseEvent.MOUSE_DOWN, startTextScroll);
-        textContainer.addChild(output);
-        
-        createTitleBar();
-        createControlButtons();
-        createWindowButtons();
-        createResizeHandle();
-    }
-    
-    var titleBar:Sprite;
-    
-    private function createTitleBar():Void {
-        titleBar = new Sprite();
-        titleBar.graphics.beginFill(0x444444);
-        titleBar.graphics.drawRoundRect(0, 0, currentWidth, 30, 10, 10);
-        titleBar.graphics.endFill();
-        addChild(titleBar);
-        
-        var title = new TextField();
-        title.text = "Trace Console (拖拽移动)";
-        title.setTextFormat(new TextFormat(Paths.font('Lang-ZH.ttf'), 12, 0xFFFFFF));
-        title.x = 10;
-        title.y = 5;
-        title.width = 300;
-        title.selectable = false;
-        titleBar.addChild(title);
-    
-        titleBar.addEventListener(MouseEvent.MOUSE_DOWN, function(e:MouseEvent) {
-            isDragging = true;
-            dragOffsetX = e.stageX - x;
-            dragOffsetY = e.stageY - y;
-            
-            stage.addEventListener(MouseEvent.MOUSE_MOVE, onTitleDragMove);
-            stage.addEventListener(MouseEvent.MOUSE_UP, onTitleDragEnd);
-            
-            e.stopPropagation();
-        });
-    }
-    
-    private function createWindowButtons():Void {
-        closeButton = createWindowButton("×", 0xFF5555, currentWidth - 30, 5);
-        closeButton.addEventListener(MouseEvent.CLICK, function(e) {
-            closeConsole();
-        });
-        
-        maximizeButton = createWindowButton("□", 0x55AA55, currentWidth - 60, 5);
-        maximizeButton.addEventListener(MouseEvent.CLICK, function(e) {
-            toggleMaximize();
-        });
-        
-        minimizeButton = createWindowButton("-", 0xAAAAAA, currentWidth - 90, 5);
-        minimizeButton.addEventListener(MouseEvent.CLICK, function(e) {
-            closeConsole();
-        });
-    }
-    
-    private function createWindowButton(label:String, color:Int, xPos:Float, yPos:Float):Sprite {
-        var button = new Sprite();
-        button.graphics.beginFill(color, 0.7);
-        button.graphics.drawRoundRect(0, 0, 25, 20, 3);
-        button.graphics.endFill();
-        
-        var text = new TextField();
-        text.text = label;
-        text.setTextFormat(new TextFormat(Paths.font('Lang-ZH.ttf'), 14, 0xFFFFFF));
-        text.x = 5;
-        text.y = 0;
-        text.width = 20;
-        text.selectable = false;
-        button.addChild(text);
-        
-        button.x = xPos;
-        button.y = yPos;
-        addChild(button);
-        
-        button.addEventListener(MouseEvent.MOUSE_OVER, function(e) {
-            button.graphics.clear();
-            button.graphics.beginFill(color, 1.0);
-            button.graphics.drawRoundRect(0, 0, 25, 20, 3);
-            button.graphics.endFill();
-            button.addChild(text);
-            Mouse.cursor = MouseCursor.BUTTON;
-        });
-        
-        button.addEventListener(MouseEvent.MOUSE_OUT, function(e) {
-            button.graphics.clear();
-            button.graphics.beginFill(color, 0.7);
-            button.graphics.drawRoundRect(0, 0, 25, 20, 3);
-            button.graphics.endFill();
-            button.addChild(text);
-            Mouse.cursor = MouseCursor.AUTO;
-        });
-        
-        return button;
-    }
-    
-    private function onTitleDragMove(e:MouseEvent):Void {
-        if (isDragging) {
-            var unscaledX = e.stageX / scaleX;
-            var unscaledY = e.stageY / scaleY;
-            
-            var newX = unscaledX - dragOffsetX;
-            var newY = unscaledY - dragOffsetY;
-            
-            var maxX = (openfl.Lib.current.stage.stageWidth / scaleX) - currentWidth;
-            var maxY = (openfl.Lib.current.stage.stageHeight / scaleY) - currentHeight;
-            
-            x = Math.max(0, Math.min(maxX, newX));
-            y = Math.max(0, Math.min(maxY, newY));
-        }
-    }
-    
-    private function onTitleDragEnd(e:MouseEvent):Void {
-        if (isDragging) {
-            isDragging = false;
-            stage.removeEventListener(MouseEvent.MOUSE_MOVE, onTitleDragMove);
-            stage.removeEventListener(MouseEvent.MOUSE_UP, onTitleDragEnd);
-            e.stopPropagation();
-        }
-    }
-    
-    private function createControlButtons():Void {
-        var buttonY = currentHeight - 20;
-        
-        captureButton = createButton("捕捉:开", 0xFF5555, 20, buttonY);
-        captureButton.addEventListener(MouseEvent.CLICK, function(e) {
-            toggleCapture();
-        });
-        
-        autoScrollButton = createButton("自动滚动:开", 0x55AA55, 110, buttonY);
-        autoScrollButton.addEventListener(MouseEvent.CLICK, function(e) {
-            toggleAutoScroll();
-        });
-        
-        clearButton = createButton("清空日志", 0x5555FF, 220, buttonY);
-        clearButton.addEventListener(MouseEvent.CLICK, function(e) {
-            clearLogs();
-        });
-    }
-    
-    private function createButton(label:String, color:Int, xPos:Float, yPos:Float):Sprite {
-        var button = new Sprite();
-        button.graphics.beginFill(color);
-        button.graphics.drawRoundRect(0, 0, 80, 20, 5);
-        button.graphics.endFill();
-        
-        var text = new TextField();
-        text.text = label;
-        text.setTextFormat(new TextFormat(Paths.font('Lang-ZH.ttf'), 10, 0xFFFFFF));
-        text.x = 5;
-        text.y = 3;
-        text.width = 70;
-        text.selectable = false;
-        button.addChild(text);
-        
-        button.x = xPos;
-        button.y = yPos;
-        addChild(button);
-        
-        button.addEventListener(MouseEvent.MOUSE_OVER, function(e) {
-            Mouse.cursor = MouseCursor.BUTTON;
-        });
-        
-        button.addEventListener(MouseEvent.MOUSE_OUT, function(e) {
-            Mouse.cursor = MouseCursor.AUTO;
-        });
-        
-        return button;
-    }
-    
-    private function startTextScroll(e:MouseEvent):Void {
-        isScrolling = true;
-        scrollStartY = e.stageY;
-        scrollStartV = output.y;
-        stage.addEventListener(MouseEvent.MOUSE_MOVE, doTextScroll);
-        stage.addEventListener(MouseEvent.MOUSE_UP, stopTextScroll);
-    }
-    
-    private function doTextScroll(e:MouseEvent):Void {
-        if (isScrolling) {
-            var deltaY:Float = e.stageY - scrollStartY;
-            var newY:Float = scrollStartV + deltaY;
-            
-            var visibleHeight = textContainer.scrollRect.height;
-            var contentHeight = getContentHeight();
-            
-            if (contentHeight <= visibleHeight) {
-                newY = 0;
-            } else {
-                var minY = visibleHeight - contentHeight;
-                if (newY < minY) newY = minY;
-                if (newY > 0) newY = 0;
-            }
-            
-            output.y = newY;
-            
-            if (autoScroll) {
-                toggleAutoScroll(false);
-            }
-            updateAutoScrollButton();
-        }
-    }
-    
-    private function stopTextScroll(e:MouseEvent):Void {
-        isScrolling = false;
-        stage.removeEventListener(MouseEvent.MOUSE_MOVE, doTextScroll);
-        stage.removeEventListener(MouseEvent.MOUSE_UP, stopTextScroll);
-    }
-    
-    private function startDragConsole(e:MouseEvent):Void {
-        isDragging = true;
-        dragOffsetX = e.stageX - x;
-        dragOffsetY = e.stageY - y;
-        stage.addEventListener(MouseEvent.MOUSE_MOVE, dragConsole);
-    }
-    
-    private function stopDragConsole(e:MouseEvent):Void {
-        isDragging = false;
-        if (stage != null) {
-            stage.removeEventListener(MouseEvent.MOUSE_MOVE, dragConsole);
-        }
-    }
-    
-    private function dragConsole(e:MouseEvent):Void {
-        if (isDragging) {
-            x = e.stageX - dragOffsetX;
-            y = e.stageY - dragOffsetY;
-        }
-    }
-    
-    private function scrollToBottom():Void {
-        var visibleHeight = textContainer.scrollRect.height;
-        var contentHeight = getContentHeight();
-        if (contentHeight > visibleHeight) {
-            output.y = visibleHeight - contentHeight;
-        } else {
-            output.y = 0;
-        }
-    }
+	private static inline var HEADER_HEIGHT:Float = 34;
+	private static inline var TOOLBAR_HEIGHT:Float = 36;
+	private static inline var STATUS_HEIGHT:Float = 24;
+	private static inline var PADDING:Float = 10;
+	private static inline var SCROLLBAR_WIDTH:Float = 9;
+	private static inline var MIN_WIDTH:Float = 420;
+	private static inline var MIN_HEIGHT:Float = 260;
+	private static inline var MAX_PENDING_LINES:Int = 5000;
+	private static inline var MAX_LINES:Int = 1500;
+	private static inline var MAX_DRAIN_PER_FRAME:Int = 350;
+	private static inline var RENDER_INTERVAL:Float = 0.05;
 
-    private function getContentHeight():Float {
-        return output.textHeight + 4;
-    }
+	private static inline var KEY_ESCAPE:Int = 27;
+	private static inline var KEY_F10:Int = 121;
+	private static inline var KEY_GRAVE:Int = 192;
 
-    private function clampOutputY():Void {
-        var visibleHeight = textContainer.scrollRect.height;
-        var contentHeight = getContentHeight();
-        if (contentHeight <= visibleHeight) {
-            output.y = 0;
-        } else {
-            var minY = visibleHeight - contentHeight;
-            if (output.y < minY) output.y = minY;
-            if (output.y > 0) output.y = 0;
-        }
-    }
-    
-    private function toggleCapture():Void {
-        captureEnabled = !captureEnabled;
-        updateCaptureButton();
-    }
-    
-    private function toggleAutoScroll(?value:Bool):Void {
-        autoScroll = value != null ? value : !autoScroll;
-        if (autoScroll) scrollToBottom();
-        updateAutoScrollButton();
-    }
-    
-    private function clearLogs():Void {
-        output.htmlText = "";
-        output.y = 0;
-        buffer = [];
-        outputLineCount = 0;
-    }
-    
-    private function closeConsole():Void {
-        visible = false;
-        ConsoleToggleButton.show();
-    }
-    
-    private function updateCaptureButton():Void {
-        var textField:TextField = cast(captureButton.getChildAt(0), TextField);
-        textField.setTextFormat(new TextFormat(Paths.font('Lang-ZH.ttf'), 10, 0xFFFFFF));
-        textField.text = captureEnabled ? "捕捉:开" : "捕捉:关";
-    }
-    
-    private function updateAutoScrollButton():Void {
-        var textField:TextField = cast(autoScrollButton.getChildAt(0), TextField);
-        textField.setTextFormat(new TextFormat(Paths.font('Lang-ZH.ttf'), 10, 0xFFFFFF));
-        textField.text = autoScroll ? "自动滚动:开" : "自动滚动:关";
-    }
-    
-    public static function log(message:String):Void {
-        consoleInstance.addLog(message);
-    }
-    
-    private function addLog(message:String):Void {
-        if (!captureEnabled) return;
-        
-        pendingLogs.push(StringTools.htmlEscape(message));
-        scheduleRender();
-    }
-    
-    public static function show():Void {
-        consoleInstance.visible = true;
-        consoleInstance.updateScale(ClientPrefs.data.devConScale);
-        ConsoleToggleButton.hide();
-    }
-    
-    public static function hide():Void {
-        if (consoleInstance != null) {
-            consoleInstance.visible = false;
-        }
-    }
-    
-    public static function isVisible():Bool {
-        return consoleInstance != null && consoleInstance.visible;
-    }
-    
-    public static function toggle():Void {
-        if (isVisible()) {
-            hide();
-        } else {
-            show();
-        }
-    }
-    
-    public static function logWithColoredHead(head:String, message:String, color:Int):Void {
-        consoleInstance.addLogWithColoredHead(head, message, color);
-    }
-    
-    private function addLogWithColoredHead(head:String, message:String, color:Int):Void {
-        if (!captureEnabled) return;
-        
-        pendingColoredLogs.push({
-            head: head,
-            message: message,
-            color: color
-        });
-        scheduleRender();
-    }
-    
-    private function scheduleRender():Void {
-        if (renderTimer == null) {
-            renderTimer = haxe.Timer.delay(processPendingLogs, renderDelay);
-        }
-    }
-    
-    private function processPendingLogs():Void {
-        renderTimer = null;
-        
-        var hasNewContent = false;
-        var batchCount = 0;
-        var newLines:Array<String> = [];
-        
-        // 处理普通日志
-        while (pendingLogs.length > 0 && batchCount < maxBatchSize) {
-            var message = pendingLogs.shift();
-            buffer.push(message);
-            newLines.push(message);
-            hasNewContent = true;
-            batchCount++;
-        }
-        
-        // 处理带颜色的日志
-        while (pendingColoredLogs.length > 0 && batchCount < maxBatchSize) {
-            var log = pendingColoredLogs.shift();
-            var htmlLine = '<font color="#${StringTools.hex(log.color, 6)}">${StringTools.htmlEscape(log.head)}</font>${StringTools.htmlEscape(log.message)}';
-            buffer.push(htmlLine);
-            newLines.push(htmlLine);
-            hasNewContent = true;
-            batchCount++;
-        }
-        
-        if (hasNewContent) {
-            var trimmedCount = 0;
-            while (buffer.length > maxLogLines) {
-                buffer.shift();
-                trimmedCount++;
-            }
-            
-            var newContent = newLines.join("<br/>");
-            
-            if (outputLineCount == 0) {
-                output.htmlText = newContent;
-            } else if (trimmedCount > 0) {
-                // 裁剪后需要全量重建
-                output.htmlText = buffer.join("<br/>");
-            } else {
-                // 增量追加 — 避免全量重建，大幅提升性能
-                output.htmlText += "<br/>" + newContent;
-            }
-            
-            outputLineCount = buffer.length;
-            
-            if (autoScroll) {
-                scrollToBottom();
-            }
-        }
-        
-        // 如果还有待处理日志，继续调度下一批
-        if (pendingLogs.length > 0 || pendingColoredLogs.length > 0) {
-            scheduleRender();
-        }
-    }
-    
-    private function createResizeHandle():Void {
-        resizeHandle = new Sprite();
-        resizeHandle.graphics.beginFill(0x666666, 0);
-        resizeHandle.graphics.drawRect(0, 0, 40, 40);
-        resizeHandle.graphics.endFill();
-        
-        resizeHandle.x = currentWidth - 40;
-        resizeHandle.y = currentHeight - 40;
-        addChild(resizeHandle);
-        
-        resizeHandle.addEventListener(MouseEvent.MOUSE_DOWN, startResize);
-        resizeHandle.addEventListener(MouseEvent.MOUSE_OVER, function(e) {
-            Mouse.cursor = MouseCursor.HAND;
-        });
-        resizeHandle.addEventListener(MouseEvent.MOUSE_OUT, function(e) {
-            if (!isResizing) Mouse.cursor = MouseCursor.AUTO;
-        });
-    }
-    
-    private function startResize(e:MouseEvent):Void {
-        isResizing = true;
-        startResizeX = e.stageX;
-        startResizeY = e.stageY;
-        startWidth = currentWidth;
-        startHeight = currentHeight;
-        
-        // 显示参考线
-        drawDragReference(startWidth, startHeight);
-        dragReference.visible = true;
-        
-        stage.addEventListener(MouseEvent.MOUSE_MOVE, onResize);
-        stage.addEventListener(MouseEvent.MOUSE_UP, stopResize);
-        
-        e.stopPropagation();
-    }
-    
-    private function onResize(e:MouseEvent):Void {
-        if (isResizing) {
-            var deltaX = (e.stageX - startResizeX) / scaleX;
-            var deltaY = (e.stageY - startResizeY) / scaleY;
-            
-            var newWidth = Math.max(minWidth, startWidth + deltaX);
-            var newHeight = Math.max(minHeight, startHeight + deltaY);
-            
-            var maxWidth = (openfl.Lib.current.stage.stageWidth / scaleX) - x;
-            var maxHeight = (openfl.Lib.current.stage.stageHeight / scaleY) - y;
-            
-            currentWidth = Math.min(newWidth, maxWidth);
-            currentHeight = Math.min(newHeight, maxHeight);
-            
-            drawDragReference(currentWidth, currentHeight);
-        }
-    }
-    
-    private function stopResize(e:MouseEvent):Void {
-        if (isResizing) {
-            isResizing = false;
-            dragReference.visible = false;
-    
-            redrawConsole(currentWidth, currentHeight);
-    
-            stage.removeEventListener(MouseEvent.MOUSE_MOVE, onResize);
-            stage.removeEventListener(MouseEvent.MOUSE_UP, stopResize);
-            Mouse.cursor = MouseCursor.AUTO;
-            e.stopPropagation();
-        }
-    }
-    
-    private function resizeConsole(newWidth:Float, newHeight:Float):Void {
-        currentWidth = newWidth;
-        currentHeight = newHeight;
-        
-        graphics.clear();
-        graphics.beginFill(0x333333, 0.8);
-        graphics.drawRoundRect(0, 0, newWidth, newHeight, 10);
-        graphics.endFill();
-        
-        output.width = newWidth - 30;
-        textContainer.scrollRect = new Rectangle(0, 0, newWidth - 30, newHeight - 100);
-        
-        resizeHandle.x = newWidth - 40;
-        resizeHandle.y = newHeight - 40;
-        
-        updateTitleBar(newWidth);
-        updateWindowButtons(newWidth);
-        updateControlButtons(newHeight);
-        if (autoScroll) scrollToBottom() else clampOutputY();
-    }
-    
-    private function toggleMaximize():Void {
-        if (isMaximized) {
-            resizeConsole(normalSize.width, normalSize.height);
-            x = normalSize.x;
-            y = normalSize.y;
-            isMaximized = false;
-        } else {
-            normalSize.setTo(x * scaleX, y * scaleY, 
-                           currentWidth * scaleX, 
-                           currentHeight * scaleY);
-            
-            var stage = openfl.Lib.current.stage;
-            resizeConsole(stage.stageWidth / scaleX, 
-                         stage.stageHeight / scaleY);
-            x = y = 0;
-            isMaximized = true;
-        }
-    }
-    
-    private function updateWindowButtonsPosition():Void {
-        if (closeButton != null) {
-            closeButton.x = currentWidth - 30;
-            maximizeButton.x = currentWidth - 60;
-            minimizeButton.x = currentWidth - 90;
-        }
-    }
+	private static var _consoleInstance:Console = null;
+	private static var pendingLines:Array<ConsoleLogLine> = [];
 
-    private function updateControlButtonsPosition():Void {
-        var buttonY = currentHeight - 20;
-        
-        if (captureButton != null) {
-            captureButton.x = 20;
-            captureButton.y = buttonY;
-        }
-        
-        if (autoScrollButton != null) {
-            autoScrollButton.x = 110;
-            autoScrollButton.y = buttonY;
-        }
-        
-        if (clearButton != null) {
-            clearButton.x = 220;
-            clearButton.y = buttonY;
-        }
-    }
-    
-    private function updateTitleBar(newWidth:Float):Void {
-        titleBar.graphics.clear();
-        titleBar.graphics.beginFill(0x444444);
-        titleBar.graphics.drawRoundRect(0, 0, newWidth, 30, 10, 10);
-        titleBar.graphics.endFill();
-    }
-    
-    private function updateControlButtons(newHeight:Float):Void {
-        var buttonY = newHeight - 20;
-        
-        if (captureButton != null) {
-            captureButton.y = buttonY;
-        }
-        
-        if (autoScrollButton != null) {
-            autoScrollButton.y = buttonY;
-        }
-        
-        if (clearButton != null) {
-            clearButton.y = buttonY;
-        }
-    }
-    
-    private function updateWindowButtons(newWidth:Float):Void {
-        if (closeButton != null) {
-            closeButton.x = newWidth - 30;
-        }
-        if (maximizeButton != null) {
-            maximizeButton.x = newWidth - 60;
-        }
-        if (minimizeButton != null) {
-            minimizeButton.x = newWidth - 90;
-        }
-    }
-    
-    private function drawDragReference(w:Float, h:Float):Void {
-        dragReference.graphics.clear();
-        
-        dragReference.graphics.lineStyle(1, 0xFFFFFF, 0.7);
-        
-        // 上边线
-        dragReference.graphics.moveTo(0, 0);
-        dragReference.graphics.lineTo(w, 0);
-        
-        // 右边线
-        dragReference.graphics.moveTo(w, 0);
-        dragReference.graphics.lineTo(w, h);
-        
-        // 下边线
-        dragReference.graphics.moveTo(w, h);
-        dragReference.graphics.lineTo(0, h);
-        
-        // 左边线
-        dragReference.graphics.moveTo(0, h);
-        dragReference.graphics.lineTo(0, 0);
-    }
-    
-    private function redrawConsole(newWidth:Float, newHeight:Float):Void {
-        graphics.clear();
-        graphics.beginFill(0x333333, 0.8);
-        graphics.drawRoundRect(0, 0, newWidth, newHeight, 10);
-        graphics.endFill();
-        
-        updateAllElements(newWidth, newHeight);
-        
-        lastWidth = newWidth;
-        lastHeight = newHeight;
-    }
-    
-    private function updateAllElements(newWidth:Float, newHeight:Float):Void {
-        output.width = newWidth - 30;
-        textContainer.scrollRect = new Rectangle(0, 0, newWidth - 30, newHeight - 100);
-        
-        updateTitleBar(newWidth);
-        
-        updateControlButtons(newHeight);
-        
-        updateWindowButtons(newWidth);
-        
-        resizeHandle.x = newWidth - 40;
-        resizeHandle.y = newHeight - 40;
-        if (autoScroll) scrollToBottom() else clampOutputY();
-    }
-    
-    public function updateScale(newScale:Float):Void {
-        var actualX = x * scaleX;
-        var actualY = y * scaleY;
-        var actualWidth = currentWidth * scaleX;
-        var actualHeight = currentHeight * scaleY;
-        
-        scaleX = scaleY = newScale;
-        
-        x = actualX / newScale;
-        y = actualY / newScale;
-        currentWidth = actualWidth / newScale;
-        currentHeight = actualHeight / newScale;
-        
-        redrawConsole(currentWidth, currentHeight);
-        
-        if (isMaximized) {
-            var stage = openfl.Lib.current.stage;
-            resizeConsole(stage.stageWidth / newScale, 
-                         stage.stageHeight / newScale);
-            x = y = 0;
-        }
-    }
+	#if sys
+	private static var pendingLock:sys.thread.Mutex = new sys.thread.Mutex();
+	#end
+
+	private var titleBar:Sprite;
+	private var titleLabel:TextField;
+	private var output:TextField;
+	private var statusLabel:TextField;
+	private var scrollTrack:Sprite;
+	private var scrollThumb:Sprite;
+	private var resizeHandle:Sprite;
+
+	private var pauseButton:ConsoleButton;
+	private var autoButton:ConsoleButton;
+	private var clearButton:ConsoleButton;
+	private var copyButton:ConsoleButton;
+	private var maxButton:ConsoleButton;
+	private var closeButton:ConsoleButton;
+
+	private var lines:Array<ConsoleLogLine> = [];
+	private var shownLines:Int = 0;
+	private var currentWidth:Float = 720;
+	private var currentHeight:Float = 390;
+	private var normalBounds:Rectangle = new Rectangle();
+	private var captureEnabled:Bool = true;
+	private var autoScroll:Bool = true;
+	private var isDragging:Bool = false;
+	private var isResizing:Bool = false;
+	private var isDraggingScroll:Bool = false;
+	private var isMaximized:Bool = false;
+	private var dragOffsetX:Float = 0;
+	private var dragOffsetY:Float = 0;
+	private var resizeStartX:Float = 0;
+	private var resizeStartY:Float = 0;
+	private var resizeStartWidth:Float = 0;
+	private var resizeStartHeight:Float = 0;
+	private var scrollDragStartY:Float = 0;
+	private var scrollDragStartV:Int = 1;
+	private var needsRender:Bool = true;
+	private var lastRenderTime:Float = 0;
+	private var statusOverride:String = "";
+	private var statusOverrideUntil:Float = 0;
+
+	private static function get_consoleInstance():Console {
+		if (_consoleInstance == null) {
+			_consoleInstance = new Console();
+		}
+		return _consoleInstance;
+	}
+
+	public static function log(message:String):Void {
+		logLevel("INFO", message, 0xD7E1EA);
+	}
+
+	public static function logWithColoredHead(head:String, message:String, color:Int):Void {
+		logLevel(normalizeLevel(head), message, color);
+	}
+
+	public static function logLevel(level:String, message:String, color:Int):Void {
+		queueLine(level, message, color);
+	}
+
+	public static function show():Void {
+		if (!ClientPrefs.data.developerMode) return;
+
+		var console = consoleInstance;
+		console.visible = true;
+		console.updateScale(ClientPrefs.data.devConScale);
+		console.clampToStage();
+
+		ConsoleToggleButton.hide();
+	}
+
+	public static function hide():Void {
+		if (_consoleInstance != null) {
+			_consoleInstance.visible = false;
+			if (ClientPrefs.data.developerMode) {
+				ConsoleToggleButton.show();
+			}
+		}
+	}
+
+	public static function isVisible():Bool {
+		return _consoleInstance != null && _consoleInstance.visible;
+	}
+
+	public static function toggle():Void {
+		if (isVisible()) hide();
+		else show();
+	}
+
+	public function new() {
+		super();
+
+		scaleX = scaleY = normalizeScale(ClientPrefs.data.devConScale);
+		pickInitialSize();
+		createUI();
+		redraw();
+		visible = false;
+
+		addEventListener(Event.ADDED_TO_STAGE, onAddedToStage);
+		addEventListener(Event.REMOVED_FROM_STAGE, onRemovedFromStage);
+	}
+
+	public function updateScale(newScale:Float):Void {
+		newScale = normalizeScale(newScale);
+		var actualWidth = currentWidth * scaleX;
+		var actualHeight = currentHeight * scaleY;
+
+		scaleX = scaleY = newScale;
+
+		if (isMaximized) {
+			fillStage();
+		} else {
+			currentWidth = Math.max(MIN_WIDTH, actualWidth / newScale);
+			currentHeight = Math.max(MIN_HEIGHT, actualHeight / newScale);
+			clampSizeToStage();
+			clampToStage();
+			redraw();
+		}
+	}
+
+	private static function queueLine(level:String, message:String, color:Int):Void {
+		var cleanLevel = normalizeLevel(level);
+		var cleanMessage = Std.string(message);
+		var line:ConsoleLogLine = {
+			time: Date.now().getTime(),
+			level: cleanLevel,
+			message: cleanMessage,
+			color: color,
+			match: (cleanLevel + " " + cleanMessage).toLowerCase()
+		};
+
+		#if sys
+		pendingLock.acquire();
+		#end
+
+		pendingLines.push(line);
+		if (pendingLines.length > MAX_PENDING_LINES) {
+			pendingLines.splice(0, pendingLines.length - MAX_PENDING_LINES);
+		}
+
+		#if sys
+		pendingLock.release();
+		#end
+	}
+
+	private static function takePending(max:Int):Array<ConsoleLogLine> {
+		#if sys
+		pendingLock.acquire();
+		#end
+
+		var amount = pendingLines.length > max ? max : pendingLines.length;
+		var result = amount > 0 ? pendingLines.splice(0, amount) : [];
+
+		#if sys
+		pendingLock.release();
+		#end
+
+		return result;
+	}
+
+	private static function clearPending():Void {
+		#if sys
+		pendingLock.acquire();
+		#end
+
+		pendingLines = [];
+
+		#if sys
+		pendingLock.release();
+		#end
+	}
+
+	private static function normalizeLevel(value:String):String {
+		if (value == null || value.length == 0) return "INFO";
+		var level = StringTools.trim(value);
+		while (StringTools.endsWith(level, ":")) {
+			level = StringTools.trim(level.substr(0, level.length - 1));
+		}
+		return level.length == 0 ? "INFO" : level.toUpperCase();
+	}
+
+	private static function normalizeScale(value:Float):Float {
+		if (Math.isNaN(value) || value <= 0) return 1;
+		return Math.max(0.5, Math.min(3, value));
+	}
+
+	private function pickInitialSize():Void {
+		var sw = stageWidth();
+		var sh = stageHeight();
+		currentWidth = Math.max(MIN_WIDTH, Math.min(820, (sw - 48) / scaleX));
+		currentHeight = Math.max(MIN_HEIGHT, Math.min(440, (sh - 88) / scaleY));
+		x = Math.max(16, sw - currentWidth * scaleX - 24);
+		y = Math.max(42, Math.min(72, sh - currentHeight * scaleY - 16));
+		normalBounds.setTo(x, y, currentWidth, currentHeight);
+	}
+
+	private function createUI():Void {
+		titleBar = new Sprite();
+		addChild(titleBar);
+
+		titleLabel = makeTextField(14, 0xF4F7FA, true);
+		titleLabel.text = "Trace Console";
+		titleLabel.mouseEnabled = false;
+		titleBar.addChild(titleLabel);
+
+		maxButton = new ConsoleButton("Max", 46, 22, 0x426D4F);
+		maxButton.addEventListener(MouseEvent.CLICK, function(_) toggleMaximize());
+		addChild(maxButton);
+
+		closeButton = new ConsoleButton("Hide", 52, 22, 0x7D3F3F);
+		closeButton.addEventListener(MouseEvent.CLICK, function(_) hide());
+		addChild(closeButton);
+
+		pauseButton = new ConsoleButton("Pause", 64, 24, 0x46586C);
+		pauseButton.addEventListener(MouseEvent.CLICK, function(_) toggleCapture());
+		addChild(pauseButton);
+
+		autoButton = new ConsoleButton("Auto", 58, 24, 0x426D4F);
+		autoButton.addEventListener(MouseEvent.CLICK, function(_) toggleAutoScroll());
+		addChild(autoButton);
+
+		clearButton = new ConsoleButton("Clear", 58, 24, 0x5C4A68);
+		clearButton.addEventListener(MouseEvent.CLICK, function(_) clearLogs());
+		addChild(clearButton);
+
+		copyButton = new ConsoleButton("Copy", 56, 24, 0x3F6678);
+		copyButton.addEventListener(MouseEvent.CLICK, function(_) copyVisibleLogs());
+		addChild(copyButton);
+
+		output = makeTextField(13, 0xD7E1EA, false);
+		output.multiline = true;
+		output.wordWrap = true;
+		output.selectable = true;
+		output.background = true;
+		output.backgroundColor = 0x0B1015;
+		output.border = true;
+		output.borderColor = 0x2D3540;
+		output.addEventListener(MouseEvent.MOUSE_WHEEL, onOutputWheel);
+		addChild(output);
+
+		scrollTrack = new Sprite();
+		scrollTrack.addEventListener(MouseEvent.MOUSE_DOWN, onScrollTrackDown);
+		addChild(scrollTrack);
+
+		scrollThumb = new Sprite();
+		scrollThumb.buttonMode = true;
+		scrollThumb.useHandCursor = true;
+		scrollThumb.addEventListener(MouseEvent.MOUSE_DOWN, startScrollDrag);
+		scrollThumb.addEventListener(MouseEvent.MOUSE_OVER, function(_) Mouse.cursor = MouseCursor.HAND);
+		scrollThumb.addEventListener(MouseEvent.MOUSE_OUT, function(_) if (!isDraggingScroll) Mouse.cursor = MouseCursor.AUTO);
+		addChild(scrollThumb);
+
+		statusLabel = makeTextField(12, 0x9CA9B6, false);
+		statusLabel.mouseEnabled = false;
+		addChild(statusLabel);
+
+		resizeHandle = new Sprite();
+		resizeHandle.buttonMode = true;
+		resizeHandle.useHandCursor = true;
+		resizeHandle.addEventListener(MouseEvent.MOUSE_DOWN, startResize);
+		resizeHandle.addEventListener(MouseEvent.MOUSE_OVER, function(_) Mouse.cursor = MouseCursor.HAND);
+		resizeHandle.addEventListener(MouseEvent.MOUSE_OUT, function(_) if (!isResizing) Mouse.cursor = MouseCursor.AUTO);
+		addChild(resizeHandle);
+
+		titleBar.addEventListener(MouseEvent.MOUSE_DOWN, startDragWindow);
+	}
+
+	private function makeTextField(size:Int, color:Int, bold:Bool):TextField {
+		var field = new TextField();
+		field.defaultTextFormat = new TextFormat(Paths.font("Lang-ZH.ttf"), size, color, bold);
+		field.embedFonts = false;
+		field.selectable = false;
+		return field;
+	}
+
+	private function onAddedToStage(_:Event):Void {
+		stage.addEventListener(Event.RESIZE, onStageResize);
+		stage.addEventListener(KeyboardEvent.KEY_DOWN, onKeyDown);
+		addEventListener(Event.ENTER_FRAME, onEnterFrame);
+		clampToStage();
+		redraw();
+	}
+
+	private function onRemovedFromStage(_:Event):Void {
+		if (stage != null) {
+			stage.removeEventListener(Event.RESIZE, onStageResize);
+			stage.removeEventListener(KeyboardEvent.KEY_DOWN, onKeyDown);
+			stage.removeEventListener(MouseEvent.MOUSE_MOVE, dragWindow);
+			stage.removeEventListener(MouseEvent.MOUSE_UP, stopDragWindow);
+			stage.removeEventListener(MouseEvent.MOUSE_MOVE, resizeWindow);
+			stage.removeEventListener(MouseEvent.MOUSE_UP, stopResize);
+			stage.removeEventListener(MouseEvent.MOUSE_MOVE, dragScrollThumb);
+			stage.removeEventListener(MouseEvent.MOUSE_UP, stopScrollDrag);
+		}
+		removeEventListener(Event.ENTER_FRAME, onEnterFrame);
+	}
+
+	private function onEnterFrame(_:Event):Void {
+		var drained = drainPending();
+		if (drained) needsRender = true;
+
+		var now = Timer.stamp();
+		if (needsRender && (now - lastRenderTime >= RENDER_INTERVAL || !hasPending())) {
+			renderLogs();
+		} else if (statusOverride.length > 0 && now > statusOverrideUntil) {
+			statusOverride = "";
+			updateStatus();
+		}
+	}
+
+	private function drainPending():Bool {
+		var incoming = takePending(MAX_DRAIN_PER_FRAME);
+		if (incoming.length == 0) return false;
+
+		if (!captureEnabled) return true;
+
+		for (line in incoming) {
+			lines.push(line);
+		}
+
+		if (lines.length > MAX_LINES) {
+			lines.splice(0, lines.length - MAX_LINES);
+		}
+
+		return true;
+	}
+
+	private function hasPending():Bool {
+		#if sys
+		pendingLock.acquire();
+		#end
+
+		var result = pendingLines.length > 0;
+
+		#if sys
+		pendingLock.release();
+		#end
+
+		return result;
+	}
+
+	private function renderLogs():Void {
+		needsRender = false;
+		lastRenderTime = Timer.stamp();
+
+		var oldScroll = output.scrollV;
+		var html = new StringBuf();
+		var first = true;
+		shownLines = 0;
+
+		for (line in lines) {
+			if (!first) html.add("<br/>");
+			html.add(lineToHtml(line));
+			first = false;
+			shownLines++;
+		}
+
+		output.htmlText = html.toString();
+		if (autoScroll) {
+			output.scrollV = output.maxScrollV;
+		} else {
+			output.scrollV = clampInt(oldScroll, 1, output.maxScrollV > 1 ? output.maxScrollV : 1);
+		}
+
+		updateScrollBar();
+		updateStatus();
+	}
+
+	private function lineToHtml(line:ConsoleLogLine):String {
+		return '<font color="#6F7B86">${formatTime(line.time)}</font> '
+			+ '<font color="#${StringTools.hex(line.color, 6)}">[${escapeHtml(line.level)}]</font> '
+			+ escapeMessage(line.message);
+	}
+
+	private function lineToPlain(line:ConsoleLogLine):String {
+		return '${formatTime(line.time)} [${line.level}] ${line.message}';
+	}
+
+	private function escapeMessage(value:String):String {
+		var escaped = escapeHtml(value);
+		escaped = StringTools.replace(escaped, "\r\n", "\n");
+		escaped = StringTools.replace(escaped, "\r", "\n");
+		return StringTools.replace(escaped, "\n", "<br/>");
+	}
+
+	private function escapeHtml(value:String):String {
+		return StringTools.htmlEscape(value == null ? "" : value, true);
+	}
+
+	private function formatTime(time:Float):String {
+		var date = Date.fromTime(time);
+		return two(date.getHours()) + ":" + two(date.getMinutes()) + ":" + two(date.getSeconds());
+	}
+
+	private function two(value:Int):String {
+		return value < 10 ? "0" + value : Std.string(value);
+	}
+
+	private function redraw():Void {
+		graphics.clear();
+		graphics.beginFill(0x111820, 0.94);
+		graphics.drawRoundRect(0, 0, currentWidth, currentHeight, 8, 8);
+		graphics.endFill();
+		graphics.lineStyle(1, 0x40505F, 0.95);
+		graphics.drawRoundRect(0, 0, currentWidth, currentHeight, 8, 8);
+
+		titleBar.graphics.clear();
+		titleBar.graphics.beginFill(0x1D2A35, 0.98);
+		titleBar.graphics.drawRoundRect(0, 0, currentWidth, HEADER_HEIGHT, 8, 8);
+		titleBar.graphics.endFill();
+		titleBar.graphics.beginFill(0x1D2A35, 0.98);
+		titleBar.graphics.drawRect(0, HEADER_HEIGHT - 8, currentWidth, 8);
+		titleBar.graphics.endFill();
+
+		titleLabel.x = PADDING;
+		titleLabel.y = 8;
+		titleLabel.width = Math.max(120, currentWidth - 170);
+		titleLabel.height = 20;
+
+		closeButton.x = currentWidth - closeButton.buttonWidth - PADDING;
+		closeButton.y = 6;
+		maxButton.x = closeButton.x - maxButton.buttonWidth - 6;
+		maxButton.y = 6;
+		maxButton.setLabel(isMaximized ? "Dock" : "Max");
+
+		layoutToolbar();
+		layoutOutput();
+		drawResizeHandle();
+		updateScrollBar();
+		updateStatus();
+	}
+
+	private function layoutToolbar():Void {
+		var yPos = HEADER_HEIGHT + 6;
+		var xPos = PADDING;
+
+		pauseButton.x = xPos;
+		pauseButton.y = yPos;
+		pauseButton.setLabel(captureEnabled ? "Pause" : "Resume");
+		pauseButton.setActive(!captureEnabled);
+		xPos += pauseButton.buttonWidth + 6;
+
+		autoButton.x = xPos;
+		autoButton.y = yPos;
+		autoButton.setActive(autoScroll);
+		xPos += autoButton.buttonWidth + 6;
+
+		clearButton.x = xPos;
+		clearButton.y = yPos;
+		xPos += clearButton.buttonWidth + 6;
+
+		copyButton.x = xPos;
+		copyButton.y = yPos;
+	}
+
+	private function layoutOutput():Void {
+		var outputX = PADDING;
+		var outputY = HEADER_HEIGHT + TOOLBAR_HEIGHT + PADDING;
+		var outputW = currentWidth - PADDING * 2 - SCROLLBAR_WIDTH - 7;
+		var outputH = currentHeight - outputY - STATUS_HEIGHT - PADDING;
+
+		output.x = outputX;
+		output.y = outputY;
+		output.width = Math.max(80, outputW);
+		output.height = Math.max(80, outputH);
+
+		scrollTrack.x = output.x + output.width + 6;
+		scrollTrack.y = output.y;
+		drawScrollTrack(output.height);
+
+		statusLabel.x = PADDING;
+		statusLabel.y = currentHeight - STATUS_HEIGHT + 1;
+		statusLabel.width = currentWidth - PADDING * 2 - 28;
+		statusLabel.height = STATUS_HEIGHT;
+
+		resizeHandle.x = currentWidth - 28;
+		resizeHandle.y = currentHeight - 28;
+	}
+
+	private function drawScrollTrack(height:Float):Void {
+		scrollTrack.graphics.clear();
+		scrollTrack.graphics.beginFill(0x151E27, 0.9);
+		scrollTrack.graphics.drawRoundRect(0, 0, SCROLLBAR_WIDTH, height, 5, 5);
+		scrollTrack.graphics.endFill();
+	}
+
+	private function drawResizeHandle():Void {
+		resizeHandle.graphics.clear();
+		resizeHandle.graphics.beginFill(0x000000, 0);
+		resizeHandle.graphics.drawRect(0, 0, 28, 28);
+		resizeHandle.graphics.endFill();
+		resizeHandle.graphics.lineStyle(1, 0x71808F, 0.75);
+		resizeHandle.graphics.moveTo(12, 22);
+		resizeHandle.graphics.lineTo(22, 12);
+		resizeHandle.graphics.moveTo(17, 23);
+		resizeHandle.graphics.lineTo(23, 17);
+	}
+
+	private function updateScrollBar():Void {
+		var trackH = output.height;
+		var maxScroll = Math.max(1, output.maxScrollV);
+		var numLines = Math.max(1, output.numLines);
+		var visibleLines = Math.max(1, output.bottomScrollV - output.scrollV + 1);
+		var ratio = Math.min(1, visibleLines / numLines);
+		var thumbH = maxScroll <= 1 ? trackH : Math.max(24, trackH * ratio);
+		var scrollRatio = maxScroll <= 1 ? 0 : (output.scrollV - 1) / (maxScroll - 1);
+		var thumbY = scrollTrack.y + (trackH - thumbH) * scrollRatio;
+
+		scrollThumb.visible = maxScroll > 1;
+		scrollThumb.x = scrollTrack.x;
+		scrollThumb.y = thumbY;
+		scrollThumb.graphics.clear();
+		scrollThumb.graphics.beginFill(0x6F879C, 0.88);
+		scrollThumb.graphics.drawRoundRect(0, 0, SCROLLBAR_WIDTH, thumbH, 5, 5);
+		scrollThumb.graphics.endFill();
+	}
+
+	private function updateStatus():Void {
+		if (statusOverride.length > 0 && Timer.stamp() <= statusOverrideUntil) {
+			statusLabel.text = statusOverride;
+			return;
+		}
+
+		if (statusOverride.length > 0) statusOverride = "";
+
+		var capture = captureEnabled ? "capturing" : "paused";
+		statusLabel.text = '${lines.length} lines | $capture | F10 or Ctrl+` toggles';
+	}
+
+	private function setStatus(message:String):Void {
+		statusOverride = message;
+		statusOverrideUntil = Timer.stamp() + 1.7;
+		updateStatus();
+	}
+
+	private function toggleCapture():Void {
+		captureEnabled = !captureEnabled;
+		if (!captureEnabled) clearPending();
+		layoutToolbar();
+		updateStatus();
+	}
+
+	private function toggleAutoScroll():Void {
+		autoScroll = !autoScroll;
+		if (autoScroll) output.scrollV = output.maxScrollV;
+		layoutToolbar();
+		updateScrollBar();
+		updateStatus();
+	}
+
+	private function clearLogs():Void {
+		lines = [];
+		clearPending();
+		output.htmlText = "";
+		output.scrollV = 1;
+		needsRender = true;
+		setStatus("Console cleared");
+	}
+
+	private function copyVisibleLogs():Void {
+		var text = new StringBuf();
+		var copied = 0;
+
+		for (line in lines) {
+			if (copied > 0) text.add("\n");
+			text.add(lineToPlain(line));
+			copied++;
+		}
+
+		Clipboard.text = text.toString();
+		setStatus(copied > 0 ? 'Copied $copied lines' : "Nothing to copy");
+	}
+
+	private function onOutputWheel(event:MouseEvent):Void {
+		if (output.maxScrollV <= 1) return;
+		output.scrollV = clampInt(output.scrollV - event.delta * 3, 1, output.maxScrollV);
+		autoScroll = output.scrollV >= output.maxScrollV;
+		layoutToolbar();
+		updateScrollBar();
+		updateStatus();
+		event.stopPropagation();
+	}
+
+	private function onScrollTrackDown(event:MouseEvent):Void {
+		if (output.maxScrollV <= 1) return;
+		var localY = event.stageY - scrollTrack.localToGlobal(new openfl.geom.Point()).y;
+		var thumbCenter = scrollThumb.y - scrollTrack.y + scrollThumb.height / 2;
+		if (localY < thumbCenter) output.scrollV = output.scrollV - 8 < 1 ? 1 : output.scrollV - 8;
+		else output.scrollV = output.scrollV + 8 > output.maxScrollV ? output.maxScrollV : output.scrollV + 8;
+		autoScroll = output.scrollV >= output.maxScrollV;
+		updateScrollBar();
+		updateStatus();
+	}
+
+	private function startScrollDrag(event:MouseEvent):Void {
+		isDraggingScroll = true;
+		scrollDragStartY = event.stageY;
+		scrollDragStartV = output.scrollV;
+		stage.addEventListener(MouseEvent.MOUSE_MOVE, dragScrollThumb);
+		stage.addEventListener(MouseEvent.MOUSE_UP, stopScrollDrag);
+		event.stopPropagation();
+	}
+
+	private function dragScrollThumb(event:MouseEvent):Void {
+		if (!isDraggingScroll || output.maxScrollV <= 1) return;
+		var available = Math.max(1, scrollTrack.height - scrollThumb.height);
+		var scrollDelta = (event.stageY - scrollDragStartY) / available * (output.maxScrollV - 1);
+		output.scrollV = clampInt(scrollDragStartV + Math.round(scrollDelta), 1, output.maxScrollV);
+		autoScroll = output.scrollV >= output.maxScrollV;
+		updateScrollBar();
+		updateStatus();
+	}
+
+	private function stopScrollDrag(event:MouseEvent):Void {
+		isDraggingScroll = false;
+		stage.removeEventListener(MouseEvent.MOUSE_MOVE, dragScrollThumb);
+		stage.removeEventListener(MouseEvent.MOUSE_UP, stopScrollDrag);
+		Mouse.cursor = MouseCursor.AUTO;
+		event.stopPropagation();
+	}
+
+	private function startDragWindow(event:MouseEvent):Void {
+		isDragging = true;
+		dragOffsetX = event.stageX - x;
+		dragOffsetY = event.stageY - y;
+		stage.addEventListener(MouseEvent.MOUSE_MOVE, dragWindow);
+		stage.addEventListener(MouseEvent.MOUSE_UP, stopDragWindow);
+		event.stopPropagation();
+	}
+
+	private function dragWindow(event:MouseEvent):Void {
+		if (!isDragging) return;
+		x = event.stageX - dragOffsetX;
+		y = event.stageY - dragOffsetY;
+		clampToStage();
+	}
+
+	private function stopDragWindow(event:MouseEvent):Void {
+		isDragging = false;
+		stage.removeEventListener(MouseEvent.MOUSE_MOVE, dragWindow);
+		stage.removeEventListener(MouseEvent.MOUSE_UP, stopDragWindow);
+		event.stopPropagation();
+	}
+
+	private function startResize(event:MouseEvent):Void {
+		if (isMaximized) return;
+		isResizing = true;
+		resizeStartX = event.stageX;
+		resizeStartY = event.stageY;
+		resizeStartWidth = currentWidth;
+		resizeStartHeight = currentHeight;
+		stage.addEventListener(MouseEvent.MOUSE_MOVE, resizeWindow);
+		stage.addEventListener(MouseEvent.MOUSE_UP, stopResize);
+		event.stopPropagation();
+	}
+
+	private function resizeWindow(event:MouseEvent):Void {
+		if (!isResizing) return;
+		var maxW = Math.max(MIN_WIDTH, (stageWidth() - x - 8) / scaleX);
+		var maxH = Math.max(MIN_HEIGHT, (stageHeight() - y - 8) / scaleY);
+		currentWidth = Math.max(MIN_WIDTH, Math.min(maxW, resizeStartWidth + (event.stageX - resizeStartX) / scaleX));
+		currentHeight = Math.max(MIN_HEIGHT, Math.min(maxH, resizeStartHeight + (event.stageY - resizeStartY) / scaleY));
+		normalBounds.setTo(x, y, currentWidth, currentHeight);
+		redraw();
+		needsRender = true;
+	}
+
+	private function stopResize(event:MouseEvent):Void {
+		isResizing = false;
+		stage.removeEventListener(MouseEvent.MOUSE_MOVE, resizeWindow);
+		stage.removeEventListener(MouseEvent.MOUSE_UP, stopResize);
+		Mouse.cursor = MouseCursor.AUTO;
+		event.stopPropagation();
+	}
+
+	private function toggleMaximize():Void {
+		if (isMaximized) {
+			isMaximized = false;
+			x = normalBounds.x;
+			y = normalBounds.y;
+			currentWidth = normalBounds.width;
+			currentHeight = normalBounds.height;
+			clampSizeToStage();
+			clampToStage();
+			redraw();
+			needsRender = true;
+		} else {
+			normalBounds.setTo(x, y, currentWidth, currentHeight);
+			isMaximized = true;
+			fillStage();
+		}
+	}
+
+	private function fillStage():Void {
+		x = 0;
+		y = 0;
+		currentWidth = stageWidth() / scaleX;
+		currentHeight = stageHeight() / scaleY;
+		redraw();
+		needsRender = true;
+	}
+
+	private function onStageResize(_:Event):Void {
+		if (isMaximized) {
+			fillStage();
+			return;
+		}
+
+		clampSizeToStage();
+		clampToStage();
+		redraw();
+		needsRender = true;
+	}
+
+	private function onKeyDown(event:KeyboardEvent):Void {
+		if (!ClientPrefs.data.developerMode) return;
+
+		if ((event.ctrlKey && event.keyCode == KEY_GRAVE) || event.keyCode == KEY_F10) {
+			toggle();
+			event.stopImmediatePropagation();
+			return;
+		}
+
+		if (!visible) return;
+
+		if (event.keyCode == KEY_ESCAPE) {
+			hide();
+			event.stopImmediatePropagation();
+			return;
+		}
+	}
+
+	private function clampSizeToStage():Void {
+		currentWidth = Math.max(MIN_WIDTH, Math.min(currentWidth, Math.max(MIN_WIDTH, (stageWidth() - 16) / scaleX)));
+		currentHeight = Math.max(MIN_HEIGHT, Math.min(currentHeight, Math.max(MIN_HEIGHT, (stageHeight() - 16) / scaleY)));
+	}
+
+	private function clampToStage():Void {
+		var maxX = Math.max(0, stageWidth() - currentWidth * scaleX);
+		var maxY = Math.max(0, stageHeight() - currentHeight * scaleY);
+		x = Math.max(0, Math.min(maxX, x));
+		y = Math.max(0, Math.min(maxY, y));
+	}
+
+	private function stageWidth():Float {
+		return Lib.current != null && Lib.current.stage != null ? Lib.current.stage.stageWidth : 1280;
+	}
+
+	private function stageHeight():Float {
+		return Lib.current != null && Lib.current.stage != null ? Lib.current.stage.stageHeight : 720;
+	}
+
+	private function clampInt(value:Int, min:Int, max:Int):Int {
+		if (value < min) return min;
+		if (value > max) return max;
+		return value;
+	}
+}
+
+private class ConsoleButton extends Sprite {
+	public var buttonWidth(default, null):Float;
+	public var buttonHeight(default, null):Float;
+
+	private var label:TextField;
+	private var baseColor:Int;
+	private var activeColor:Int;
+	private var isActive:Bool = false;
+	private var isHovering:Bool = false;
+	private var labelFormat:TextFormat;
+
+	public function new(text:String, width:Float, height:Float, color:Int) {
+		super();
+
+		buttonWidth = width;
+		buttonHeight = height;
+		baseColor = color;
+		activeColor = brighten(color, 34);
+
+		buttonMode = true;
+		useHandCursor = true;
+		mouseChildren = false;
+
+		label = new TextField();
+		labelFormat = new TextFormat(Paths.font("Lang-ZH.ttf"), 11, 0xF4F7FA, true);
+		labelFormat.align = TextFormatAlign.CENTER;
+		label.defaultTextFormat = labelFormat;
+		label.selectable = false;
+		label.mouseEnabled = false;
+		label.x = 0;
+		label.y = Math.max(0, (buttonHeight - 18) / 2);
+		label.width = buttonWidth;
+		label.height = buttonHeight;
+		label.text = text;
+		label.setTextFormat(labelFormat);
+		addChild(label);
+
+		addEventListener(MouseEvent.MOUSE_OVER, function(_) {
+			isHovering = true;
+			Mouse.cursor = MouseCursor.BUTTON;
+			redraw();
+		});
+		addEventListener(MouseEvent.MOUSE_OUT, function(_) {
+			isHovering = false;
+			Mouse.cursor = MouseCursor.AUTO;
+			redraw();
+		});
+
+		redraw();
+	}
+
+	public function setLabel(text:String):Void {
+		label.text = text;
+		label.setTextFormat(labelFormat);
+	}
+
+	public function setActive(value:Bool):Void {
+		if (isActive == value) return;
+		isActive = value;
+		redraw();
+	}
+
+	private function redraw():Void {
+		var color = isActive ? activeColor : baseColor;
+		var alpha = isHovering ? 1 : 0.88;
+
+		graphics.clear();
+		graphics.beginFill(color, alpha);
+		graphics.drawRoundRect(0, 0, buttonWidth, buttonHeight, 5, 5);
+		graphics.endFill();
+		graphics.lineStyle(1, 0xB7C6D5, isHovering ? 0.38 : 0.18);
+		graphics.drawRoundRect(0.5, 0.5, buttonWidth - 1, buttonHeight - 1, 5, 5);
+	}
+
+	private static function brighten(color:Int, amount:Int):Int {
+		var r:Int = Std.int(Math.min(255, ((color >> 16) & 0xFF) + amount));
+		var g:Int = Std.int(Math.min(255, ((color >> 8) & 0xFF) + amount));
+		var b:Int = Std.int(Math.min(255, (color & 0xFF) + amount));
+		return (r << 16) | (g << 8) | b;
+	}
 }

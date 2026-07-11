@@ -222,6 +222,8 @@ class Main extends Sprite
 		}
 
 		var effect = new MouseEffect();
+		effect.mouseEnabled = false;
+		effect.mouseChildren = false;
 		addChild(effect);
 
 		replayOverlay = new ReplayOverlay();
@@ -245,6 +247,7 @@ class Main extends Sprite
 		addChild(ConsoleToggleButton.instance);
 		addChild(Console.consoleInstance);
 		Console.consoleInstance.visible = false;
+		setChildIndex(effect, numChildren - 1);
 
 		#if !debug
 			//cpp.NativeGc.enterGCFreeZone();
