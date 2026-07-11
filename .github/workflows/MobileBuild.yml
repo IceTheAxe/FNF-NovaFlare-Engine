@@ -145,8 +145,9 @@ jobs:
       - name: Upload Haxelib Artifact
         uses: actions/upload-artifact@main
         with:
+          with:
           name: Haxelib
-          path: Haxelib.zip
+          path: /Users/runner/haxelib.zips
           if-no-files-found: error
 
       - name: Clear old Android cache
