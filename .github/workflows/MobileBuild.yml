@@ -93,6 +93,8 @@ jobs:
       - name: Install Android Libraries
         run: |
           haxelib setup ~/haxelib
+          haxelib install hmm --quiet
+          haxelib run hmm install
           
           if [ "${{ steps.android_cache.outputs.update_libs }}" == "true" ]; then
             if [ "${{ steps.android_cache.outputs.skip_cache }}" == "true" ]; then
@@ -246,6 +248,8 @@ jobs:
       - name: Install iOS Libraries
         run: |
           haxelib setup ~/haxelib
+          haxelib install hmm --quiet
+          haxelib run hmm install
           
           if [ "${{ steps.ios_cache.outputs.update_libs }}" == "true" ]; then
             if [ "${{ steps.ios_cache.outputs.skip_cache }}" == "true" ]; then
