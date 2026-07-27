@@ -65,10 +65,12 @@ jobs:
           haxelib run hmm install
           haxelib dev hxcpp "$env:GITHUB_WORKSPACE\hxcpp"
 
-          $hxcppPath = @(haxelib path hxcpp)[0].TrimEnd('\', '/')
-          $expectedPath = [IO.Path]::GetFullPath("$env:GITHUB_WORKSPACE\hxcpp").TrimEnd('\', '/')
-          if ($hxcppPath -ne $expectedPath) {
-            throw "NovaGC hxcpp override failed. Expected $expectedPath, got $hxcppPath"
+          $hxcppPath = [IO.Path]::GetFullPath(@(haxelib path hxcpp)[0]).TrimEnd('\', '/')
+          $expectedRoot = [IO.Path]::GetFullPath("$env:GITHUB_WORKSPACE\hxcpp").TrimEnd('\', '/')
+          $expectedPrefix = "$expectedRoot\"
+          if ($hxcppPath -ne $expectedRoot -and
+              -not $hxcppPath.StartsWith($expectedPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "NovaGC hxcpp override failed. Expected $expectedRoot or a child path, got $hxcppPath"
           }
 
       - name: Install pinned NovaGC Haxe compiler
