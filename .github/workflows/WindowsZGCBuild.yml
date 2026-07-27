@@ -49,6 +49,33 @@ jobs:
         with:
           haxe-version: 4.3.7
 
+      - name: Install NovaGC native dependencies
+        shell: pwsh
+        run: |
+          $bash = 'C:\msys64\usr\bin\bash.exe'
+          if (-not (Test-Path -LiteralPath $bash -PathType Leaf)) {
+            throw "MSYS2 bash is missing: $bash"
+          }
+
+          & $bash -lc 'pacman -Sy --noconfirm --needed mingw-w64-x86_64-pcre2 mingw-w64-x86_64-mbedtls'
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to install NovaGC native dependencies (exit $LASTEXITCODE)"
+          }
+
+          $required = @(
+            'C:\msys64\mingw64\include\pcre2.h',
+            'C:\msys64\mingw64\include\mbedtls\ctr_drbg.h',
+            'C:\msys64\mingw64\lib\libpcre2-16.a',
+            'C:\msys64\mingw64\lib\libmbedtls.a',
+            'C:\msys64\mingw64\lib\libmbedx509.a',
+            'C:\msys64\mingw64\lib\libmbedcrypto.a'
+          )
+          foreach ($path in $required) {
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+              throw "NovaGC native dependency is missing after installation: $path"
+            }
+          }
+
       - name: Restore private GameAnalytics
         shell: pwsh
         env:
