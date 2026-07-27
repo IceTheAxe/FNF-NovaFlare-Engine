@@ -1,0 +1,184 @@
+name: Windows ZGC Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-zgc-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  Windows-ZGC:
+    runs-on: windows-latest
+    timeout-minutes: 180
+    env:
+      HXCPP_COMPILE_JOBS: 4
+      NOVAGC_HAXE_ARCHIVE_URL: https://github.com/NovaFlare-Engine-haxelib/haxe-novagc/releases/download/novagc-precise-70c1245e/haxe-novagc-windows-x64.zip
+      NOVAGC_HAXE_ARCHIVE_SHA256: f344f1911fccb75b925cf96b0d0468f9b4e967bc8218909d02d4d6f84dc25540
+      NOVAGC_HAXE_SOURCE_COMMIT: 70c1245e4e84a677f3a410c3c8d2648825afdb20
+      NOVAGC_HXCPP_SOURCE_COMMIT: 3bc17aaa5f6fb1f1ce95e8cb8d3aad61dabd3e60
+
+    steps:
+      - name: Checkout NovaFlare and NovaGC sources
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Verify pinned NovaGC sources
+        shell: pwsh
+        run: |
+          $haxeCommit = (git -C toolchains/haxe-novagc rev-parse HEAD).Trim()
+          $hxcppCommit = (git -C hxcpp rev-parse HEAD).Trim()
+
+          if ($haxeCommit -ne $env:NOVAGC_HAXE_SOURCE_COMMIT) {
+            throw "Unexpected haxe-novagc commit: $haxeCommit"
+          }
+          if ($hxcppCommit -ne $env:NOVAGC_HXCPP_SOURCE_COMMIT) {
+            throw "Unexpected hxcpp-novagc commit: $hxcppCommit"
+          }
+
+          Write-Output "haxe-novagc: $haxeCommit"
+          Write-Output "hxcpp-novagc: $hxcppCommit"
+
+      - name: Setup stock Haxe tools
+        uses: krdlab/setup-haxe@v1
+        with:
+          haxe-version: 4.3.7
+
+      - name: Restore private GameAnalytics
+        shell: pwsh
+        env:
+          NOVA_GA_IMPL_B64: ${{ secrets.NOVA_GA_IMPL_B64 }}
+          NOVA_GA_TYPES_B64: ${{ secrets.NOVA_GA_TYPES_B64 }}
+          NOVA_GA_CONFIG_B64: ${{ secrets.NOVA_GA_CONFIG_B64 }}
+        run: ./tools/restore-private-gameanalytics.ps1
+
+      - name: Install project libraries
+        shell: pwsh
+        run: |
+          haxelib setup C:\haxelib
+          haxelib install hmm --quiet
+          haxelib run hmm install
+          haxelib dev hxcpp "$env:GITHUB_WORKSPACE\hxcpp"
+
+          $hxcppPath = @(haxelib path hxcpp)[0].TrimEnd('\', '/')
+          $expectedPath = [IO.Path]::GetFullPath("$env:GITHUB_WORKSPACE\hxcpp").TrimEnd('\', '/')
+          if ($hxcppPath -ne $expectedPath) {
+            throw "NovaGC hxcpp override failed. Expected $expectedPath, got $hxcppPath"
+          }
+
+      - name: Install pinned NovaGC Haxe compiler
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'haxe-novagc-windows-x64.zip'
+          $toolchain = Join-Path $env:GITHUB_WORKSPACE 'toolchains\haxe-novagc'
+
+          Invoke-WebRequest -Uri $env:NOVAGC_HAXE_ARCHIVE_URL -OutFile $archive
+          $actualHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualHash -ne $env:NOVAGC_HAXE_ARCHIVE_SHA256) {
+            throw "NovaGC Haxe archive checksum mismatch: $actualHash"
+          }
+
+          Expand-Archive -LiteralPath $archive -DestinationPath $toolchain -Force
+          & "$toolchain\haxe.exe" --version
+          if ($LASTEXITCODE -ne 0) {
+            throw "NovaGC Haxe compiler failed to start (exit $LASTEXITCODE)"
+          }
+
+      - name: Compile Windows ZGC build
+        shell: pwsh
+        run: |
+          $toolchain = Join-Path $env:GITHUB_WORKSPACE 'toolchains\haxe-novagc'
+          $env:PATH = "$toolchain;$env:PATH"
+          $env:HAXE_STD_PATH = Join-Path $toolchain 'std'
+
+          $selectedHaxe = (Get-Command haxe.exe -ErrorAction Stop).Source
+          $expectedHaxe = Join-Path $toolchain 'haxe.exe'
+          if ([IO.Path]::GetFullPath($selectedHaxe) -ne [IO.Path]::GetFullPath($expectedHaxe)) {
+            throw "Stock Haxe is still selected: $selectedHaxe"
+          }
+
+          $project = Get-Content Project.xml -Raw
+          if ($project -notmatch 'build-number="([^"]*)"') {
+            throw 'Project.xml does not contain a build number'
+          }
+
+          $commitSha = (git rev-parse --short HEAD).Trim()
+          $buildNumber = $matches[1] -replace '-dev', "-$commitSha-zgc"
+          $arguments = @(
+            'run', 'lime', 'build', 'windows',
+            '-Dhxcpp_zgc',
+            '-Dnovagc-precise',
+            "-Dcommit_sha=$commitSha",
+            "-Dbuild_number=$buildNumber"
+          )
+          if ($env:NOVA_GAMEANALYTICS_DEFINE) {
+            $arguments += $env:NOVA_GAMEANALYTICS_DEFINE
+          }
+
+          haxe --version
+          haxelib @arguments
+          if ($LASTEXITCODE -ne 0) {
+            throw "Windows ZGC build failed (exit $LASTEXITCODE)"
+          }
+
+      - name: Verify NovaGC precise ABI
+        shell: pwsh
+        run: |
+          $objectRoot = Join-Path $env:GITHUB_WORKSPACE 'export\release\windows\obj'
+          $headerPath = Join-Path $objectRoot 'include\flixel\FlxSprite.h'
+          $sourcePath = Join-Path $objectRoot 'src\flixel\FlxSprite.cpp'
+          $optionsPath = Join-Path $objectRoot 'Options.txt'
+
+          foreach ($required in @($headerPath, $sourcePath, $optionsPath)) {
+            if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
+              throw "NovaGC ABI probe is missing: $required"
+            }
+          }
+
+          $header = Get-Content -LiteralPath $headerPath -Raw
+          if ($header -notmatch '__novaType' -or
+              $header -notmatch 'Runtime::instance\(\)\.allocate\(__novaType\)' -or
+              $header -notmatch 'HX_NOVAGC_WB') {
+            throw 'Generated headers are not using the NovaGC precise ABI'
+          }
+
+          $source = Get-Content -LiteralPath $sourcePath -Raw
+          if ($source -notmatch 'sNovaPointerOffsets' -or
+              $source -notmatch '::hx::gc::TypeContainsReferences' -or
+              $source -notmatch '__novaCffiGet' -or
+              $source -match '::hx::novagc::') {
+            throw 'Generated sources do not contain the current NovaGC descriptor ABI'
+          }
+
+          $options = Get-Content -LiteralPath $optionsPath -Raw
+          if ($options -notmatch '(?m)^hxcpp_zgc=1$' -or
+              $options -notmatch '(?m)^novagc_precise=1$' -or
+              $options -match '(?m)^legacy_gc_compare=') {
+            throw 'Build options do not select the isolated ZGC configuration'
+          }
+
+          Write-Output 'NovaGC precise ABI verification passed.'
+
+      - name: Create Windows ZGC package
+        shell: pwsh
+        run: |
+          $binaryRoot = Join-Path $env:GITHUB_WORKSPACE 'export\release\windows\bin'
+          $archive = Join-Path $env:RUNNER_TEMP 'NovaFlare-Windows-ZGC.zip'
+          if (-not (Test-Path -LiteralPath $binaryRoot -PathType Container)) {
+            throw "Windows output directory is missing: $binaryRoot"
+          }
+          Compress-Archive -Path "$binaryRoot\*" -DestinationPath $archive -CompressionLevel Optimal
+
+      - name: Upload Windows ZGC artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-zgc-${{ github.sha }}
+          path: ${{ runner.temp }}\NovaFlare-Windows-ZGC.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
