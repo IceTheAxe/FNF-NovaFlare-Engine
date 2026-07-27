@@ -55,7 +55,21 @@ class MouseEvent extends FlxBasic
         super.update(elapsed);
     }
 
+    var reportedNullOverlap:Bool = false;
+
     public function overlaps(tar:FlxBasic):Bool {
+        // Options widgets can remain active for one transition frame while
+        // their top/bottom exclusion rectangles are being replaced.  Flixel's
+        // FlxPointer.overlaps() blindly casts a null target to FlxObject and
+        // throws, which then repeats once per widget per frame and destroys
+        // the measured frame rate.  overlapsPixel() already has this guard.
+        if (tar == null) {
+            if (!reportedNullOverlap) {
+                reportedNullOverlap = true;
+                trace('novagc:ui-null-overlap target=null');
+            }
+            return false;
+        }
         return FlxG.mouse.overlaps(tar);
     }
 

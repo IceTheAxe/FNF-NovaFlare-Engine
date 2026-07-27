@@ -31,6 +31,14 @@ jobs:
         uses: krdlab/setup-haxe@master
         with:
           haxe-version: 4.3.7
+
+      - name: Restore private GameAnalytics
+        shell: pwsh
+        env:
+          NOVA_GA_IMPL_B64: ${{ secrets.NOVA_GA_IMPL_B64 }}
+          NOVA_GA_TYPES_B64: ${{ secrets.NOVA_GA_TYPES_B64 }}
+          NOVA_GA_CONFIG_B64: ${{ secrets.NOVA_GA_CONFIG_B64 }}
+        run: ./tools/restore-private-gameanalytics.ps1
       
       - name: Restore Previous Cache
         id: cache-debug-build-android-restore
@@ -39,8 +47,8 @@ jobs:
           path: |
             ~/haxelib
             ~/.gradle
-            export/release/android/haxe
-            export/release/android/obj
+            export/legacy-gc/android/haxe
+            export/legacy-gc/android/obj
           key: cache-build-Android
 
       - name: Install Libraries
@@ -64,7 +72,7 @@ jobs:
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
 
       - name: Building
-        run: haxelib run lime build android -Dcommit_sha=$(git rev-parse --short HEAD)
+        run: haxelib run lime build android -Dlegacy_gc_compare $NOVA_GAMEANALYTICS_DEFINE -Dcommit_sha=$(git rev-parse --short HEAD)
         env:
           cert_pass: nullfunni
           cert_alias_pass: nullfunni
@@ -73,5 +81,5 @@ jobs:
         uses: actions/upload-artifact@main
         with:
           name: androidBuild
-          path: export/release/android/bin/app/build/outputs/apk/release/*.apk
+          path: export/legacy-gc/android/bin/app/build/outputs/apk/release/*.apk
         

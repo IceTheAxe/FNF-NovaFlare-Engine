@@ -20,6 +20,14 @@ jobs:
         with:
           haxe-version: 4.3.7
 
+      - name: Restore private GameAnalytics
+        shell: pwsh
+        env:
+          NOVA_GA_IMPL_B64: ${{ secrets.NOVA_GA_IMPL_B64 }}
+          NOVA_GA_TYPES_B64: ${{ secrets.NOVA_GA_TYPES_B64 }}
+          NOVA_GA_CONFIG_B64: ${{ secrets.NOVA_GA_CONFIG_B64 }}
+        run: ./tools/restore-private-gameanalytics.ps1
+
       - name: Determine cache strategy
         id: cache_strategy
         run: |
@@ -60,14 +68,14 @@ jobs:
     
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             NEW_VERSION="${CURRENT_VERSION/-dev/-$COMMIT_SHA}"
-            haxelib run lime build mac -Dcommit_sha=$COMMIT_SHA -Dbuild_number=$NEW_VERSION
+            haxelib run lime build mac -Dlegacy_gc_compare $NOVA_GAMEANALYTICS_DEFINE -Dcommit_sha=$COMMIT_SHA -Dbuild_number=$NEW_VERSION
           else
-            haxelib run lime build mac -Dcommit_sha=$COMMIT_SHA -Dbuild_number=$CURRENT_VERSION
+            haxelib run lime build mac -Dlegacy_gc_compare $NOVA_GAMEANALYTICS_DEFINE -Dcommit_sha=$COMMIT_SHA -Dbuild_number=$CURRENT_VERSION
           fi
 
       - name: Create macOS zip package
         run: |
-          cd export/release/macos/bin
+          cd export/legacy-gc/macos/bin
           zip -r macOS-${{matrix.version}}.zip .
 
       - name: Upload Artifact
@@ -75,5 +83,5 @@ jobs:
         uses: actions/upload-artifact@main
         with:
           name: macOSBuild-${{matrix.version}}
-          path: export/release/macos/bin/macOS-${{matrix.version}}.zip
+          path: export/legacy-gc/macos/bin/macOS-${{matrix.version}}.zip
           if-no-files-found: error

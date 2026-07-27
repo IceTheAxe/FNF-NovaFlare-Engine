@@ -1,5 +1,8 @@
 package games;
 
+import openfl.Lib;
+import gameanalytics.GABridge;
+
 import haxe.Timer;
 import haxe.Json;
 
@@ -17,6 +20,7 @@ import flixel.util.FlxSave;
 import flixel.input.keyboard.FlxKey;
 import flixel.animation.FlxAnimationController;
 import flixel.input.touch.FlxTouch;
+import flixel.graphics.FlxGraphic;
 
 import modchart.Manager;
 
@@ -356,8 +360,23 @@ class PlayState extends MusicBeatState
 	
 	override public function create()
 	{
-		Paths.clearStoredMemory();
+		var createStarted:Float = haxe.Timer.stamp();
+		var lastCreateCheckpoint:Float = createStarted;
+		var createCheckpoint = function(label:String):Void
+		{
+			var now:Float = haxe.Timer.stamp();
+			trace('perf:PlayState.create phase=$label elapsed_ms='
+				+ Math.round((now - lastCreateCheckpoint) * 1000)
+				+ ' total_ms=' + Math.round((now - createStarted) * 1000));
+			lastCreateCheckpoint = now;
+		};
+		trace('perf:PlayState.create start replay=$replayMode');
+		// LoadingState deliberately keeps the previous song cached for a replay.
+		// Clearing it here defeated that reuse and rebuilt every frame/animation.
+		if (!replayMode)
+			Paths.clearStoredMemory();
 		GCManager.enable(false);
+		createCheckpoint('cache_cleanup');
 		
 		startCallback = startCountdown;
 		endCallback = endSong;
@@ -582,6 +601,7 @@ class PlayState extends MusicBeatState
 		#if HSCRIPT_ALLOWED
 		startHScriptsNamed('stages/' + curStage + '.hx');
 		#end
+		createCheckpoint('stage_and_global_scripts');
 
 		if (!stageData.hide_girlfriend)
 		{
@@ -621,6 +641,7 @@ class PlayState extends MusicBeatState
 		comboGroup = new FlxSpriteGroup();
 		add(comboGroup);
 		cachePopUpScore();
+		createCheckpoint('characters_and_score_cache');
 
 		uiGroup = new FlxSpriteGroup();
 		add(uiGroup);
@@ -767,8 +788,10 @@ class PlayState extends MusicBeatState
 		}
 		botplayTxt.cameras = [camHUD];
 		replayTxt.cameras = [camHUD];
+		createCheckpoint('gameplay_ui');
 
 		generateSong(SONG.song);
+		createCheckpoint('generate_song');
 
 		if (replayMode) {
 			replayExam.load();
@@ -845,6 +868,7 @@ class PlayState extends MusicBeatState
 		#end
 		hscriptGrp.execute();
 		hscriptGrp.call("onCreate");
+		createCheckpoint('note_event_and_song_scripts');
 
 		addMobileControls(false);
 
@@ -872,18 +896,20 @@ class PlayState extends MusicBeatState
 		callOnScripts('onCreatePost');
 
 		cacheCountdown();
+		createCheckpoint('callbacks_and_countdown_cache');
 
 		super.create();
 
 		callOnScripts('onCreateFinal');
 
 		GCManager.enable(true);
-		Paths.clearUnusedMemory();
+		Paths.clearUnusedMemory(false);
 
 		if (eventNotes.length < 1)
 			checkEventNote();
 
 		allowMinorGc = true;
+		trace('perf:PlayState.create end replay=$replayMode elapsed_ms=' + Math.round((haxe.Timer.stamp() - createStarted) * 1000));
 	}
 
 	function set_songSpeed(value:Float):Float
@@ -1601,6 +1627,7 @@ class PlayState extends MusicBeatState
 	function startSong():Void
 	{
 		startingSong = false;
+		GABridge.sendDesign("song:start", 1.0, {song: SONG.song.toLowerCase(), difficulty: Difficulty.getString(), storyMode: isStoryMode});
 
 		@:privateAccess
 		FlxG.sound.playMusic(inst._sound, 1, false);
@@ -1791,7 +1818,21 @@ class PlayState extends MusicBeatState
 					swagNote.gfNote = (section.gfSection && gottaHitNote == section.mustHitSection);
 				else
 					swagNote.gfNote = (section.gfSection && (songNotes[1] < (SONG.mania + 1)));
-				swagNote.noteType = songNotes[3];
+				// Older Psych charts omit the fourth note entry for the default
+				// note type.  The chart editor already normalizes that legacy form
+				// to noteTypeList[0] (the empty string); gameplay must do the same.
+				// Leaving it as null makes Lua receive nil, so scripts which route
+				// ordinary and custom opponent notes with `noteType == ''` silently
+				// disable one character's animations (Dual Demise is a real case).
+				var rawNoteType:Dynamic = songNotes[3];
+				if (Std.isOfType(rawNoteType, String))
+					swagNote.noteType = rawNoteType;
+				else
+				{
+					swagNote.noteType = ChartingState.noteTypeList[rawNoteType];
+					if (swagNote.noteType == null)
+						swagNote.noteType = '';
+				}
 
 				swagNote.scrollFactor.set();
 
@@ -2328,6 +2369,9 @@ class PlayState extends MusicBeatState
 			fixVocals = false;
 
 		if (ClientPrefs.data.developerMode) trace('resynced vocals at ' + Math.floor(Conductor.songPosition));
+		fixDesyncedStep = 0;
+		checkIfDesynced = false;
+		lastDesyncCheckTime = Lib.getTimer();
 
 		FlxG.sound.music.play();
 		#if FLX_PITCH FlxG.sound.music.pitch = playbackRate; #end
@@ -2358,6 +2402,7 @@ class PlayState extends MusicBeatState
 	}
 
 	public var fixDesyncedStep:Int = 0;
+	var lastDesyncCheckTime:Float = -1000;
 
 	function musicCheck(music:FlxSound, getTime:Float, deviation:Float):Bool
 	{
@@ -2389,26 +2434,27 @@ class PlayState extends MusicBeatState
                 Conductor.songPosition += elapsed * 1000 * playbackRate;
             else if (timing != null && (timing.isPlaying || timing.tickEnabled))
                 Conductor.songPosition = timing.getPositionMs();
-            if (checkIfDesynced && Conductor.songPosition >= 0)
+            var desyncCheckTime:Float = Lib.getTimer();
+            if (checkIfDesynced && Conductor.songPosition >= 0 &&
+                desyncCheckTime - lastDesyncCheckTime >= 200)
                 {
+				lastDesyncCheckTime = desyncCheckTime;
+				checkIfDesynced = false;
                 var diff:Float = 50 * playbackRate; // 0.05秒的音乐延迟偏差
                 var timeSub:Float = Conductor.songPosition - Conductor.offset;
+				diff = 80 * playbackRate;
 
 				if (Math.abs(FlxG.sound.music.time - timeSub) > diff
 					|| musicCheck(vocals, timeSub, diff)
 					|| (splitVocals && musicCheck(opponentVocals, timeSub, diff)))
 				{
-					if (fixDesyncedStep >= 5)
+					if (++fixDesyncedStep >= 3)
 					{
-						fixDesyncedStep = 0;
 						resyncVocals(true);
-						checkIfDesynced = false;
-					}
-					else
-					{
-						fixDesyncedStep++;
 					}
 				}
+				else
+					fixDesyncedStep = 0;
 			}
 		}
 		
@@ -3408,6 +3454,7 @@ class PlayState extends MusicBeatState
 		timeTxt.visible = false;
 		canPause = false;
 		endingSong = true;
+		GABridge.sendProgression("Complete", "song", SONG.song.toLowerCase(), Difficulty.getString(), songScore, (isStoryMode ? 1 : 0));
 		camZooming = false;
 		inCutscene = false;
 		updateTime = false;
@@ -3599,6 +3646,9 @@ class PlayState extends MusicBeatState
 	// it not use because new way
 	var rateSpr_S:FlxSprite;
 	var comboSpr_S:FlxSprite;
+	var scoreRatingGraphics:Map<String, FlxGraphic> = new Map<String, FlxGraphic>();
+	var scoreComboGraphic:FlxGraphic;
+	var scoreNumberGraphics:Array<FlxGraphic> = [];
 
 	var rateTween:FlxTween;
 	var comboTween:FlxTween;
@@ -3614,6 +3664,22 @@ class PlayState extends MusicBeatState
 
 	var seperatedScore:Array<Int> = [];
 
+	private function resolveScoreGraphic(candidates:Array<String>):FlxGraphic
+	{
+		var attempted:Array<String> = [];
+		for (key in candidates)
+		{
+			if (key == null || key.length == 0 || attempted.contains(key))
+				continue;
+
+			attempted.push(key);
+			var graphic:FlxGraphic = Paths.image(key);
+			if (graphic != null)
+				return graphic;
+		}
+		return null;
+	}
+
 	private function cachePopUpScore()
 	{
 		var uiPrefix:String = '';
@@ -3625,25 +3691,34 @@ class PlayState extends MusicBeatState
 				uiSuffix = '-pixel';
 		}
 
+		scoreRatingGraphics.clear();
+		scoreNumberGraphics = [];
+		var highestRatingImage:String = ratingsData.length > 0 ? ratingsData[0].image : 'sick';
 		for (rating in ratingsData)
 		{
-			Paths.image(uiPrefix + rating.image + uiSuffix);
-			var Spr:FlxSprite = new FlxSprite().loadGraphic(Paths.image(uiPrefix + rating.image + uiSuffix));
-			add(Spr);
+			// Custom pixel UIs do not always provide every optional judgment
+			// image (notably marvelous-pixel). Resolve that once while loading
+			// the state, then reuse the FlxGraphic on every note. Repeating a
+			// failed Paths.image lookup here used to allocate and log on every
+			// hit, which caused audio resync storms on dense charts.
+			var graphic:FlxGraphic = resolveScoreGraphic([
+				uiPrefix + rating.image + uiSuffix,
+				uiPrefix + highestRatingImage + uiSuffix,
+				highestRatingImage,
+				'sick'
+			]);
+			if (graphic == null)
+				continue;
 
-			for (i in 0...ratingsData.length)
-			{
-				if (ratingsData[i].name == rating.name)
-				{
-					ratingsData[i].color = FlxColor.fromInt(CoolUtil.getComboColor(Spr));
-					Spr.destroy();
-					continue;
-				}
-			}
+			scoreRatingGraphics.set(rating.name, graphic);
+			var spr:FlxSprite = new FlxSprite().loadGraphic(graphic);
+			rating.color = FlxColor.fromInt(CoolUtil.getComboColor(spr));
+			spr.destroy();
 		}
 
 		for (i in 0...10)
-			Paths.image(uiPrefix + 'num' + i + uiSuffix);
+			scoreNumberGraphics[i] = resolveScoreGraphic([uiPrefix + 'num' + i + uiSuffix, 'num' + i]);
+		scoreComboGraphic = resolveScoreGraphic([uiPrefix + 'combo' + uiSuffix, 'combo']);
 
 		var antialias:Bool = ClientPrefs.data.antialiasing;
 
@@ -3657,7 +3732,12 @@ class PlayState extends MusicBeatState
 
 		var placement:Float = FlxG.width * 0.35;
 
-		rateSpr_S = new FlxSprite().loadGraphic(Paths.image(uiPrefix + ratingsData[0].image + uiSuffix));
+		var initialRatingGraphic:FlxGraphic = ratingsData.length > 0 ? scoreRatingGraphics.get(ratingsData[0].name) : null;
+		rateSpr_S = new FlxSprite();
+		if (initialRatingGraphic != null)
+			rateSpr_S.loadGraphic(initialRatingGraphic);
+		else
+			rateSpr_S.makeGraphic(1, 1, FlxColor.TRANSPARENT);
 		rateSpr_S.cameras = [camHUD];
 		rateSpr_S.screenCenter();
 		rateSpr_S.x = placement - 40;
@@ -3681,7 +3761,11 @@ class PlayState extends MusicBeatState
 		rateSpr_S.visible = showRating;
 		comboGroup.add(rateSpr_S);
 
-		comboSpr_S = new FlxSprite().loadGraphic(Paths.image(uiPrefix + 'combo' + uiSuffix));
+		comboSpr_S = new FlxSprite();
+		if (scoreComboGraphic != null)
+			comboSpr_S.loadGraphic(scoreComboGraphic);
+		else
+			comboSpr_S.makeGraphic(1, 1, FlxColor.TRANSPARENT);
 		comboSpr_S.cameras = [camHUD];
 		comboSpr_S.screenCenter();
 		comboSpr_S.x = placement;
@@ -3702,7 +3786,11 @@ class PlayState extends MusicBeatState
 
 		for (comboNum in 0...4) // 9999 //why last get null?
 		{
-			var numScore:FlxSprite = new FlxSprite().loadGraphic(Paths.image(uiPrefix + 'num' + 0 + uiSuffix));
+			var numScore:FlxSprite = new FlxSprite();
+			if (scoreNumberGraphics[0] != null)
+				numScore.loadGraphic(scoreNumberGraphics[0]);
+			else
+				numScore.makeGraphic(1, 1, FlxColor.TRANSPARENT);
 			numScore.screenCenter();
 			numScore.x = placement + (50 * (comboNum - 1)) - 90 + ClientPrefs.data.comboOffset[2];
 			numScore.y += 80 - ClientPrefs.data.comboOffset[3];
@@ -3815,12 +3903,15 @@ class PlayState extends MusicBeatState
 			antialias = !isPixelStage;
 		}
 
-		rateSpr_S.visible = ClientPrefs.data.showRating && showRating;
-		rateSpr_S.loadGraphic(Paths.image(uiPrefix + daRating.image + uiSuffix));
+		var ratingGraphic:FlxGraphic = scoreRatingGraphics.get(daRating.name);
+		rateSpr_S.visible = ClientPrefs.data.showRating && showRating && ratingGraphic != null;
+		if (ratingGraphic != null)
+			rateSpr_S.loadGraphic(ratingGraphic);
 		rateSpr_S.antialiasing = antialias;
 
-		comboSpr_S.visible = showCombo;
-		comboSpr_S.loadGraphic(Paths.image(uiPrefix + 'combo' + uiSuffix));
+		comboSpr_S.visible = showCombo && scoreComboGraphic != null;
+		if (scoreComboGraphic != null)
+			comboSpr_S.loadGraphic(scoreComboGraphic);
 		comboSpr_S.antialiasing = antialias;
 
 		var scale:Float = 0;
@@ -3862,8 +3953,10 @@ class PlayState extends MusicBeatState
 		for (comboNum in 0...seperatedScore.length)
 		{
 			var numScore:FlxSprite = numItems.members[comboNum + startShow];
-			numScore.visible = ClientPrefs.data.showComboNum && showComboNum;
-			numScore.loadGraphic(Paths.image(uiPrefix + 'num' + seperatedScore[comboNum] + uiSuffix));
+			var numberGraphic:FlxGraphic = scoreNumberGraphics[seperatedScore[comboNum]];
+			numScore.visible = ClientPrefs.data.showComboNum && showComboNum && numberGraphic != null;
+			if (numberGraphic != null)
+				numScore.loadGraphic(numberGraphic);
 			if (ClientPrefs.data.comboColor)
 				numScore.color = daRating.color;
 			else

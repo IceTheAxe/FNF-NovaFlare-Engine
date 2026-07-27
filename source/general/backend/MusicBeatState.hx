@@ -7,6 +7,7 @@ import flixel.addons.ui.FlxUIState;
 import general.backend.PsychCamera;
 
 import general.shaders.ColorblindFilter;
+import gameanalytics.GABridge;
 
 class MusicBeatState extends FlxUIState
 {
@@ -187,12 +188,23 @@ class MusicBeatState extends FlxUIState
 
 	public static var timePassedOnState:Float = 0;
 	public var allowMinorGc:Bool = true;
+	private var gameAnalyticsElapsed:Float = 0;
+	private var lastSavedFullscreen:Null<Bool> = null;
 
 	override function update(elapsed:Float)
 	{
 		// everyStep();
 		var oldStep:Int = curStep;
 		timePassedOnState += elapsed;
+		// Analytics has no useful 2000 Hz signal.  Preserve the complete elapsed
+		// time while removing thousands of bridge/dynamic calls per second from
+		// every state.
+		gameAnalyticsElapsed += elapsed;
+		if (gameAnalyticsElapsed >= 1 / 60)
+		{
+			GABridge.update(gameAnalyticsElapsed);
+			gameAnalyticsElapsed = 0;
+		}
 
 		updateCurStep();
 		updateBeat();
@@ -211,13 +223,18 @@ class MusicBeatState extends FlxUIState
 			}
 		}
 
-		if (FlxG.save.data != null)
-			FlxG.save.data.fullscreen = FlxG.fullscreen;
-
-		stagesFunc(function(stage:BaseStage)
+		if (FlxG.save.data != null && lastSavedFullscreen != FlxG.fullscreen)
 		{
-			stage.update(elapsed);
-		});
+			lastSavedFullscreen = FlxG.fullscreen;
+			FlxG.save.data.fullscreen = lastSavedFullscreen;
+		}
+
+		// This is the hottest stage dispatch in the engine.  Avoid allocating a
+		// closure on every update; event/beat dispatches remain on the generic
+		// helper because they are infrequent.
+		for (stage in stages)
+			if (stage != null && stage.exists && stage.active)
+				stage.update(elapsed);
 
 		super.update(elapsed);
 	}

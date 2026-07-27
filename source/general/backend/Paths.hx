@@ -29,6 +29,7 @@ class Paths
 
 	public static function clearStoredMemory()
 	{
+		var clearStarted:Float = haxe.Timer.stamp();
 		// clear anything not in the tracked assets list
 		@:privateAccess
 		for (key in FlxG.bitmap._cache.keys())
@@ -106,8 +107,9 @@ class Paths
 	}
 
 	/// haya I love you for the base cache dump I took to the max
-	public static function clearUnusedMemory()
+	public static function clearUnusedMemory(?requestMajorGc:Bool = false)
 	{
+		var clearStarted:Float = haxe.Timer.stamp();
 		// clear non local assets in the tracked assets list
 		for (key in Cache.currentTrackedAssets.keys())
 		{
@@ -131,8 +133,17 @@ class Paths
 			}
 		}
 
-		// run the garbage collector for good measure lmfao
-		GCManager.run(true);
+		// Ordinary page transitions only release caches. A forced full cycle can
+		// still have a short remark pause, so let NovaGC's allocation/promotion
+		// policy schedule it unless a caller explicitly requests memory pressure
+		// relief. This prevents every menu switch from creating a GC hitch.
+		if (requestMajorGc)
+			#if legacy_gc_compare
+			cpp.vm.Gc.run(true);
+			#else
+			GCManager.requestFull();
+			#end
+		trace('perf:Paths.clearUnusedMemory requestedMajor=$requestMajorGc elapsed_ms=' + Math.round((haxe.Timer.stamp() - clearStarted) * 1000));
 	}
 
 	///////////////////////////////////////////上面是缓存清除功能，下面是路径功能
@@ -407,13 +418,16 @@ class Paths
 		return newGraphic;
 	}
 
-	static public function cacheBitmapPBO(file:String, bitmap:BitmapData, ?onPBODeleted:Void->Void = null)
+	static public function cacheBitmapPBO(file:String, bitmap:BitmapData,
+		?onPBODeleted:Void->Void = null, ?sliceSize:Int = 512)
 	{
 		Cache.localTrackedAssets.push(file);
 		var newGraphic:FlxGraphic = FlxGraphic.fromBitmapData(bitmap, false, file);
 		newGraphic.persist = true;
 		newGraphic.destroyOnNoUse = false;
-		newGraphic.bitmap.getTextureAsync(FlxG.stage.context3D, function(tex) {onPBODeleted();});
+		newGraphic.bitmap.getTextureAsync(FlxG.stage.context3D, function(tex) {
+			if (onPBODeleted != null) onPBODeleted();
+		}, sliceSize);
 		Cache.currentTrackedAssets.set(file, newGraphic);
 		
 		return newGraphic;

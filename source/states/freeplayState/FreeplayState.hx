@@ -4,8 +4,14 @@ import haxe.Json;
 import haxe.ds.ArraySort;
 
 import sys.thread.Mutex;
+import sys.io.File;
 
 import openfl.system.System;
+import openfl.display.BitmapData;
+import openfl.display.BitmapDataChannel;
+import openfl.geom.Point;
+import openfl.geom.Rectangle;
+import flixel.graphics.FlxGraphic;
 
 import developer.editors.ChartingState;
 
@@ -14,7 +20,6 @@ import options.OptionsState;
 import states.mainMenuState.MainMenuState;
 import states.storyMenuState.StoryMenuState;
 import states.modsMenuState.ModsMenuState;
-import states.freeplayState.shader.BlurFilter;
 import states.freeplayState.backend.*;
 import states.freeplayState.objects.detail.*;
 import states.freeplayState.objects.down.*;
@@ -32,12 +37,15 @@ import substates.ResetScoreSubState;
 import games.backend.WeekData;
 import games.backend.Highscore;
 import games.backend.Song;
+import games.backend.Song.SwagSong;
+import games.backend.StageData;
 import games.backend.Replay;
 import games.backend.Replay.StateRecord;
 import substates.ResultsScreen;
 import games.backend.diffCalc.DiffRating;
 import general.shapeEx.RoundRect;
 import general.shapeEx.RoundRect.OriginType;
+import general.objects.screen.MouseEffect;
 
 class FreeplayState extends MusicBeatState
 {
@@ -74,6 +82,13 @@ class FreeplayState extends MusicBeatState
 
 	var background:ChangeSprite;
 	var intendedColor:Int;
+	var backgroundRequestId:Int = 0;
+	var backgroundLoadTimer:FlxTimer;
+	var selectedBackgroundGraphic:FlxGraphic;
+	var retiredBackgroundGraphics:Array<FlxGraphic> = [];
+	var detailRequestId:Int = 0;
+	var detailLoadTimer:FlxTimer;
+	var stateDestroyed:Bool = false;
 
 	var detailRect:DetailRect;
 
@@ -139,6 +154,11 @@ class FreeplayState extends MusicBeatState
 		Song.forceEngineVersion = null;
 
 		instance = this;
+		// The global star trail is implemented as a separate OpenFL display
+		// list.  On this shader-heavy page it made a 1000 Hz mouse allocate
+		// roughly 25 MB/s extra and reduced the measured frame rate to ~100.
+		// Click feedback remains active and other states still use the trail.
+		MouseEffect.trailEnabled = false;
 
 		FlxG.mouse.visible = !ClientPrefs.data.needMobileControl;
 
@@ -184,25 +204,40 @@ class FreeplayState extends MusicBeatState
 		
 		//////////////////////////////////////////////////////////////////////////////////////////
 
-		camBG = new FlxCamera();
+		// Reuse the state's existing camera for the background.  The old layout
+		// kept that camera alive and then added four more full-screen render
+		// surfaces, so every Freeplay frame cleared/composited five 1280x720
+		// layers even though only three independent layer groups are required.
+		camBG = FlxG.camera;
 		camBG.bgColor = 0x00000000;
-		FlxG.cameras.add(camBG);
 		camSongs = new FlxCamera();
 		camSongs.bgColor = 0x00000000;
-		FlxG.cameras.add(camSongs);
-		camReplay = new FlxCamera();
-		camReplay.bgColor = 0x00000000;
-		FlxG.cameras.add(camReplay);
+		// These are explicit layer cameras, not default draw targets.  Replay
+		// objects are created after song rows, so sharing their camera preserves
+		// the original visual order without another full-screen surface.
+		FlxG.cameras.add(camSongs, false);
+		camReplay = camSongs;
 		camAfter = new FlxCamera();
 		camAfter.bgColor = 0x00000000;
-		FlxG.cameras.add(camAfter);
+		FlxG.cameras.add(camAfter, false);
+		// These four OpenFL sprites are render surfaces, not UI controls. Leaving
+		// them mouse-enabled makes Stage hit-test every full-screen camera layer
+		// for each MOUSE_MOVE before Flixel receives the same global coordinates.
+		for (renderCamera in [camBG, camSongs, camAfter])
+		{
+			renderCamera.flashSprite.mouseEnabled = false;
+			renderCamera.flashSprite.mouseChildren = false;
+		}
 
 		background = new ChangeSprite(0, 0).load(Paths.image('menuDesat'), 1.05);
 		background.antialiasing = ClientPrefs.data.antialiasing;
 		background.camera = camBG;
 		add(background);
-		var bgBlur = new BlurFilter(15.0);
-		bgBlur.apply(camBG);
+		// Selected backgrounds are blurred once on the loader thread. Rendering
+		// the Gaussian kernel as a full-screen sprite shader cost nine texture
+		// reads per pixel forever (eighteen during a cross-fade), which limited
+		// this otherwise static menu to tens of frames per second.
+		background.setAllowMove(false);
 
 		detailRect = new DetailRect(0, 0);
 		detailRect.camera = camAfter;
@@ -338,6 +373,7 @@ class FreeplayState extends MusicBeatState
 								songMoveEvent);
 		songsMove.useLerp = true;
 		songsMove.lerpSmooth = 8;
+		songsMove.forceUpdateEvent = false;
 		add(songsMove);
 
 		////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -402,7 +438,7 @@ class FreeplayState extends MusicBeatState
 		replayMove.lerpSmooth = 10;
 		replayMove.mouseWheelSensitivity = -1000;
 		replayMove.event = replayMoveEvent;
-		replayMove.forceUpdateEvent = true;
+		replayMove.forceUpdateEvent = false;
 		add(replayMove);
 
 		//////////////////////////////////////////////////////////////////////////////////////////
@@ -459,10 +495,11 @@ class FreeplayState extends MusicBeatState
 
 		//////////////////////////////////////////////////////////////////////////////////////////
 
-		vocalsPlayer1 = new FlxSound();
-		vocalsPlayer2 = new FlxSound();
-		FlxG.sound.list.add(vocalsPlayer1);
-		FlxG.sound.list.add(vocalsPlayer2);
+		// These fields are retained as LoadingState's legacy preview sentinel.
+		// They are not separate players: preview vocals are synchronized tracks
+		// inside FlxG.sound.music's AudioGroup.
+		vocalsPlayer1 = FlxG.sound.music;
+		vocalsPlayer2 = null;
 
 		//////////////////////////////////////////////////////////////////////////////////////////
 
@@ -528,10 +565,15 @@ class FreeplayState extends MusicBeatState
 	public var rectInter:Float = 0.97;
 	public function songMoveEvent(){
 		if (songGroup.length <= 0) return;
+		var scrolling:Bool = songsMove != null && songsMove.state != 'stop';
 		for (i in 0...songGroup.length) {
 			songGroup[i].moveY(songPosiData + getEffectiveId(songGroup[i].id) * SongRect.fixHeight * rectInter);
-			updateSongVisibility(songGroup[i]);
-			songGroup[i].calcX();
+			// Horizontal arc easing is only visible for rows in the viewport.
+			// Avoid pow/lerp work for the other ~50 mod rows on every drag frame.
+			if (updateSongVisibility(songGroup[i])) {
+				songGroup[i].calcX();
+				songGroup[i].setScrollRendering(scrolling);
+			}
 		}
 	}
 
@@ -545,13 +587,31 @@ class FreeplayState extends MusicBeatState
 	}
 
 	var holdTime:Float = 0;
+	var childUpdateElapsed:Float = 0;
+	var lastChildUpdateTick:Int = -1;
 
 	public var allowUpdate:Bool = false;
 	override function update(elapsed:Float)
 	{
 		if (FlxG.sound.music != null)
 			Conductor.songPosition = FlxG.sound.music.time;
-		super.update(elapsed);
+
+		// Native scheduling runs at up to 2000 Hz, but Freeplay contains dozens
+		// of nested sprite groups whose animations and hit tests do not need to
+		// be traversed more than 250 times per second.  Keep this state's input
+		// logic responsive on every native tick while advancing its child tree
+		// in accumulated, lossless steps.  Mouse edges force an immediate pass
+		// so a short click can never be missed.
+		childUpdateElapsed += elapsed;
+		var nowTick:Int = FlxG.game.ticks;
+		var forceChildUpdate:Bool = FlxG.mouse.justPressed || FlxG.mouse.justReleased || FlxG.mouse.wheel != 0;
+		if (lastChildUpdateTick < 0 || nowTick - lastChildUpdateTick >= 4 || forceChildUpdate)
+		{
+			var childElapsed:Float = childUpdateElapsed;
+			childUpdateElapsed = 0;
+			lastChildUpdateTick = nowTick;
+			super.update(childElapsed);
+		}
 		
 		if (stopAll) return;
 
@@ -696,15 +756,19 @@ class FreeplayState extends MusicBeatState
 		}
 
 		// replay hover & sort button handling
-		if (keyboardState == 0 && !stopAll)
+		if (keyboardState == 0 && !stopAll
+			&& (FlxG.mouse.justMoved || FlxG.mouse.justPressed || FlxG.mouse.justReleased))
 		{
 			var mouseX:Float = FlxG.mouse.x;
 			var mouseY:Float = FlxG.mouse.y;
 
 			for (btn in replaySortBtn)
 			{
-				if (mouseX >= btn.x && mouseX <= btn.x + btn.width
-					&& mouseY >= btn.y && mouseY <= btn.y + btn.height
+				// RoundRect is a FlxSpriteGroup, so its inherited width/height
+				// getters rescan every child.  The shape already maintains exact
+				// cached bounds; use them in this per-frame hover loop.
+				if (mouseX >= btn.x && mouseX <= btn.x + btn.realWidth
+					&& mouseY >= btn.y && mouseY <= btn.y + btn.realHeight
 					&& FlxG.mouse.justPressed)
 				{
 					var sortModes:Array<ReplaySortMode> = [DATE_DESC, SCORE_DESC, ACC_DESC, COMBO_DESC];
@@ -722,85 +786,133 @@ class FreeplayState extends MusicBeatState
 		searchJustUnfocused = false;
 	}
 
-	public function initSongsData() {
-		if (curDifficulty < 0) return;
+	public function initSongsData():Void {
+		var requestId:Int = ++detailRequestId;
+		if (detailLoadTimer != null)
+		{
+			detailLoadTimer.cancel();
+			detailLoadTimer = null;
+		}
+		if (stateDestroyed || curDifficulty < 0 || curSelected < 0
+			|| curSelected >= songsData.length || curSelected >= songGroup.length)
+			return;
 
-		BackendThread.run(() -> {
-			var songLowercase:String;
-			var poop:String;
-			try
+		var selected:Int = curSelected;
+		var difficulty:Int = curDifficulty;
+		var songLowercase:String = Paths.formatToSongPath(songsData[selected].songName);
+		var poop:String = Highscore.formatSong(songLowercase, difficulty);
+		var formattedSong:String = Paths.formatToSongPath(poop);
+		var chartPath:String = Paths.json('$songLowercase/$formattedSong');
+
+		// The row and difficulty callbacks can request the same chart in one
+		// frame. Coalesce them and keep blocking I/O away from the render thread.
+		// Song's global parse state is touched only by the newest main callback.
+		detailLoadTimer = new FlxTimer().start(0.025, function(_):Void
+		{
+			detailLoadTimer = null;
+			if (!isDetailRequestCurrent(requestId, selected, difficulty)) return;
+			BackendThread.run(function():Void
 			{
-				songLowercase = Paths.formatToSongPath(songsData[curSelected].songName);
-				poop = Highscore.formatSong(songLowercase, curDifficulty);
-				PlayState.SONG = Song.loadFromJson(poop, songLowercase);
-			} catch (e:Dynamic) {
+				var rawData:String = null;
+				var loadError:Dynamic = null;
+				try
+				{
+					if (FileSystem.exists(chartPath))
+						rawData = File.getContent(chartPath);
+					else
+						rawData = openfl.utils.Assets.getText(chartPath);
+				}
+				catch (e:Dynamic)
+				{
+					loadError = e;
+				}
+
 				MainLoop.runInMainThread(function():Void
 				{
-					trace(e);
-					seedError(e);
+					if (!isDetailRequestCurrent(requestId, selected, difficulty)) return;
+					try
+					{
+						if (loadError != null) throw loadError;
+						if (rawData == null) throw 'Missing chart: $chartPath';
+						var loadedSong = Song.parseJSON(rawData, poop);
+						if (loadedSong == null) throw 'Invalid chart: $chartPath';
+						PlayState.SONG = loadedSong;
+						Song.loadedSongName = songLowercase;
+						Song.chartPath = chartPath;
+						#if windows
+						Song.chartPath = Song.chartPath.replace('/', '\\');
+						#end
+						StageData.loadDirectory(loadedSong);
+						Conductor.bpm = loadedSong.bpm;
+						var diffCalc = DiffRating.calcForSong(loadedSong);
+						updateDetail(loadedSong, diffCalc, requestId, selected, difficulty);
+					}
+					catch (e:Dynamic)
+					{
+						trace('FREEPLAY CHART: $e');
+						seedError(e, requestId, selected, difficulty);
+					}
 				});
-				return;
-			}
-			
-			MainLoop.runInMainThread(function():Void
-			{
-				var diffCalc = DiffRating.calcForSong(PlayState.SONG);
-
-				Conductor.bpm = PlayState.SONG.bpm;
-
-				updateDetail(diffCalc);
 			});
 		});
 	}
 
-	function updateDetail(diffCalc:Float) {
+	inline function isDetailRequestCurrent(requestId:Int, selected:Int, difficulty:Int):Bool
+	{
+		return !stateDestroyed && instance == this && requestId == detailRequestId
+			&& selected == curSelected && difficulty == curDifficulty;
+	}
+
+	function updateDetail(song:SwagSong, diffCalc:Float, requestId:Int, selected:Int, difficulty:Int):Void {
+		if (!isDetailRequestCurrent(requestId, selected, difficulty)
+			|| detailMapper == null || detailRate == null) return;
 		diffCalc = Math.floor(diffCalc * 100) / 100;
-		detailSongName.text = songGroup[curSelected].songNameSt;
-		detailMusican.text = songGroup[curSelected].songMusican;
-		detailPlayText.text = Std.string(Highscore.getPlayCount(songGroup[curSelected].songNameSt, curDifficulty));
-		detailBpmText.text = Std.string(Conductor.bpm);
-		detailMapper.text = 'Rate ' + Std.string(diffCalc) + ' mapped by ' + songGroup[curSelected]._songCharter[curDifficulty];
+		var selectedRect:SongRect = songGroup[selected];
+		var charter:String = 'N/A';
+		if (selectedRect._songCharter != null && difficulty >= 0
+			&& difficulty < selectedRect._songCharter.length
+			&& selectedRect._songCharter[difficulty] != null)
+			charter = selectedRect._songCharter[difficulty];
+		detailSongName.text = selectedRect.songNameSt;
+		detailMusican.text = selectedRect.songMusican;
+		detailPlayText.text = Std.string(Highscore.getPlayCount(selectedRect.songNameSt, difficulty));
+		detailBpmText.text = Std.string(song.bpm);
+		detailMapper.text = 'Rate ' + Std.string(diffCalc) + ' mapped by ' + charter;
 		detailMapper.color = detailRate.getColorByValue(diffCalc / 10);
 		detailRate.setRate(diffCalc);
 
-		BackendThread.run(() -> {
+		BackendThread.run(function():Void {
 			var noteCount:Int = 0;
 			var holdNoteCount:Int = 0;
-			var opponentNoteCount:Int = 0;
-			var opponentHoldNoteCount:Int = 0;
-			if (PlayState.SONG != null && PlayState.SONG.notes != null) {
-				for (sec in PlayState.SONG.notes) {
+			if (song != null && song.notes != null) {
+				for (sec in song.notes) {
 					if (sec == null || sec.sectionNotes == null) continue;
 					for (n in sec.sectionNotes) {
 						if (n == null || !Std.isOfType(n, Array)) continue;
 						var arr:Array<Dynamic> = cast n;
-						if (arr == null || arr.length < 2) continue;
-						if (arr[1] == null) continue;
+						if (arr == null || arr.length < 2 || arr[1] == null) continue;
 						var rawLane:Int = Std.int(arr[1]);
 						if (rawLane < 0) continue;
-
 						var gottaHitNote:Bool = sec.mustHitSection;
-						if (rawLane > PlayState.SONG.mania) {
-							gottaHitNote = !sec.mustHitSection;
-						}
-
-						var isPlayerSide:Bool = ((gottaHitNote && !ClientPrefs.data.playOpponent) || (!gottaHitNote && ClientPrefs.data.playOpponent));
+						if (rawLane > song.mania) gottaHitNote = !sec.mustHitSection;
+						var isPlayerSide:Bool = ((gottaHitNote && !ClientPrefs.data.playOpponent)
+							|| (!gottaHitNote && ClientPrefs.data.playOpponent));
 						var isHold:Bool = (arr.length > 2 && arr[2] != null && arr[2] > 0);
 						if (isPlayerSide) {
 							noteCount++;
 							if (isHold) holdNoteCount++;
-						} else {
-							opponentNoteCount++;
-							if (isHold) opponentHoldNoteCount++;
 						}
 					}
 				}
 			}
-			var speedValue:Float = (PlayState.SONG != null) ? PlayState.SONG.speed : 0;
-			var keyCountValue:Float = (PlayState.SONG != null) ? (PlayState.SONG.mania + 1) : 0;
+			var speedValue:Float = (song != null) ? song.speed : 0;
+			var keyCountValue:Float = (song != null) ? (song.mania + 1) : 0;
 
 			MainLoop.runInMainThread(function():Void
 			{
+				if (!isDetailRequestCurrent(requestId, selected, difficulty)
+					|| noteData == null || holdNoteData == null || speedData == null
+					|| keyCountData == null) return;
 				noteData.chanegData(noteCount);
 				holdNoteData.chanegData(holdNoteCount);
 				speedData.chanegData(speedValue);
@@ -808,52 +920,68 @@ class FreeplayState extends MusicBeatState
 			});
 		});
 
-		updateAudio();
+		updateAudio(song, requestId);
 
-		if (curDifficulty >= 0 && curDifficulty < Difficulty.list.length)
-		{
+		if (difficulty >= 0 && difficulty < Difficulty.list.length)
 			loadReplaysForCurrentSong();
-		}
 	}
 
 	var allowPlayMusic:Bool = true;
 	var alreadyLoadSongPath:String = '';
 	var audioSwitchId:Int = 0;
 	
-	var audioFadeOutTime:Float = 0.5;
-	var audioFadeInTime:Float = 0.35;
+	var audioFadeOutTime:Float = 0.12;
+	var audioFadeInTime:Float = 0.18;
 
-	public function updateAudio() {
+	public function updateAudio(?song:SwagSong, ?sourceDetailId:Int = -1):Void {
+		if (stateDestroyed || song == null) return;
+		if (FlxG.sound.music == null)
+		{
+			try
+			{
+				FlxG.sound.playMusic(Paths.music('freakyMenu'), 0, true);
+			}
+			catch (e:Dynamic)
+			{
+				trace('FREEPLAY PREVIEW: failed to create music channel: $e');
+			}
+		}
 		if (FlxG.sound.music == null) return;
+
 		var requestId:Int = ++audioSwitchId;
 		var instTargetVolume:Float = 1;
-		var songName:String = PlayState.SONG.song;
+		var songName:String = song.song;
 		var instPath:String = Paths.songPath('${songName}/Inst');
 		var voicesPath:String = Paths.songPath('${songName}/Voices');
 
-		if (alreadyLoadSongPath == instPath) return;
+		if (alreadyLoadSongPath == instPath)
+		{
+			if (!FlxG.sound.music.playing)
+			{
+				FlxG.sound.music.volume = instTargetVolume;
+				FlxG.sound.music.play();
+			}
+			return;
+		}
 
 		alreadyLoadSongPath = '';
-
 		var swapToNew:Void->Void = function() {
-			if (requestId != audioSwitchId) return;
+			if (!isAudioRequestCurrent(requestId, sourceDetailId)) return;
 			allowPlayMusic = false;
 			var instLoaded:Bool = false;
 			var pendingStart:Bool = false;
 			var started:Bool = false;
 			var startPlayback:Void->Void = function() {
-				if (started) return;
-				if (requestId != audioSwitchId) return;
+				if (started || !isAudioRequestCurrent(requestId, sourceDetailId)) return;
 				started = true;
 				FlxG.sound.music.volume = 0;
 				FlxG.sound.music.play();
 				FlxG.sound.music.fadeIn(audioFadeInTime, 0, instTargetVolume);
-				
-				MainLoop.runInMainThread(function():Void
-				{
-					FlxTimer.wait(0.05, () -> {
-						detailTimeText.text = DateTools.format(Date.fromTime(FlxG.sound.music.length), "%M:%S");
-					});
+				FlxTimer.wait(0.05, function():Void {
+					if (!isAudioRequestCurrent(requestId, sourceDetailId)
+						|| detailTimeText == null || FlxG.sound.music == null) return;
+					detailTimeText.text = DateTools.format(
+						Date.fromTime(FlxG.sound.music.length), "%M:%S");
 				});
 			};
 
@@ -868,6 +996,7 @@ class FreeplayState extends MusicBeatState
 				{
 					FlxG.sound.music.loadStream(instPath, true, false, null, function()
 					{
+						if (!isAudioRequestCurrent(requestId, sourceDetailId)) return;
 						instLoaded = true;
 						if (pendingStart) startPlayback();
 					});
@@ -876,28 +1005,25 @@ class FreeplayState extends MusicBeatState
 				}
 				else
 				{
-					alreadyLoadSongPath = '';
+					trace('FREEPLAY PREVIEW: missing $instPath');
 				}
 
-				if (PlayState.SONG.needsVoices)
+				if (song.needsVoices)
 				{
 					if (FileSystem.exists(voicesPath))
-					{
 						FlxG.sound.music.addTrack(voicesPath, [":group-volume=0.8"], 2);
-					}
 					else
 					{
-						var playerVocals:String = getVocalFromCharacter(PlayState.SONG.player1, 'Player');
-						FlxG.sound.music.addTrack(Paths.songPath('${songName}/Voices${playerVocals}'), [":group-volume=0.8"], 2);
+						var playerVocals:String = getVocalFromCharacter(song.player1, 'Player');
+						var playerPath:String = Paths.songPath('${songName}/Voices${playerVocals}');
+						if (FileSystem.exists(playerPath))
+							FlxG.sound.music.addTrack(playerPath, [":group-volume=0.8"], 2);
 
-						var playerVocals:String = getVocalFromCharacter(PlayState.SONG.player2, 'Opponent');
-						FlxG.sound.music.addTrack(Paths.songPath('${songName}/Voices${playerVocals}'), [":group-volume=0.8"], 3);
+						var opponentVocals:String = getVocalFromCharacter(song.player2, 'Opponent');
+						var opponentPath:String = Paths.songPath('${songName}/Voices${opponentVocals}');
+						if (FileSystem.exists(opponentPath))
+							FlxG.sound.music.addTrack(opponentPath, [":group-volume=0.8"], 3);
 					}
-				}
-				else
-				{
-					FlxG.sound.music.releaseMedia(2);
-					FlxG.sound.music.releaseMedia(3);
 				}
 
 				if (allowPlayMusic)
@@ -908,25 +1034,31 @@ class FreeplayState extends MusicBeatState
 			}
 			catch (e:Dynamic)
 			{
-				throw e;
+				alreadyLoadSongPath = '';
+				trace('FREEPLAY PREVIEW: failed to load $instPath because $e');
 			}
 		};
 
-		if (FlxG.sound.music != null && FlxG.sound.music.playing && FlxG.sound.music.volume > 0)
+		if (FlxG.sound.music.playing && FlxG.sound.music.volume > 0)
 		{
 			FlxG.sound.music.fadeOut(audioFadeOutTime, 0, function(_)
 			{
-				swapToNew();
+				if (isAudioRequestCurrent(requestId, sourceDetailId)) swapToNew();
 			});
 		}
 		else
-		{
 			swapToNew();
-		}
 	}
 
+	inline function isAudioRequestCurrent(requestId:Int, sourceDetailId:Int):Bool
+	{
+		return !stateDestroyed && instance == this && requestId == audioSwitchId
+			&& (sourceDetailId < 0 || sourceDetailId == detailRequestId);
+	}
 
-	function seedError(e:Dynamic) {
+	function seedError(e:Dynamic, requestId:Int, selected:Int, difficulty:Int):Void {
+		if (!isDetailRequestCurrent(requestId, selected, difficulty)
+			|| detailMapper == null || detailRate == null) return;
 		detailPlayText.text = 'N/A';
 		detailSongName.text = 'N/A';
 		detailMusican.text = 'N/A';
@@ -938,7 +1070,7 @@ class FreeplayState extends MusicBeatState
 		keyCountData.chanegData(0);
 		detailRate.setRate(0);
 		detailMapper.color = detailRate.getColorByValue(0);
-		updateAudio();
+		++audioSwitchId;
 	}
 
 	public function startGame() {
@@ -948,7 +1080,7 @@ class FreeplayState extends MusicBeatState
 
 			try
 			{
-				PlayState.SONG = Song.loadFromJson(poop, songLowercase);
+				ensureSelectedChartLoaded(poop, songLowercase);
 				PlayState.isStoryMode = false;
 				PlayState.storyDifficulty = curDifficulty;
 
@@ -993,7 +1125,7 @@ class FreeplayState extends MusicBeatState
 
 		try
 		{
-			PlayState.SONG = Song.loadFromJson(poop, songLowercase);
+			ensureSelectedChartLoaded(poop, songLowercase);
 			PlayState.isStoryMode = false;
 			PlayState.storyDifficulty = curDifficulty;
 			PlayState.replayMode = true;
@@ -1019,6 +1151,19 @@ class FreeplayState extends MusicBeatState
 		#if (MODS_ALLOWED && DISCORD_ALLOWED)
 		DiscordClient.loadModRPC();
 		#end
+	}
+
+	function ensureSelectedChartLoaded(jsonInput:String, songFolder:String):Void
+	{
+		var expectedPath:String = Paths.json(
+			'${Paths.formatToSongPath(songFolder)}/${Paths.formatToSongPath(jsonInput)}');
+		#if windows
+		expectedPath = expectedPath.replace('/', '\\');
+		#end
+		if (PlayState.SONG != null && Song.loadedSongName == songFolder
+			&& Song.chartPath == expectedPath)
+			return;
+		PlayState.SONG = Song.loadFromJson(jsonInput, songFolder);
 	}
 
 	public function openReplayResults(rsdPath:String)
@@ -1227,7 +1372,7 @@ class FreeplayState extends MusicBeatState
 		
 		if (playSound) FlxG.sound.play(Paths.sound('scrollMenu'), 0.4);
 
-		background.changeSprite(Cache.getFrame('freePlayBG-' + songGroup[curSelected].bgPath));
+		requestSelectedBackground(songGroup[curSelected].bgPath);
 		var colors:Array<Int> = songsData[curSelected].color;
 		var newColor:Int = FlxColor.fromRGB(Std.int(colors[0] * 1.0), Std.int(colors[1] * 1.0), Std.int(colors[2] * 1.0));
 		if (newColor != intendedColor)
@@ -1237,6 +1382,118 @@ class FreeplayState extends MusicBeatState
 		}
 
 		////////////////////////////////////////////////////////////
+	}
+
+	function requestSelectedBackground(path:String):Void
+	{
+		var requestId:Int = ++backgroundRequestId;
+		var selected:Int = curSelected;
+		var targetWidth:Int = Std.int(FlxG.width * 1.05);
+		var targetHeight:Int = Std.int(FlxG.height * 1.05);
+		if (backgroundLoadTimer != null)
+		{
+			backgroundLoadTimer.cancel();
+			backgroundLoadTimer = null;
+		}
+
+		// Decode only after the selection settles. Continuous scrolling used to
+		// synchronously decode a full PNG on every step and caused the visible
+		// frame-time spikes reported on this page.
+		backgroundLoadTimer = new FlxTimer().start(0.12, function(_)
+		{
+			backgroundLoadTimer = null;
+			if (stateDestroyed || instance != this || requestId != backgroundRequestId) return;
+			BackendThread.run(function():Void
+			{
+				var sourceBitmap:BitmapData = SongRect.createBackgroundBitmap(
+					path, targetWidth, targetHeight);
+				var thumbnail:BitmapData = SongRect.resizeBackgroundBitmap(
+					sourceBitmap, SongRect.fixWidth, SongRect.fixHeight);
+				// A quarter-size Gaussian result scales smoothly to the viewport and
+				// turns the steady-state background back into one ordinary texture
+				// sample per pixel. Keep the thumbnail sharp by deriving it first.
+				var bitmap:BitmapData = SongRect.createBlurredBackgroundBitmap(
+					sourceBitmap, Std.int(Math.max(1, targetWidth / 4)),
+					Std.int(Math.max(1, targetHeight / 4)));
+				if (sourceBitmap != null)
+					sourceBitmap.dispose();
+				MainLoop.runInMainThread(function():Void
+				{
+					if (bitmap == null)
+					{
+						if (thumbnail != null) thumbnail.dispose();
+						return;
+					}
+					if (stateDestroyed || instance != this || requestId != backgroundRequestId || background == null)
+					{
+						bitmap.dispose();
+						if (thumbnail != null) thumbnail.dispose();
+						return;
+					}
+
+					var nextGraphic:FlxGraphic = FlxGraphic.fromBitmapData(bitmap);
+					if (thumbnail != null)
+					{
+						// The selected full decode is already in memory, so derive the
+						// list thumbnail from it instead of decoding the PNG a second time.
+						var maskSource:SongRect = selected >= 0 && selected < songGroup.length
+							? songGroup[selected] : null;
+						if (maskSource != null && maskSource.selectShow != null)
+							thumbnail.copyChannel(maskSource.selectShow.pixels,
+								new Rectangle(0, 0, SongRect.fixWidth, SongRect.fixHeight),
+								new Point(), BitmapDataChannel.ALPHA, BitmapDataChannel.ALPHA);
+						var thumbnailGraphic:FlxGraphic = FlxGraphic.fromBitmapData(thumbnail);
+						Cache.setFrame(path, {graphic: thumbnailGraphic, frame: null});
+						for (rect in songGroup)
+							if (rect != null && rect.bgPath == path)
+								rect.applyThumbnailGraphic(thumbnailGraphic);
+					}
+					var previous:FlxGraphic = selectedBackgroundGraphic;
+					selectedBackgroundGraphic = nextGraphic;
+					background.changeSprite(nextGraphic.imageFrame);
+
+					if (previous != null && previous != nextGraphic)
+					{
+						retiredBackgroundGraphics.push(previous);
+						FlxTimer.wait(1.0, function():Void
+						{
+							if (stateDestroyed) return;
+							if (previous != selectedBackgroundGraphic)
+							{
+								retiredBackgroundGraphics.remove(previous);
+								previous.destroy();
+							}
+						});
+					}
+				});
+			});
+		});
+	}
+
+	override function destroy():Void
+	{
+		MouseEffect.trailEnabled = true;
+		stateDestroyed = true;
+		++detailRequestId;
+		++audioSwitchId;
+		++backgroundRequestId;
+		if (detailLoadTimer != null)
+		{
+			detailLoadTimer.cancel();
+			detailLoadTimer = null;
+		}
+		if (backgroundLoadTimer != null)
+		{
+			backgroundLoadTimer.cancel();
+			backgroundLoadTimer = null;
+		}
+		for (graphic in retiredBackgroundGraphics)
+			if (graphic != null)
+				graphic.destroy();
+		retiredBackgroundGraphics = [];
+		if (instance == this) instance = null;
+		super.destroy();
+		selectedBackgroundGraphic = null;
 	}
 
 	public function updateSongLayerOrder():Void
@@ -1318,11 +1575,15 @@ class FreeplayState extends MusicBeatState
 		return ry + rh > cy && ry < cy + ch;
 	}
 
-	public function updateSongVisibility(r:SongRect):Void {
-		if (r != null) {
-			var ons:Bool = rectOnScreen(r);
-			r.visible = r.active = ons;
-		}
+	public function updateSongVisibility(r:SongRect):Bool {
+		if (r == null) return false;
+		var ons:Bool = rectOnScreen(r);
+		// FlxSpriteGroup propagates visible/active to every child. Repeating the
+		// same assignment for all 61 rows was hundreds of needless writes per
+		// rendered scroll step.
+		if (r.visible != ons) r.visible = ons;
+		if (r.active != ons) r.active = ons;
+		return ons;
 	}
 	
 	function changeDiff(change:Int = 0)
@@ -1354,6 +1615,8 @@ class FreeplayState extends MusicBeatState
 		FlxG.sound.music.releaseMedia(2);
 		FlxG.sound.music.releaseMedia(3);
 		FlxG.sound.music.stop();
+		vocalsPlayer1 = null;
+		vocalsPlayer2 = null;
 	}
 
 	function getVocalFromCharacter(char:String, fixName:String)

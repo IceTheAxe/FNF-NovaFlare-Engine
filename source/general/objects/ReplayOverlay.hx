@@ -10,7 +10,10 @@ class ReplayOverlay extends Sprite
 {
 	private var textField:TextField;
 	private var hue:Float = 0;
-	private var colorSpeed:Float = 0.6; // hue change per frame
+	private var colorSpeed:Float = 120; // three-second hue cycle
+	private var colorElapsed:Float = 0;
+	private var lastStageWidth:Int = -1;
+	private var lastStageHeight:Int = -1;
 
 	public function new()
 	{
@@ -52,22 +55,30 @@ class ReplayOverlay extends Sprite
 		if (!visible)
 			return;
 
-		hue += colorSpeed;
+		// Text rasterization does not need to run at an uncapped 1000+ FPS.
+		// Keep the overlay animation at a smooth 120 Hz while the game render
+		// itself remains uncapped.
+		colorElapsed += deltaTime;
+		if (colorElapsed < 1000 / 120)
+			return;
+
+		hue += colorSpeed * colorElapsed / 1000;
+		colorElapsed = 0;
 		if (hue >= 360)
-			hue -= 360;
+			hue %= 360;
 
-		var color:Int = hslToRgb(hue, 1.0, 0.5);
-
-		var format:TextFormat = new TextFormat();
-		format.color = color;
-		format.font = "_sans";
-		format.size = 16;
-		format.bold = true;
-		textField.setTextFormat(format);
+		textField.textColor = hslToRgb(hue, 1.0, 0.5);
 
 		// Update position in case window size changed
-		textField.x = Lib.current.stage.stageWidth - textField.width;
-		textField.y = Lib.current.stage.stageHeight - textField.height;
+		var stageWidth = Lib.current.stage.stageWidth;
+		var stageHeight = Lib.current.stage.stageHeight;
+		if (stageWidth != lastStageWidth || stageHeight != lastStageHeight)
+		{
+			lastStageWidth = stageWidth;
+			lastStageHeight = stageHeight;
+			textField.x = stageWidth - textField.width;
+			textField.y = stageHeight - textField.height;
+		}
 	}
 
 	/**
@@ -83,16 +94,6 @@ class ReplayOverlay extends Sprite
 		}
 		else
 		{
-			var hue2rgb:Float->Float->Float->Float = function(p:Float, q:Float, t:Float):Float
-			{
-				if (t < 0) t += 1;
-				if (t > 1) t -= 1;
-				if (t < 1 / 6) return p + (q - p) * 6 * t;
-				if (t < 1 / 2) return q;
-				if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-				return p;
-			};
-
 			var q:Float = l < 0.5 ? l * (1 + s) : l + s - l * s;
 			var p:Float = 2 * l - q;
 			r = hue2rgb(p, q, h / 360 + 1 / 3);
@@ -105,5 +106,15 @@ class ReplayOverlay extends Sprite
 		var bi:Int = Math.round(b * 255);
 
 		return (0xFF << 24) | (ri << 16) | (gi << 8) | bi;
+	}
+
+	private static inline function hue2rgb(p:Float, q:Float, t:Float):Float
+	{
+		if (t < 0) t += 1;
+		if (t > 1) t -= 1;
+		if (t < 1 / 6) return p + (q - p) * 6 * t;
+		if (t < 1 / 2) return q;
+		if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+		return p;
 	}
 }

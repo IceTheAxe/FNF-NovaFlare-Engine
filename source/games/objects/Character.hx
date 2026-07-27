@@ -42,6 +42,9 @@ typedef AnimArray =
 
 class Character extends FlxSprite
 {
+	#if sys
+	static var __novaPerfTrace:Bool = Sys.getEnv("NOVAGC_PERF_TRACE") != null;
+	#end
 	/**
 	 * In case a character is missing, it will use this on its place
 	**/
@@ -247,6 +250,11 @@ class Character extends FlxSprite
 
 	override function update(elapsed:Float)
 	{
+		#if sys
+		var __novaStarted = __novaPerfTrace ? haxe.Timer.stamp() : 0.0;
+		var __novaBeforeSuper = 0.0;
+		var __novaAfterSuper = 0.0;
+		#end
 		if (isAnimateAtlas)
 			atlas.update(elapsed);
 
@@ -317,7 +325,19 @@ class Character extends FlxSprite
 		if (isAnimationFinished() && hasAnimation('$name-loop'))
 			playAnim('$name-loop');
 
+		#if sys
+		if (__novaPerfTrace) __novaBeforeSuper = haxe.Timer.stamp();
+		#end
 		super.update(elapsed);
+		#if sys
+		if (__novaPerfTrace)
+		{
+			__novaAfterSuper = haxe.Timer.stamp();
+			var __novaElapsed = __novaAfterSuper - __novaStarted;
+			if (__novaElapsed >= 0.01)
+				Sys.println('perf:Character.update character=$curCharacter anim=$_lastPlayedAnimation elapsed_ms=${Math.round(__novaElapsed * 1000)} super_ms=${Math.round((__novaAfterSuper - __novaBeforeSuper) * 1000)}');
+		}
+		#end
 	}
 
 	inline public function isAnimationNull():Bool
@@ -406,6 +426,9 @@ class Character extends FlxSprite
 
 	public function playAnim(AnimName:String, Force:Bool = false, Reversed:Bool = false, Frame:Int = 0):Void
 	{
+		#if sys
+		var __novaStarted = __novaPerfTrace ? haxe.Timer.stamp() : 0.0;
+		#end
 		specialAnim = false;
 		if (!isAnimateAtlas)
 		{
@@ -435,6 +458,14 @@ class Character extends FlxSprite
 			if (AnimName == 'singUP' || AnimName == 'singDOWN')
 				danced = !danced;
 		}
+		#if sys
+		if (__novaPerfTrace)
+		{
+			var __novaElapsed = haxe.Timer.stamp() - __novaStarted;
+			if (__novaElapsed >= 0.01)
+				Sys.println('perf:Character.playAnim character=$curCharacter anim=$AnimName elapsed_ms=${Math.round(__novaElapsed * 1000)}');
+		}
+		#end
 	}
 
 	function loadMappedAnims():Void
@@ -505,6 +536,9 @@ class Character extends FlxSprite
 
 	public override function draw()
 	{
+		#if sys
+		var __novaStarted = __novaPerfTrace ? haxe.Timer.stamp() : 0.0;
+		#end
 		var lastAlpha:Float = alpha;
 		var lastColor:FlxColor = color;
 		if (missingCharacter)
@@ -529,9 +563,25 @@ class Character extends FlxSprite
 						missingText.draw();
 				}*/
 			}
+			#if sys
+			if (__novaPerfTrace)
+			{
+				var __novaElapsed = haxe.Timer.stamp() - __novaStarted;
+				if (__novaElapsed >= 0.01)
+					Sys.println('perf:Character.draw character=$curCharacter anim=$_lastPlayedAnimation atlas=true elapsed_ms=${Math.round(__novaElapsed * 1000)}');
+			}
+			#end
 			return;
 		}
 		super.draw();
+		#if sys
+		if (__novaPerfTrace)
+		{
+			var __novaElapsed = haxe.Timer.stamp() - __novaStarted;
+			if (__novaElapsed >= 0.01)
+				Sys.println('perf:Character.draw character=$curCharacter anim=$_lastPlayedAnimation atlas=false elapsed_ms=${Math.round(__novaElapsed * 1000)}');
+		}
+		#end
 		if (missingCharacter && visible)
 		{
 			alpha = lastAlpha;

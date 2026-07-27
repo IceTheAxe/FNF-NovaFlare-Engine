@@ -29,6 +29,7 @@ import states.modsMenuState.ModsMenuState;
 import states.achievementsMenuState.AchievementsMenuState;
 import states.creditsState.CreditsState;
 import states.titleState.TitleState;
+import gameanalytics.GABridge;
 
 import cpp.Lib;
 
@@ -346,6 +347,7 @@ class MainMenuState extends MusicBeatState
 		*/
 		
 		super.create();
+			GABridge.sendDesign("menu:main");
 	}
 
 	var canClick:Bool = true;
@@ -573,18 +575,24 @@ class MainMenuState extends MusicBeatState
 				switch (daChoice)
 				{
 					case 'story_mode':
+							GABridge.sendDesign("menu:story_mode");
 						MusicBeatState.switchState(new StoryMenuState());
 					case 'freeplay':
+							GABridge.sendDesign("menu:freeplay");
 							MusicBeatState.switchState(new FreeplayState());
 					#if MODS_ALLOWED
 					case 'mods':
+							GABridge.sendDesign("menu:mods");
 						MusicBeatState.switchState(new ModsMenuState());
 					#end
 					case 'awards':
+							GABridge.sendDesign("menu:awards");
 						MusicBeatState.switchState(new AchievementsMenuState());
 					case 'credits':
+							GABridge.sendDesign("menu:credits");
 						MusicBeatState.switchState(new CreditsState());
 					case 'options':
+							GABridge.sendDesign("menu:options");
 						if (ClientPrefs.data.optionMusic != 'None')
 						{
 							FlxG.sound.playMusic(Paths.music('Options Screen/' + ClientPrefs.data.optionMusic), 0);

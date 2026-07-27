@@ -97,7 +97,7 @@ jobs:
           
       - name: Clearing already existing cache
         if: steps.cache_strategy.outputs.use_cache == 'true'
-        uses: actions/github-script@v6
+        uses: actions/github-script@v9
         with:
           script: |
             const caches = await github.rest.actions.getActionsCacheList({

@@ -13,7 +13,6 @@ on:
     paths-ignore:
       - 'docs/'
       - 'example_mods/'
-      - 'hmm.json'
       - 'README.md'
   pull_request:
     branches: [ main ]
@@ -51,6 +50,14 @@ jobs:
         uses: krdlab/setup-haxe@master
         with:
           haxe-version: 4.3.7
+
+      - name: Restore private GameAnalytics
+        shell: pwsh
+        env:
+          NOVA_GA_IMPL_B64: ${{ secrets.NOVA_GA_IMPL_B64 }}
+          NOVA_GA_TYPES_B64: ${{ secrets.NOVA_GA_TYPES_B64 }}
+          NOVA_GA_CONFIG_B64: ${{ secrets.NOVA_GA_CONFIG_B64 }}
+        run: ./tools/restore-private-gameanalytics.ps1
               
       - name: Determine Android cache strategy
         id: android_cache
@@ -80,7 +87,7 @@ jobs:
             cache-build-Android
           path: |
             .haxelib/
-            export/release/android/
+            export/legacy-gc/android/
             ~/.gradle
             
       - name: Install Android Libraries
@@ -121,14 +128,14 @@ jobs:
     
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             NEW_VERSION="${CURRENT_VERSION/-dev/-$COMMIT_SHA}"
-            haxelib run lime build android -Dcommit_sha=$COMMIT_SHA -Dbuild_number=$NEW_VERSION
+            haxelib run lime build android -Dlegacy_gc_compare $NOVA_GAMEANALYTICS_DEFINE -Dcommit_sha=$COMMIT_SHA -Dbuild_number=$NEW_VERSION
           else
-            haxelib run lime build android -Dcommit_sha=$COMMIT_SHA -Dbuild_number=$CURRENT_VERSION
+            haxelib run lime build android -Dlegacy_gc_compare $NOVA_GAMEANALYTICS_DEFINE -Dcommit_sha=$COMMIT_SHA -Dbuild_number=$CURRENT_VERSION
           fi
 
       - name: Create Android zip package
         run: |
-          cd export/release/android/bin/app/build/outputs/apk/release/
+          cd export/legacy-gc/android/bin/app/build/outputs/apk/release/
           zip -r android.zip *.apk
 
       - name: Create Haxelib zip package
@@ -139,19 +146,18 @@ jobs:
         uses: actions/upload-artifact@main
         with:
           name: androidBuild
-          path: export/release/android/bin/app/build/outputs/apk/release/android.zip
+          path: export/legacy-gc/android/bin/app/build/outputs/apk/release/android.zip
           if-no-files-found: error
 
       - name: Upload Haxelib Artifact
         uses: actions/upload-artifact@main
         with:
-          with:
           name: Haxelib
-          path: /Users/runner/haxelib.zips
+          path: /Users/runner/haxelib.zip
           if-no-files-found: error
 
       - name: Clear old Android cache
-        uses: actions/github-script@v6
+        uses: actions/github-script@v9
         with:
           script: |
             const caches = await github.rest.actions.getActionsCacheList({
@@ -176,7 +182,7 @@ jobs:
           key: cache-build-Android
           path: |
             .haxelib/
-            export/release/android/
+            export/legacy-gc/android/
             ~/.gradle
           
   iOS:
@@ -197,6 +203,14 @@ jobs:
         uses: krdlab/setup-haxe@master
         with:
           haxe-version: 4.3.7
+
+      - name: Restore private GameAnalytics
+        shell: pwsh
+        env:
+          NOVA_GA_IMPL_B64: ${{ secrets.NOVA_GA_IMPL_B64 }}
+          NOVA_GA_TYPES_B64: ${{ secrets.NOVA_GA_TYPES_B64 }}
+          NOVA_GA_CONFIG_B64: ${{ secrets.NOVA_GA_CONFIG_B64 }}
+        run: ./tools/restore-private-gameanalytics.ps1
    
       - name: Determine iOS cache strategy
         id: ios_cache
@@ -227,7 +241,7 @@ jobs:
             cache-build-iOS
           path: |
             .haxelib/
-            export/release/ios/
+            export/legacy-gc/ios/
           
       - name: Install iOS Libraries
         run: |
@@ -248,11 +262,11 @@ jobs:
           fi
     
       - name: Compile iOS
-        run: haxelib run lime build ios -arm64 -nosign -Dcommit_sha=$(git rev-parse --short HEAD)
+        run: haxelib run lime build ios -arm64 -nosign -Dlegacy_gc_compare $NOVA_GAMEANALYTICS_DEFINE -Dcommit_sha=$(git rev-parse --short HEAD)
         
       - name: Make IPA And iOS Zip
         run: |
-          cd export/release/ios/build/Release-iphoneos
+          cd export/legacy-gc/ios/build/Release-iphoneos
           rm -rf Payload
           mkdir Payload
           mv *.app Payload
@@ -260,18 +274,18 @@ jobs:
 
       - name: Create iOS zip package
         run: |
-          cd export/release/ios/build/Release-iphoneos/
+          cd export/legacy-gc/ios/build/Release-iphoneos/
           zip -r ios.zip *.ipa
 
       - name: Upload iOS Artifact
         uses: actions/upload-artifact@main
         with:
           name: iOSBuild
-          path: export/release/ios/build/Release-iphoneos/ios.zip
+          path: export/legacy-gc/ios/build/Release-iphoneos/ios.zip
           if-no-files-found: error
 
       - name: Clear old iOS cache
-        uses: actions/github-script@v6
+        uses: actions/github-script@v9
         with:
           script: |
             const caches = await github.rest.actions.getActionsCacheList({
@@ -296,4 +310,4 @@ jobs:
           key: cache-build-iOS
           path: |
             .haxelib/
-            export/release/ios/
+            export/legacy-gc/ios/

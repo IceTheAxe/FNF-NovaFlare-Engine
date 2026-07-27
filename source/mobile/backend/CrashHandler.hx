@@ -10,6 +10,16 @@ import states.mainMenuState.MainMenuState;
 
 import substates.ErrorSubState;
 
+#if sys
+import haxe.io.Path;
+import sys.FileSystem;
+import sys.io.File;
+#end
+
+#if cpp
+import cpp.vm.Gc;
+#end
+
 using general.backend.CoolUtil;
 
 /**
@@ -45,7 +55,8 @@ class CrashHandler
 			var err = cast(e.error, ErrorEvent);
 			m = '${err.text}';
 		}
-		var stack = haxe.CallStack.exceptionStack();
+		var stack = haxe.CallStack.exceptionStack(true);
+		var callStack = haxe.CallStack.callStack();
 		var stackLabelArr:Array<String> = [];
 		var stackLabel:String = "";
 		var errorText:String = "Oh Shit! - " + states.mainMenuState.MainMenuState.novaFlareEngineCommit;
@@ -75,11 +86,47 @@ class CrashHandler
 		#if sys
 		try
 		{
-			if (!FileSystem.exists('crash'))
-				FileSystem.createDirectory('crash');
-			var saveError = states.mainMenuState.MainMenuState.novaFlareEngineCommit + '\n' + '$m\n$stackLabel';
+			var diagnosticRoot = Sys.getEnv("NOVAFLARE_DIAGNOSTIC_DIR");
+			var crashDirectory = diagnosticRoot != null && diagnosticRoot.length > 0
+				? Path.join([diagnosticRoot, "haxe-crash"])
+				: "crash";
+			if (!FileSystem.exists(crashDirectory))
+				FileSystem.createDirectory(crashDirectory);
 
-			File.saveContent('crash/' + Date.now().toString().replace(' ', '-').replace(':', "'") + '.txt', saveError);
+			var nativeExceptionStack = "";
+			#if cpp
+			try
+				nativeExceptionStack = Std.string(haxe.NativeStackTrace.exceptionStack())
+			catch (_:Dynamic) {}
+			#end
+
+			var heapSnapshot = "unavailable";
+			#if cpp
+			try
+			{
+				heapSnapshot =
+					'used_bytes=${Gc.memInfo64(2)}\n' +
+					'committed_bytes=${Gc.memInfo64(4)}\n' +
+					'application_bytes=${Gc.memInfo64(8)}';
+			}
+			catch (_:Dynamic) {}
+			#end
+
+			var saveError =
+				'commit=${states.mainMenuState.MainMenuState.novaFlareEngineCommit}\n' +
+				'timestamp=${Date.now()}\n' +
+				'message=$m\n' +
+				'\n[haxe_exception_stack]\n$stackLabel\n' +
+				'\n[haxe_exception_stack_raw]\n${haxe.CallStack.toString(stack)}\n' +
+				'\n[haxe_call_stack]\n${haxe.CallStack.toString(callStack)}\n' +
+				'\n[native_hxcpp_exception_stack]\n$nativeExceptionStack\n' +
+				'\n[heap]\n$heapSnapshot\n';
+			var fileName = Date.now().toString()
+				.replace(' ', '-')
+				.replace(':', "'") + '.txt';
+			File.saveContent(Path.join([crashDirectory, fileName]), saveError);
+			Sys.println('haxe:uncaught_error message=$m');
+			Sys.println(saveError);
 			errorText = Std.string(saveError);
 			FlxG.state.openSubState(new ErrorSubState(errorText));
 		}

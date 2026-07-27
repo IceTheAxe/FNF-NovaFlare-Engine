@@ -14,5 +14,6 @@
     "workbench.editor.sharedViewState": true,
     "workbench.editor.titleScrollbarSizing": "large",
     "editor.scrollbar.horizontal": "visible",
-    "editor.scrollbar.vertical": "auto"
+    "editor.scrollbar.vertical": "auto",
+    "git.ignoreLimitWarning": true
 }

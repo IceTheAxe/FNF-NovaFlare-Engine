@@ -29,11 +29,11 @@
       "url": "https://github.com/VapireMox/luahscript"
     },
     {
-      "name": "spine-haxe",
+      "name": "spinehaxe",
       "type": "git",
-      "dir": "spine-haxe",
-      "ref": "cd726af62b8cbf12ba47c6c0f68d8e04451cf162",
-      "url": "https://github.com/EsotericSoftware/spine-runtimes/"
+      "dir": null,
+      "ref": "main",
+      "url": "https://github.com/NovaFlare-Engine-haxelib/spinehaxe-3.5.0.git"
     },
     {
       "name": "flixel-addons",
@@ -166,8 +166,8 @@
       "name": "grig.audio",
       "type": "git",
       "dir": "src",
-      "ref": "57f5d47f2533fd0c3dcd025a86cb86c0dfa0b6d2",
-      "url": "https://gitlab.com/haxe-grig/grig.audio.git"
+      "ref": "main",
+      "url": "https://github.com/NovaFlare-Engine-haxelib/grig.audio-0.0.5.git"
     }
   ]
 }

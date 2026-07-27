@@ -23,9 +23,11 @@ import states.titleState.TitleState;
 import scripts.init.InitScriptData;
 
 import general.shaders.ColorblindFilter;
+import gameanalytics.GABridge;
 
 import games.backend.WeekData;
 import games.backend.Highscore;
+import games.backend.Song;
 
 #if mobile
 import mobile.states.CopyState;
@@ -66,6 +68,7 @@ class InitState extends MusicBeatState
 		ClientPrefs.loadPrefs();
 
 		#if ACHIEVEMENTS_ALLOWED Achievements.load(); #end
+		GABridge.init();
 
 		switch (ClientPrefs.data.gameQuality)
 		{
@@ -228,6 +231,11 @@ class InitState extends MusicBeatState
 		{
 			StoryMenuState.weekCompleted = FlxG.save.data.weekCompleted;
 		}
+
+		#if sys
+		if (startDiagnosticGameplay())
+			return;
+		#end
 	
 		FlxG.mouse.visible = false;
 		#if FREEPLAY
@@ -249,6 +257,68 @@ class InitState extends MusicBeatState
 		}
 		#end
 	}
+
+	#if sys
+	function startDiagnosticGameplay():Bool
+	{
+		var requestedSong:String = Sys.getEnv('NOVAFLARE_DIAGNOSTIC_SONG');
+		if (requestedSong == null || requestedSong.trim().length == 0)
+			return false;
+
+		requestedSong = Paths.formatToSongPath(requestedSong.trim());
+
+		var requestedMod:String = Sys.getEnv('NOVAFLARE_DIAGNOSTIC_MOD');
+		if (requestedMod != null && requestedMod.trim().length > 0)
+			Mods.currentModDirectory = requestedMod.trim();
+
+		Difficulty.resetList();
+		var difficulty:Int = 1;
+		var requestedDifficulty:String = Sys.getEnv('NOVAFLARE_DIAGNOSTIC_DIFFICULTY');
+		if (requestedDifficulty != null && requestedDifficulty.trim().length > 0)
+		{
+			var parsedDifficulty:Null<Int> = Std.parseInt(requestedDifficulty.trim());
+			if (parsedDifficulty != null)
+				difficulty = parsedDifficulty;
+		}
+		difficulty = Std.int(Math.max(0, Math.min(Difficulty.list.length - 1, difficulty)));
+
+		var botplayValue:String = Sys.getEnv('NOVAFLARE_DIAGNOSTIC_BOTPLAY');
+		var botplay:Bool = botplayValue == null
+			|| !['0', 'false', 'off', 'no'].contains(botplayValue.trim().toLowerCase());
+
+		try
+		{
+			PlayState.isStoryMode = false;
+			PlayState.storyDifficulty = difficulty;
+			PlayState.replayMode = false;
+			PlayState.chartingMode = false;
+			PlayState.changedDifficulty = false;
+			PlayState.deathCounter = 0;
+			PlayState.seenCutscene = true;
+			PlayState.startOnTime = 0;
+			ClientPrefs.data.gameplaySettings.set('practice', false);
+			ClientPrefs.data.gameplaySettings.set('botplay', botplay);
+			if (FlxG.sound.music == null)
+				FlxG.sound.playMusic(Paths.music('none'), 0, true);
+
+			var chartName:String = Highscore.formatSong(requestedSong, difficulty);
+			PlayState.SONG = Song.loadFromJson(chartName, requestedSong);
+			trace('diagnostic:gameplay prepared song=$requestedSong chart=$chartName '
+				+ 'difficulty=$difficulty mod=${Mods.currentModDirectory} botplay=$botplay');
+
+			LoadingState.prepareToSong();
+			FlxTransitionableState.skipNextTransIn = true;
+			FlxTransitionableState.skipNextTransOut = true;
+			LoadingState.loadAndSwitchState(new PlayState());
+			return true;
+		}
+		catch (error:Dynamic)
+		{
+			trace('diagnostic:gameplay error=$error stack=${haxe.CallStack.exceptionStack()}');
+			throw error;
+		}
+	}
+	#end
 	
 	function startCutscenesIn()
 	{

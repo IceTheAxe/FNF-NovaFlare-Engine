@@ -28,8 +28,22 @@ class ChangeSprite extends FlxSpriteGroup //背景切换
     public function load(graphic:FlxGraphicAsset, scaleValue:Float = 1.05) {
         bg1.load(graphic, scaleValue);
         bg2.load(graphic, scaleValue);
+        // bg2 is only the cross-fade target. Keeping it visible after a
+        // transition wastes a full-screen draw and made shader backgrounds
+        // render the same texture twice forever.
+        bg2.visible = false;
         return this;
     }
+
+    public function setShader(shader:flixel.system.FlxAssets.FlxShader):Void {
+        bg1.shader = shader;
+        bg2.shader = shader;
+    }
+
+	public function setAllowMove(value:Bool):Void {
+		bg1.setAllowMove(value);
+		bg2.setAllowMove(value);
+	}
 
 	var mainTween:FlxTween;
     var fixTween:FlxTween;
@@ -39,20 +53,31 @@ class ChangeSprite extends FlxSpriteGroup //背景切换
         lastLoadGraphic = graphic;
 
         if (mainTween != null || fixTween != null) {
-            if (mainTween != null) mainTween.cancel();
-            if (fixTween != null) fixTween.cancel();
+            if (mainTween != null) {
+                mainTween.cancel();
+                mainTween = null;
+            }
+            if (fixTween != null) {
+                fixTween.cancel();
+                fixTween = null;
+            }
 
             fixTween = FlxTween.tween(bg1, {alpha: 1}, time / 2, {
                 ease: FlxEase.linear,
                 onComplete: function(twn:FlxTween)
                 {
+                    fixTween = null;
                     updateGraphic(bg2, graphic);
+                    bg2.alpha = 1;
+                    bg2.visible = true;
                     mainTween = FlxTween.tween(bg1, {alpha: 0}, time, {
                         ease: FlxEase.linear,
                         onComplete: function(twn:FlxTween)
                         {
-                        updateGraphic(bg1, graphic);
-                        bg1.alpha = 1;
+                            updateGraphic(bg1, graphic);
+                            bg1.alpha = 1;
+                            bg2.visible = false;
+                            mainTween = null;
                         }
                     });
                 }
@@ -62,12 +87,16 @@ class ChangeSprite extends FlxSpriteGroup //背景切换
         }
 
         updateGraphic(bg2, graphic);
+        bg2.alpha = 1;
+        bg2.visible = true;
         mainTween = FlxTween.tween(bg1, {alpha: 0}, time, {
             ease: FlxEase.linear,
             onComplete: function(twn:FlxTween)
             {
                 updateGraphic(bg1, graphic);
                 bg1.alpha = 1;
+                bg2.visible = false;
+                mainTween = null;
             }
 		});
     }

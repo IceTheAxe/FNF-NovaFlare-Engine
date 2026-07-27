@@ -12,12 +12,13 @@ import developer.display.mouseEvent.*;
 //Spine
 import openfl.Assets;
 
-import spine.animation.AnimationStateData;
-import spine.animation.AnimationState;
-import spine.atlas.TextureAtlas;
-import spine.SkeletonData;
-import spine.flixel.SkeletonSprite;
-import spine.flixel.FlixelTextureLoader;
+//import spine.animation.AnimationStateData;
+//import spine.animation.AnimationState;
+//import spine.atlas.TextureAtlas;
+//import spine.SkeletonData;
+//import spine.flixel.SkeletonSprite;
+//import spine.flixel.FlixelTextureLoader;
+import flixel.addons.editors.spine.FlxSpine;
 
 #if flxanimate
 import flxanimate.*;

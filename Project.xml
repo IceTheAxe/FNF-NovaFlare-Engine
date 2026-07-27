@@ -62,6 +62,9 @@
 
 	<set name="BUILD_DIR" value="export/debug" if="debug" />
 	<set name="BUILD_DIR" value="export/release" unless="debug" />
+	<!-- Keep the Immix control build separate so NovaGC and legacy GC can be
+	     rebuilt and profiled side by side without destroying either cache. -->
+	<set name="BUILD_DIR" value="export/legacy-gc" if="legacy_gc_compare" />
 	<set name="BUILD_DIR" value="export/32bit" if="32bits" />
         <set name="BUILD_DIR" value="export/rpi" if="rpi" />
 	<classpath name="source" />
@@ -119,7 +122,7 @@
     <haxelib name="crypto" />
     <haxelib name="trandom" unless="android" />
 	<haxelib name="hxWebSockets" />
-	<haxelib name="spine-haxe" />
+	<haxelib name="spinehaxe" />
 
 	<!--Psych stuff needed-->
 	<haxelib name="linc_luajit" if="LUA_ALLOWED"/>
@@ -160,11 +163,22 @@
 	<!-- Enables a terminal log prompt on debug builds -->
 	<haxelib name="hxcpp-debug-server" if="debug"/>
 
-	<!--haxedef name="openfl_enable_experimental_update_queue"/-->
+	<!-- High-rate desktop rendering depends on avoiding full-tree transform
+	     walks and per-frame Event allocation when nothing changed. -->
+	<haxedef name="openfl_enable_experimental_update_queue" if="desktop" />
+	<haxedef name="openfl_pool_events" if="desktop" />
 	<haxedef name="openfl_always_render" if="ios" />
 
 	<haxedef name="HXCPP_ALIGN_ALLOC"/>
 	<haxedef name="HXCPP_GC_GENERATIONAL" />
+	<!-- The public hxcpp name now selects the exact, moving NovaGC backend on
+	     Windows; keep this in the project so normal Lime builds cannot silently
+	     fall back to the old C++ generator ABI. -->
+	<haxedef name="hxcpp_zgc" if="windows" unless="legacy_gc_compare" />
+	<haxedef name="novagc-precise" if="windows" unless="legacy_gc_compare" />
+	<!-- Lime otherwise emits a random web cache-buster into AssetCache on every
+	     native build, forcing one unchanged C++ unit to recompile. -->
+	<haxedef name="lime_disable_assets_version" if="windows" />
 
 	<!-- _______________________________ TRACY ______________________________ -->
 
@@ -216,11 +230,13 @@
 	<haxedef name='no-inline' if="html5"/>
 
 	<section if="cpp">
-		<haxedef name="HXCPP_CHECK_POINTER" />
-		<haxedef name="HXCPP_STACK_LINE" />
-		<haxedef name="HXCPP_STACK_TRACE" />
-		<haxedef name="HXCPP_CATCH_SEGV" />
-		<haxedef name="HXCPP_GC_BIG_BLOCKS" />
+		<!-- These checks add work to nearly every generated call and preserve
+		     large stacks/string tables. Keep them in debug builds only. -->
+		<haxedef name="HXCPP_CHECK_POINTER" if="debug" />
+		<haxedef name="HXCPP_STACK_LINE" if="debug" />
+		<haxedef name="HXCPP_STACK_TRACE" if="debug" />
+		<haxedef name="HXCPP_CATCH_SEGV" if="debug" />
+		<haxedef name="HXCPP_GC_BIG_BLOCKS" if="debug" />
 	</section>
 
 	<haxedef name="hscriptPos" if="HSCRIPT_ALLOWED" />
@@ -244,9 +260,17 @@
 
 	<!--Macro fixes-->
 	<haxeflag name="--macro" value="allowPackage('flash')" />
-	<haxeflag name="--macro" value="include('my.pack')" />
-    <haxeflag name="-dce" value="no" unless="ios" />
+	<!-- Preserve every class and field that enters the Haxe type system so
+	     HScript/Type.resolveClass can reach it by name at runtime. -->
+	<haxeflag name="-dce" value="no" if="windows" unless="debug" />
+	<haxeflag name="-dce" value="no" if="debug" unless="ios" />
+	<haxeflag name="-dce" value="no" unless="windows || ios || debug" />
 	<!-- _________________________________ Custom _______________________________ -->
+
+		<!-- GameAnalytics — private module (admin builds only) -->
+		<haxedef name="GAMEANALYTICS_ENABLED" if="gameanalytics_enabled" />
+		<classpath name="private" if="gameanalytics_enabled" />
+		<haxedef name="GAMEANALYTICS_VERBOSE" if="debug && gameanalytics_enabled" />
 
 	<assets path='art/icon16.png' rename='icon.png' if="linux" />
 	<section if="mobile">

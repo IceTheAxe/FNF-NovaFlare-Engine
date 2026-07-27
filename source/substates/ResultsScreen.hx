@@ -36,7 +36,11 @@ import games.backend.diffCalc.DiffRating;
 import games.backend.Song;
 import games.backend.Replay;
 import games.backend.Replay.StateRecord;
+import games.backend.Replay.ReplaySaveResult;
 import states.loadingState.LoadingState;
+#if sys
+import sys.thread.Deque;
+#end
 
 class ResultsScreen extends MusicBeatSubstate
 {
@@ -110,6 +114,8 @@ class ResultsScreen extends MusicBeatSubstate
 
 	public function new(x:Float, y:Float)
 	{
+		var buildStarted:Float = haxe.Timer.stamp();
+		trace('perf:ResultsScreen.new start replay=' + PlayState.replayMode);
 		super();
 
 		if (isFromFreeplay && freeplayRecord != null)
@@ -165,6 +171,7 @@ class ResultsScreen extends MusicBeatSubstate
 
 		var bgBlur = new BlurFilter(15.0);
 		bgBlur.apply(camBG);
+		trace('perf:ResultsScreen.new background_ms=' + Math.round((haxe.Timer.stamp() - buildStarted) * 1000));
 
 		//--------------------------
 
@@ -322,6 +329,7 @@ class ResultsScreen extends MusicBeatSubstate
 		add(graphNote);
 
 		graphNoteDraw();
+		trace('perf:ResultsScreen.new graph_ms=' + Math.round((haxe.Timer.stamp() - buildStarted) * 1000));
 
 		//-------------------------
 
@@ -339,6 +347,7 @@ class ResultsScreen extends MusicBeatSubstate
 		add(percentTextNumber);
 
 		percentRateAdd();
+		trace('perf:ResultsScreen.new percent_ms=' + Math.round((haxe.Timer.stamp() - buildStarted) * 1000));
 
 		//-------------------------
 
@@ -366,14 +375,22 @@ class ResultsScreen extends MusicBeatSubstate
 		startTween();
 
 		FlxG.mouse.visible = !ClientPrefs.data.needMobileControl;
+		trace('perf:ResultsScreen.new end elapsed_ms=' + Math.round((haxe.Timer.stamp() - buildStarted) * 1000));
 	}
 
 	var closeCheck:Bool = false;
 	var choose:Int = 1;
+	var replaySaveInProgress:Bool = false;
+	var replaySaveReady:Bool = false;
+	var replayAfterSave:Bool = false;
+	#if sys
+	var replaySaveResults:Deque<ReplaySaveResult>;
+	#end
 
 	override function update(elapsed:Float)
 	{
 		super.update(elapsed);
+		pollReplaySave();
 
 		if (!closeCheck)
 		{
@@ -414,22 +431,8 @@ class ResultsScreen extends MusicBeatSubstate
 			return;
 		if (getReadyReplay)
 		{
-			saveReplayData();
 			closeCheck = true;
-
-			var songLowercase:String = Paths.formatToSongPath(PlayState.SONG.song);
-			var diff:Int = PlayState.storyDifficulty;
-			var poop:String = Highscore.formatSong(songLowercase, diff);
-			Mods.currentModDirectory = savedModDir;
-			PlayState.SONG = Song.loadFromJson(poop, songLowercase);
-			PlayState.isStoryMode = false;
-			PlayState.storyDifficulty = diff;
-			PlayState.replayMode = true;
-
-			LoadingState.prepareToSong();
-			FlxTransitionableState.skipNextTransIn = true;
-			FlxTransitionableState.skipNextTransOut = true;
-			LoadingState.loadAndSwitchState(new PlayState());
+			beginReplaySave(true);
 		}
 		else
 		{
@@ -455,25 +458,13 @@ class ResultsScreen extends MusicBeatSubstate
 	{
 		if (closeCheck)
 			return;
-		saveReplayData();
+		beginReplaySave(false);
 		FlxG.sound.play(Paths.sound('scrollMenu'));
-		saveReplayRect.text.text = 'Saved!';
-		saveReplayRect.text.x = saveReplayRect.x + saveReplayRect.background.width / 2 - saveReplayRect.text.width / 2;
-		saveReplayRect.text.y = saveReplayRect.y + saveReplayRect.background.height / 2 - saveReplayRect.text.height / 2;
-
-		new FlxTimer().start(1, function(tmr:FlxTimer)
-		{
-			saveReplayRect.text.text = 'Save Rep.';
-			saveReplayRect.text.x = saveReplayRect.x + saveReplayRect.background.width / 2 - saveReplayRect.text.width / 2;
-			saveReplayRect.text.y = saveReplayRect.y + saveReplayRect.background.height / 2 - saveReplayRect.text.height / 2;
-		});
 	}
 
-	function saveReplayData()
+	function createReplayRecord():StateRecord
 	{
-		if (game.replayExam == null) return;
-
-		var record:StateRecord = {
+		return {
 			songName: game.songName,
 			difficulty: Difficulty.getString().toUpperCase(),
 			songLength: game.songLength,
@@ -508,7 +499,112 @@ class ResultsScreen extends MusicBeatSubstate
 			botPlay: ClientPrefs.getGameplaySetting('botplay', 'bool'),
 			gameplaySettingsJson: haxe.Json.stringify(ClientPrefs.data.gameplaySettings)
 		};
-		game.replayExam.savePlayRecord(record);
+	}
+
+	function beginReplaySave(startReplay:Bool):Void
+	{
+		if (game.replayExam == null)
+		{
+			if (startReplay) closeCheck = false;
+			return;
+		}
+
+		replayAfterSave = replayAfterSave || startReplay;
+		if (replaySaveReady)
+		{
+			if (replayAfterSave) startReplayNow();
+			else showReplaySaved();
+			return;
+		}
+		if (replaySaveInProgress)
+			return;
+
+		replaySaveInProgress = true;
+		if (startReplay)
+			setReplayButtonText('Loading...');
+		else
+			setSaveButtonText('Saving...');
+
+		#if sys
+		replaySaveResults = new Deque<ReplaySaveResult>();
+		game.replayExam.savePlayRecordAsync(createReplayRecord(), replaySaveResults);
+		#else
+		game.replayExam.savePlayRecord(createReplayRecord());
+		onReplaySaveComplete(null);
+		#end
+	}
+
+	function pollReplaySave():Void
+	{
+		#if sys
+		if (!replaySaveInProgress || replaySaveResults == null) return;
+		var result = replaySaveResults.pop(false);
+		if (result != null)
+			onReplaySaveComplete(result.error);
+		#end
+	}
+
+	function onReplaySaveComplete(error:Null<String>):Void
+	{
+		replaySaveInProgress = false;
+		if (error != null)
+		{
+			trace('Replay save failed: $error');
+			replayAfterSave = false;
+			closeCheck = false;
+			setSaveButtonText('Save Failed');
+			setReplayButtonText('Replay');
+			return;
+		}
+
+		replaySaveReady = true;
+		if (replayAfterSave)
+			startReplayNow();
+		else
+			showReplaySaved();
+	}
+
+	function showReplaySaved():Void
+	{
+		setSaveButtonText('Saved!');
+		new FlxTimer().start(1, function(tmr:FlxTimer)
+		{
+			if (!replaySaveInProgress) setSaveButtonText('Save Rep.');
+		});
+	}
+
+	function setSaveButtonText(value:String):Void
+	{
+		if (saveReplayRect == null) return;
+		saveReplayRect.text.text = value;
+		saveReplayRect.text.x = saveReplayRect.x + saveReplayRect.background.width / 2 - saveReplayRect.text.width / 2;
+		saveReplayRect.text.y = saveReplayRect.y + saveReplayRect.background.height / 2 - saveReplayRect.text.height / 2;
+	}
+
+	function setReplayButtonText(value:String):Void
+	{
+		if (replayRect == null) return;
+		replayRect.text.text = value;
+		replayRect.text.x = replayRect.x + replayRect.background.width / 2 - replayRect.text.width / 2;
+		replayRect.text.y = replayRect.y + replayRect.background.height / 2 - replayRect.text.height / 2;
+	}
+
+	function startReplayNow():Void
+	{
+		replayAfterSave = false;
+		var songLowercase:String = Paths.formatToSongPath(PlayState.SONG.song);
+		var diff:Int = PlayState.storyDifficulty;
+		var poop:String = Highscore.formatSong(songLowercase, diff);
+		Mods.currentModDirectory = savedModDir;
+		PlayState.SONG = Song.loadFromJson(poop, songLowercase);
+		PlayState.isStoryMode = false;
+		PlayState.storyDifficulty = diff;
+		PlayState.replayMode = true;
+
+		LoadingState.prepareToSong();
+		FlxTransitionableState.skipNextTransIn = true;
+		FlxTransitionableState.skipNextTransOut = true;
+		LoadingState.loadAndSwitchState(new PlayState());
 	}
 
 	var getReadyBack:Bool = false;
@@ -1167,4 +1263,3 @@ class ResultsScreen extends MusicBeatSubstate
 	}
 		*/
 }
-

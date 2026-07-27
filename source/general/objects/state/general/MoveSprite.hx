@@ -29,7 +29,21 @@ class MoveSprite extends FlxSprite{
 		this.scale.x = this.scale.y = scale;
 		this.offset.x = this.offset.y = 0;
         updateHitbox();
+		if (!allowMove) centerWithoutParallax();
     }
+
+	public function setAllowMove(value:Bool):Void {
+		allowMove = value;
+		if (!value && realWidth > 0 && realHeight > 0)
+			centerWithoutParallax();
+	}
+
+	private inline function centerWithoutParallax():Void {
+		offsetX = 0;
+		offsetY = 0;
+		this.x = (FlxG.width - realWidth) * 0.5;
+		this.y = (FlxG.height - realHeight) * 0.5;
+	}
     
 	private var offsetX:Float = 0;
     private var offsetY:Float = 0;

@@ -22,6 +22,7 @@ private typedef ConsoleLogLine = {
 	var message:String;
 	var color:Int;
 	var match:String;
+	var html:Null<String>;
 }
 
 class Console extends Sprite {
@@ -113,6 +114,9 @@ class Console extends Sprite {
 
 		var console = consoleInstance;
 		console.visible = true;
+		// Logs keep batching while the panel is hidden, but their expensive
+		// TextField HTML representation is built only when the user opens it.
+		console.needsRender = true;
 		console.updateScale(ClientPrefs.data.devConScale);
 		console.clampToStage();
 
@@ -176,7 +180,8 @@ class Console extends Sprite {
 			level: cleanLevel,
 			message: cleanMessage,
 			color: color,
-			match: (cleanLevel + " " + cleanMessage).toLowerCase()
+			match: (cleanLevel + " " + cleanMessage).toLowerCase(),
+			html: null
 		};
 
 		#if sys
@@ -346,8 +351,22 @@ class Console extends Sprite {
 	}
 
 	private function onEnterFrame(_:Event):Void {
+		// The console remains on the display list while hidden. Polling its
+		// pending queue took two mutexes plus a native timer call on every game
+		// frame even when there was no log traffic. Hidden logs tolerate a short
+		// batching delay; a visible console is polled more aggressively.
+		pollFrame++;
+		if (pollFrame < (visible ? 4 : 32)) return;
+		pollFrame = 0;
+
 		var drained = drainPending();
 		if (drained) needsRender = true;
+		// The console intentionally stays on the display list so its global
+		// keyboard toggle keeps working. Do not rebuild a 1500-line HTML
+		// TextField while it is hidden. On large gameplay heaps, htmlEscape's
+		// temporary StringBuf also used to trigger thousands of late native pins
+		// and repeatedly stop the world in NovaGC.
+		if (!visible) return;
 
 		var now = Timer.stamp();
 		if (needsRender && (now - lastRenderTime >= RENDER_INTERVAL || !hasPending())) {
@@ -357,6 +376,8 @@ class Console extends Sprite {
 			updateStatus();
 		}
 	}
+
+	private var pollFrame:Int = 0;
 
 	private function drainPending():Bool {
 		var incoming = takePending(MAX_DRAIN_PER_FRAME);
@@ -417,9 +438,12 @@ class Console extends Sprite {
 	}
 
 	private function lineToHtml(line:ConsoleLogLine):String {
-		return '<font color="#6F7B86">${formatTime(line.time)}</font> '
+		if (line.html == null) {
+			line.html = '<font color="#6F7B86">${formatTime(line.time)}</font> '
 			+ '<font color="#${StringTools.hex(line.color, 6)}">[${escapeHtml(line.level)}]</font> '
-			+ escapeMessage(line.message);
+				+ escapeMessage(line.message);
+		}
+		return line.html;
 	}
 
 	private function lineToPlain(line:ConsoleLogLine):String {
@@ -434,7 +458,16 @@ class Console extends Sprite {
 	}
 
 	private function escapeHtml(value:String):String {
-		return StringTools.htmlEscape(value == null ? "" : value, true);
+		// StringTools.htmlEscape builds an Array<Char> and turns it into a native
+		// pointer on cpp. A movable NovaGC buffer must then be isolated and every
+		// inbound reference remapped. The console needs only these five HTML
+		// entities, so replacement avoids that native pin path entirely.
+		var escaped = value == null ? "" : value;
+		escaped = StringTools.replace(escaped, "&", "&amp;");
+		escaped = StringTools.replace(escaped, "<", "&lt;");
+		escaped = StringTools.replace(escaped, ">", "&gt;");
+		escaped = StringTools.replace(escaped, '"', "&quot;");
+		return StringTools.replace(escaped, "'", "&#039;");
 	}
 
 	private function formatTime(time:Float):String {

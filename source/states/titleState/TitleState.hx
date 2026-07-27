@@ -22,6 +22,7 @@ import states.freeplayState.FreeplayState;
 
 import games.backend.WeekData;
 import games.backend.Highscore;
+import gameanalytics.GABridge;
 
 typedef TitleData =
 {
@@ -82,6 +83,7 @@ class TitleState extends MusicBeatState
 	{
 		Paths.clearStoredMemory();
 		super.create();
+		GABridge.sendDesign("title:screen");
 		Paths.clearUnusedMemory();
 
 		#if LUA_ALLOWED
@@ -336,7 +338,7 @@ class TitleState extends MusicBeatState
 			Conductor.songPosition = FlxG.sound.music.time;
 		// FlxG.watch.addQuick('amp', FlxG.sound.music.amplitude);
 
-		var pressedEnter:Bool = FlxG.keys.justPressed.ENTER || controls.ACCEPT;
+		var pressedEnter:Bool = FlxG.keys.justPressed.ENTER || controls.ACCEPT || FlxG.mouse.justPressed;
 
 		#if FLX_TOUCH
 		for (touch in FlxG.touches.list)

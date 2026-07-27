@@ -167,15 +167,22 @@ class MouseMove extends FlxBasic
             if (target > moveLimit[1]) target = FlxMath.lerp(moveLimit[1], target, Math.exp(-elapsed * lerpSmooth * 2));
         }
 
+        var previousState:String = state;
+        var targetChanged:Bool = __target != target;
         if (__target > target) state = 'up';
         else if (__target < target) state = 'down';
-        else if (__target == target) state = 'stop';
+        else state = 'stop';
 
         __target = target;
 
-        Reflect.setProperty(follow, followData, target);
+        // Reflection invokes a full dynamic setter path. Do it only when the
+        // scroll value actually moved instead of on every draw callback.
+        if (targetChanged)
+            Reflect.setProperty(follow, followData, target);
         
-        if (event!= null && (state != 'stop' || forceUpdateEvent)) {
+        // Dispatch the one transition back to "stop" as well. Consumers use
+        // it to restore full row detail after the lightweight drag rendering.
+        if (event!= null && (state != 'stop' || previousState != state || forceUpdateEvent)) {
             event();
         }
     }

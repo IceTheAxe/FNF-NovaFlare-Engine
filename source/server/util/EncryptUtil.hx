@@ -41,8 +41,6 @@ class EncryptUtil {
     public static function aesEncrypt(data:String):String {
         var iv:Bytes = generateRandomIV();
 
-        trace("iv: " + iv.toString());
-        
         var dataBytes:Bytes = Bytes.ofString(data);
         var paddedData:Bytes = PKCS7.pad(dataBytes, BLOCK_SIZE);
         

@@ -8,7 +8,13 @@ import haxe.Json;
 #if sys
 import sys.io.File;
 import sys.FileSystem;
+import sys.thread.Deque;
+import sys.thread.Thread;
 #end
+
+typedef ReplaySaveResult = {
+	var error:Null<String>;
+}
 
 typedef NoteJudgment = {
 	var strumTime:Float;
@@ -201,9 +207,9 @@ class Replay extends FlxBasic
 		if (settingsBackup.exists('noteOffset')) ClientPrefs.data.noteOffset = settingsBackup.get('noteOffset');
 		if (settingsBackup.exists('extraKey')) ClientPrefs.data.extraKey = settingsBackup.get('extraKey');
 		if (settingsBackup.exists('keyBinds')) {
-			var kb:Dynamic = settingsBackup.get('keyBinds');
-			for (k in Reflect.fields(kb)) {
-				var arr:Array<FlxKey> = Reflect.field(kb, k);
+			var kb:Map<String, Array<FlxKey>> = cast settingsBackup.get('keyBinds');
+			for (k in kb.keys()) {
+				var arr:Array<FlxKey> = kb.get(k);
 				if (arr != null) ClientPrefs.keyBinds.set(k, arr.copy());
 			}
 		}
@@ -413,6 +419,28 @@ class Replay extends FlxBasic
 	public function savePlayRecord(stateRecord:StateRecord) {
 		ReplaySave.savePlayRecord(frameData, stateRecord);
 	}
+
+	#if sys
+	public function savePlayRecordAsync(stateRecord:StateRecord, completion:Deque<ReplaySaveResult>):Void
+	{
+		// The shallow copy is cheap and freezes the frame list while the worker
+		// serializes/encrypts it. Individual frames are immutable after gameplay.
+		var frames = frameData.copy();
+		Thread.create(function()
+		{
+			var error:Null<String> = null;
+			try
+			{
+				ReplaySave.savePlayRecord(frames, stateRecord);
+			}
+			catch (e:Dynamic)
+			{
+				error = Std.string(e);
+			}
+			completion.add({error: error});
+		});
+	}
+	#end
 
 	private function blockKeys():Void {
 		var keysList:Array<String> = null;

@@ -8,6 +8,9 @@ on:
         required: true
         default: ''
 
+permissions:
+  contents: write
+
 jobs:
   update-versions:
     runs-on: ubuntu-latest
@@ -91,25 +94,29 @@ jobs:
     uses: ./.github/workflows/MobileBuild.yml
     with:
       dependencies_to_update: 'all'
+    secrets: inherit
 
   macos-build:
     name: "macOS Build"
     needs: mobile-build
     uses: ./.github/workflows/MacBuild.yml
+    secrets: inherit
 
   windows-build:
     name: "Windows Build"
     needs: update-versions
     uses: ./.github/workflows/WindowsBuild.yml
+    secrets: inherit
 
   linux-build:
     name: "Linux Build"
     needs: update-versions
     uses: ./.github/workflows/LinuxBuild.yml
+    secrets: inherit
 
   releaser:
     name: "Create Release"
-    needs: [mobile-build, macos-build, windows-build, linux-build]
+    needs: [update-versions, mobile-build, macos-build, windows-build, linux-build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -163,11 +170,11 @@ jobs:
           find artifacts/ -type f -name "*" | wc -l
 
       - name: Publish The Release
-        uses: marvinpinto/action-automatic-releases@latest
+        uses: softprops/action-gh-release@v3
         with:
-          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          token: "${{ secrets.GITHUB_TOKEN }}"
           prerelease: false
-          automatic_release_tag: "V${{ needs.update-versions.outputs.version_name }}"
-          title: "V${{ needs.update-versions.outputs.version_name }}"
+          tag_name: "V${{ needs.update-versions.outputs.version_name }}"
+          name: "V${{ needs.update-versions.outputs.version_name }}"
           files: |
             artifacts/*.zip

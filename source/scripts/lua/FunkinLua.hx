@@ -926,8 +926,15 @@ class FunkinLua
 		{
 			Paths.image(name, null, allowGPU, disposeOnUpload);
 		});
-		set("precacheSound", Paths.sound);
-		set("precacheMusic", Paths.music);
+		// Precache callbacks are commands. Returning the loaded OpenFL Sound to
+		// Lua makes linc_luajit try to serialize a native Sound object and emits
+		// "Couldn't convert TClass(openfl.media.Sound)" once per asset.
+		set("precacheSound", function(name:String):Void {
+			Paths.sound(name);
+		});
+		set("precacheMusic", function(name:String):Void {
+			Paths.music(name);
+		});
 
 		// others
 		set("triggerEvent", function(name:String, arg1:Dynamic, arg2:Dynamic)
@@ -2113,4 +2120,3 @@ class FunkinLua
 	}
 }
 #end
-

@@ -17,7 +17,7 @@ class GeneralGroup extends OptionCata
 		addOption(option);
 		option.onChange = onChangeFramerate;
 
-		var option:Option = new Option(this, 'drawFramerate', INT, [24, #if mobile 240 #else 1000 #end, 'FPS']);
+		var option:Option = new Option(this, 'drawFramerate', INT, [24, #if mobile 240 #else 2000 #end, 'FPS']);
 		addOption(option);
 		option.onChange = onChangeDrawFramerate;
 
@@ -114,26 +114,28 @@ class GeneralGroup extends OptionCata
 
 	function onChangeFramerate()
 	{
-		if (ClientPrefs.data.framerate > FlxG.drawFramerate)
-		{
-			FlxG.updateFramerate = ClientPrefs.data.framerate;
-			FlxG.drawFramerate = ClientPrefs.data.framerate;
-		}
-		else
-		{
-			FlxG.drawFramerate = ClientPrefs.data.framerate;
-			FlxG.updateFramerate = ClientPrefs.data.framerate;
-		}
+		applyFrameRates();
 	}
 
 	function onChangeDrawFramerate()
 	{
+		applyFrameRates();
+	}
+
+	function applyFrameRates()
+	{
+		// Keep update and rendering independent. The old callback assigned the
+		// TPS value to FlxG.drawFramerate, silently defeating the FPS cap.
+		FlxG.updateFramerate = ClientPrefs.data.framerate;
+		FlxG.drawFramerate = ClientPrefs.data.drawFramerate;
+		FlxG.stage.application.window.frameRate = ClientPrefs.data.framerate;
 		FlxG.stage.application.window.drawFrameRate = ClientPrefs.data.drawFramerate;
+		FlxG.stage.application.window.lockRender = ClientPrefs.data.lockRender;
 	}
 
 	function onChangelockRender()
 	{
-		FlxG.stage.application.window.lockRender = ClientPrefs.data.lockRender;
+		applyFrameRates();
 	}
 
 	function onChangerenderThread()

@@ -42,7 +42,9 @@ class LoadingState extends MusicBeatState
 	public var loaded(get, set):Int;
 	public var loadMax:Int = 0;
 
-	var requestedBitmaps:Map<String, BitmapData> = []; //储存下加载的纹理，再最后进入playstate的时候输出总结
+	var requestedBitmaps:Map<String, BitmapData> = []; // compatibility telemetry; images are committed incrementally
+	var pendingImageCommits:Array<{path:String, bitmap:BitmapData}> = [];
+	var imageCommitInProgress:Bool = false;
 
 	var loadThread:ThreadPool = null; //真正加载时的总线程池
 	var prepareEvent:ThreadEvent = null;
@@ -279,6 +281,7 @@ class LoadingState extends MusicBeatState
 	override function update(elapsed:Float)
 	{
 		super.update(elapsed);
+		startNextImageCommit();
 
 		loads.angle += 1.5;
 
@@ -304,6 +307,9 @@ class LoadingState extends MusicBeatState
 		soundsToPrepare = [];
 		musicToPrepare = [];
 		songsToPrepare = [];
+		requestedBitmaps.clear();
+		pendingImageCommits.resize(0);
+		imageCommitInProgress = false;
 
 		if (loadThread != null) {
 			loadThread.cancel();
@@ -315,7 +321,11 @@ class LoadingState extends MusicBeatState
 			prepareEvent = null;
 		}
 		
-		GCManager.enable(true);
+		// PlayState performs the matching enable at the end of its create()
+		// method. Resuming here lets the collector race the heaviest state
+		// construction and turns the loading debt into a visible catch-up pause.
+		if (!isPlayState)
+			GCManager.enable(true);
 
 		if (isPlayState)
 		{
@@ -333,19 +343,13 @@ class LoadingState extends MusicBeatState
 
 	function checkLoaded():Bool
 	{
-		for (key => bitmap in requestedBitmaps)
-		{
-			if (bitmap != null && Paths.cacheBitmap(key, bitmap, false) != null) {
-				trace('IMAGE: finished preloading image $key');
-			} else
-				trace('IMAGE: failed to cache image $key');
-		}
-		return (loaded == loadMax);
+		return (loaded >= loadMax);
 	}
 
 	public function startThreads()
 	{
 		clearInvalids();
+		requestedBitmaps.clear();
 		loadMax = imagesToPrepare.length + soundsToPrepare.length + musicToPrepare.length + songsToPrepare.length;
 		loaded = 0;
 
@@ -417,12 +421,20 @@ class LoadingState extends MusicBeatState
 			switch (msg.type) {
 				case 'sound', 'song', 'music':
 					trace(msg.type.toUpperCase() + ': finished preloading ' + msg.path);
+					addLoadCount();
 				case 'image':
-					if (!msg.alreadyLoaded) {
-						requestedBitmaps.set(msg.path, msg.file);
+					if (msg.alreadyLoaded) {
+						addLoadCount();
+					} else {
+						var bitmap:BitmapData = cast msg.file;
+						if (bitmap != null) {
+							pendingImageCommits.push({path: msg.path, bitmap: bitmap});
+						} else {
+							trace('IMAGE: failed to cache image ${msg.path}');
+							addLoadCount();
+						}
 					}
 			}
-			addLoadCount();
 		});
 		loadThread.onError.add(function(msg:{type:String, path:String, error:Dynamic}) {
 			if (msg.error != null) {
@@ -437,6 +449,37 @@ class LoadingState extends MusicBeatState
 			}
 			addLoadCount();
 		});
+	}
+
+	function startNextImageCommit():Void {
+		if (imageCommitInProgress || pendingImageCommits.length == 0)
+			return;
+
+		var next = pendingImageCommits.shift();
+		if (next == null) return;
+		imageCommitInProgress = true;
+		try {
+			// Limit each frame's upload to roughly 2 MiB. A fixed 512-row slice
+			// uploaded 16 MiB at once for an 8K texture and visibly froze the
+			// loading animation even though decoding happened on worker threads.
+			var bytesPerRow:Int = Std.int(Math.max(1, next.bitmap.width * 4));
+			var uploadRows:Int = Std.int(2 * 1024 * 1024 / bytesPerRow);
+			uploadRows = Std.int(FlxMath.bound(uploadRows, 16, 256));
+			var graphic = Paths.cacheBitmapPBO(next.path, next.bitmap, () -> {
+				trace('IMAGE: finished preloading image ${next.path}');
+				imageCommitInProgress = false;
+				addLoadCount();
+			}, uploadRows);
+			if (graphic == null) {
+				trace('IMAGE: failed to cache image ${next.path}');
+				imageCommitInProgress = false;
+				addLoadCount();
+			}
+		} catch (error:Dynamic) {
+			trace('IMAGE: failed to cache image ${next.path}: $error');
+			imageCommitInProgress = false;
+			addLoadCount();
+		}
 	}
 
 	function threadWork(func:Void->Dynamic):Void {

@@ -308,9 +308,6 @@ class GraphMonitor extends Sprite
         // Default Data
         maxHistory = Std.int((w - 40) / 4); // roughly 4px per point
         
-        // Auto-start update loop
-        addEventListener(Event.ENTER_UPDATE, onEnterFrame);
-
         axisLabelFormat = new TextFormat(fontName, 10, axisLabelColor);
         tabFmtActive = new TextFormat(fontName, 12, tabTextActiveColor, true);
         tabFmtActive.align = TextFormatAlign.CENTER;
@@ -318,6 +315,50 @@ class GraphMonitor extends Sprite
         tabFmtInactive = new TextFormat(fontName, 12, tabTextColor, false);
         tabFmtInactive.align = TextFormatAlign.CENTER;
         tabFmtInactive.leading = 2;
+    }
+
+    private var inputEnabled:Bool = false;
+    private var renderingEnabled:Bool = true;
+
+    /**
+     * The expanded developer graph owns a mutable CPU bitmap and its GL
+     * texture.  Keeping it alive while the compact FPS counter is selected
+     * retained native/driver resources after long profiling sessions.  The
+     * history remains intact; only the disposable render surface is released.
+     */
+    public function setRenderingEnabled(value:Bool):Void
+    {
+        if (renderingEnabled == value) return;
+        renderingEnabled = value;
+
+        if (!value)
+        {
+            graph.graphics.clear();
+            if (graphBitmap != null)
+                graphBitmap.bitmapData = null;
+            if (graphBitmapData != null)
+            {
+                graphBitmapData.dispose();
+                graphBitmapData = null;
+            }
+            return;
+        }
+
+        var graphW = Std.int(_width - (marginGraphLeft + marginGraphRight));
+        var graphH = Std.int(_height - (marginGraphTop + marginGraphBottom));
+        ensureGraphSurface(graphW, graphH);
+        if (monitors.length > 0)
+            rebuildGraphBitmap(monitors[currentIndex]);
+    }
+
+    public function setInputEnabled(value:Bool):Void
+    {
+        if (inputEnabled == value) return;
+        inputEnabled = value;
+        if (value)
+            addEventListener(Event.ENTER_UPDATE, onEnterFrame);
+        else
+            removeEventListener(Event.ENTER_UPDATE, onEnterFrame);
     }
     
     private function onEnterFrame(e:Event):Void
@@ -543,7 +584,7 @@ class GraphMonitor extends Sprite
 
     public function update():Void
     {
-        if (monitors.length == 0) return;
+        if (!renderingEnabled || monitors.length == 0) return;
         
         // Update ALL monitors' data history
         for (m in monitors)

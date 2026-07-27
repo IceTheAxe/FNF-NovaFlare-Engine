@@ -67,6 +67,12 @@ extern class GCManager {
 	@:native("__hxcpp_collect") extern static function run(major:Bool):Void;
 
 	/**
+	 Queues a concurrent full collection without making the UI thread wait.
+	 Repeated requests are coalesced by the native collector thread.
+	*/
+	@:native("__hxcpp_gc_request_full") extern static function requestFull():Void;
+
+	/**
 	 紧凑化堆，减少碎片。
 	*/
 	@:native("__hxcpp_gc_compact") extern static function compact():Void;

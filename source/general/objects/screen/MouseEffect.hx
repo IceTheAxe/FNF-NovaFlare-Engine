@@ -55,12 +55,21 @@ class MouseEffect extends Sprite {
     0xA5D4FF  // 低饱和天蓝 (柔和蓝)
     ];
     public static var trailDuration:Float = 0.3; // 路径贴图动画持续时间(秒)
+    // Freeplay already has a full-screen shader, a large interactive list and
+    // its own mouse feedback.  Compositing transient OpenFL display-list
+    // children above it turns high-polling-rate mouse input into repeated
+    // allocations and shader invalidations.  States can suppress only the
+    // movement trail while retaining click feedback.
+    public static var trailEnabled:Bool = true;
     
     // 对象池
     private var clickEffects:Array<ClickEffect> = [];
     private var trailEffects:Array<TrailEffect> = [];
     private var activeClickEffects:Array<ClickEffect> = [];
     private var activeTrailEffects:Array<TrailEffect> = [];
+    private var updating:Bool = false;
+	private var lastEffectUpdate:Float = 0;
+	private static inline var EFFECT_UPDATE_INTERVAL:Float = 1 / 120;
     
     // 路径记录
     private var lastTrailPosition:Point = new Point();
@@ -85,7 +94,14 @@ class MouseEffect extends Sprite {
         // 添加事件监听
         Lib.current.stage.addEventListener(MouseEvent.MOUSE_DOWN, onMouseDown);
         Lib.current.stage.addEventListener(MouseEvent.MOUSE_MOVE, onMouseMove);
-        Lib.current.stage.addEventListener(Event.ENTER_UPDATE, update);
+    }
+
+    private inline function startUpdating():Void {
+        if (!updating) {
+            updating = true;
+			lastEffectUpdate = Timer.stamp();
+			Lib.current.stage.addEventListener(Event.ENTER_FRAME, update);
+        }
     }
 
     private function onMouseDown(e:MouseEvent):Void {
@@ -104,12 +120,22 @@ class MouseEffect extends Sprite {
         effect.init(e.stageX, e.stageY);
         activeClickEffects.push(effect);
         addChild(effect);
+        startUpdating();
     }
     
     private function onMouseMove(e:MouseEvent):Void {
+        if (!trailEnabled) {
+            // Keep the anchor current so re-enabling the effect in another
+            // state never emits a stale, long-distance trail point.
+            lastTrailPosition.setTo(e.stageX, e.stageY);
+            return;
+        }
+
         // 检查移动距离是否足够
-        var distance = Point.distance(lastTrailPosition, new Point(e.stageX, e.stageY));
-        if (distance < trailMinDistance) return;
+        var deltaX = e.stageX - lastTrailPosition.x;
+        var deltaY = e.stageY - lastTrailPosition.y;
+        if (deltaX * deltaX + deltaY * deltaY <
+            trailMinDistance * trailMinDistance) return;
         
         lastTrailPosition.setTo(e.stageX, e.stageY);
         
@@ -137,9 +163,14 @@ class MouseEffect extends Sprite {
         effect.init(e.stageX, e.stageY, color, rotation);
         activeTrailEffects.push(effect);
         addChild(effect);
+        startUpdating();
     }
     
     private function update(e:Event):Void {
+		var now:Float = Timer.stamp();
+		if (now - lastEffectUpdate < EFFECT_UPDATE_INTERVAL) return;
+		lastEffectUpdate = now;
+
         // 更新点击特效
         var i = activeClickEffects.length;
         while (i-- > 0) {
@@ -164,6 +195,13 @@ class MouseEffect extends Sprite {
                 removeEffect(effect);
                 trailEffects.push(effect);
             }
+        }
+
+        // With no live effect there is nothing to animate. Avoid dispatching
+        // this listener on every one of the engine's high-rate update ticks.
+        if (activeClickEffects.length == 0 && activeTrailEffects.length == 0) {
+			Lib.current.stage.removeEventListener(Event.ENTER_FRAME, update);
+            updating = false;
         }
     }
     

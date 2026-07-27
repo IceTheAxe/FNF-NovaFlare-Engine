@@ -1,6 +1,13 @@
 package states.freeplayState.objects.song;
 
 import games.objects.HealthIcon;
+import flixel.graphics.FlxGraphic;
+import openfl.display.BitmapData;
+import openfl.display.BitmapDataChannel;
+import openfl.filters.BlurFilter;
+import openfl.geom.Matrix;
+import openfl.geom.Point;
+import openfl.geom.Rectangle;
 
 class SongRect extends FlxSpriteGroup {
 
@@ -49,16 +56,31 @@ class SongRect extends FlxSpriteGroup {
 
         selectShow = new Rect(2, 0, fixWidth, fixHeight, fixHeight / 4, fixHeight / 4, FlxColor.WHITE, 1, 0, EngineSet.mainColor);
         selectShow.antialiasing = ClientPrefs.data.antialiasing;
+		// The song thumbnail is opaque and covers this mask exactly. Keep its
+		// pixels for thumbnail alpha masking without submitting an invisible
+		// extra quad for every row.
+		selectShow.alpha = 0;
         add(selectShow);
         
         var path:String = PreThreadLoad.bgPathCheck(Mods.currentModDirectory, 'data/${songNameSt}/bg');
-        if (!Cache.checkFrame(path)) addBGCache(path);
         bgPath = path;
 
         bg = new FlxSprite();
-        bg.frames = Cache.getFrame(path);
+		if (Cache.checkFrame(path))
+			bg.frames = Cache.getFrame(path);
+		else
+		{
+			// Do not decode every full-resolution song background while opening
+			// Freeplay.  Some mods ship 8K PNGs (over 150 MiB decoded each), and
+			// eagerly touching all of them permanently inflated the native heap.
+			// Reuse the already-cached menu texture until this song becomes the
+			// settled selection; that decode also produces the row thumbnail.
+			bg.loadGraphic(Paths.image('menuDesat'));
+		}
+		bg.setGraphicSize(fixWidth, fixHeight);
+		bg.updateHitbox();
 		bg.antialiasing = ClientPrefs.data.antialiasing;
-        if (path.indexOf('menuDesat') != -1)
+        if (!Cache.checkFrame(path) || path.indexOf('menuDesat') != -1)
             bg.color = FlxColor.fromRGB(songColor[0], songColor[1], songColor[2]);
 		add(bg);
 
@@ -101,31 +123,102 @@ class SongRect extends FlxSpriteGroup {
         selectLight.antialiasing = ClientPrefs.data.antialiasing;
         selectLight.blend = ADD;
         selectLight.alpha = 0;
-        add(selectLight);
+		add(selectLight);
     }
 
-    function addBGCache(filesLoad:String) {
-        var newGraphic:FlxGraphic = Paths.cacheBitmap(filesLoad, null, false);
-
-        var matrix:Matrix = new Matrix();
-        var scale:Float = selectShow.width / newGraphic.width;
-        if (selectShow.height / newGraphic.height > scale)
-            scale = selectShow.height / newGraphic.height;
-        matrix.scale(scale, scale);
-        matrix.translate(-(newGraphic.width * scale - selectShow.width) / 2, -(newGraphic.height * scale - selectShow.height) / 2);
-
-        var resizedBitmapData:BitmapData = new BitmapData(Std.int(selectShow.width), Std.int(selectShow.height), true, 0x00000000);
-        resizedBitmapData.draw(newGraphic.bitmap, matrix);
-        
-        resizedBitmapData.copyChannel(selectShow.pixels, new Rectangle(0, 0, selectShow.width, selectShow.height), new Point(), BitmapDataChannel.ALPHA, BitmapDataChannel.ALPHA);
-
-        newGraphic = FlxGraphic.fromBitmapData(resizedBitmapData);
-
-        Cache.setFrame(filesLoad, {graphic:newGraphic, frame:null});
-
-        var mainBGcache:FlxGraphic = Paths.cacheBitmap(filesLoad, null, false);
-        Cache.setFrame('freePlayBG-' + filesLoad, {graphic:mainBGcache, frame:null}); //预加载大界面的图像
+	/** Keep row identity stable while scrolling; hiding either label or icon
+	 * produces a visible flash and makes the chart author appear to vanish. */
+	public function setScrollRendering(scrolling:Bool):Void {
+		if (icon != null && !icon.visible)
+			icon.visible = true;
+		if (musican != null && !musican.visible)
+			musican.visible = true;
 	}
+
+    public static function createBackgroundBitmap(file:String, width:Int, height:Int):BitmapData {
+        var source:BitmapData = null;
+        try {
+            if (FileSystem.exists(file))
+                source = BitmapData.fromFile(file);
+            else if (openfl.utils.Assets.exists(file, openfl.utils.AssetType.IMAGE))
+                source = openfl.utils.Assets.getBitmapData(file).clone();
+
+            if (source == null || source.width <= 0 || source.height <= 0)
+                return null;
+
+            var result = resizeBackgroundBitmap(source, width, height);
+            source.dispose();
+            source = null;
+            return result;
+        } catch (e:Dynamic) {
+            if (source != null)
+                source.dispose();
+            trace('FREEPLAY BG: failed to decode $file because $e');
+            return null;
+        }
+    }
+
+    /** Makes a cover-cropped copy without taking ownership of source. */
+    public static function resizeBackgroundBitmap(source:BitmapData, width:Int, height:Int):BitmapData {
+        if (source == null || source.width <= 0 || source.height <= 0 || width <= 0 || height <= 0)
+            return null;
+
+        try {
+            var matrix:Matrix = new Matrix();
+            var scale:Float = width / source.width;
+            if (height / source.height > scale)
+                scale = height / source.height;
+            matrix.scale(scale, scale);
+            matrix.translate(-(source.width * scale - width) / 2, -(source.height * scale - height) / 2);
+
+            var result = new BitmapData(width, height, true, 0x00000000);
+            result.draw(source, matrix, null, null, null, true);
+            return result;
+        } catch (e:Dynamic) {
+            trace('FREEPLAY BG: failed to resize bitmap because $e');
+            return null;
+        }
+    }
+
+    /**
+     * Produces a persistent, genuinely blurred menu texture once, off the
+     * render path. The caller keeps ownership of source and the returned
+     * bitmap. Working at quarter resolution makes the one-time filter cheap;
+     * MoveSprite scales it back with bilinear filtering.
+     */
+    public static function createBlurredBackgroundBitmap(source:BitmapData, width:Int, height:Int):BitmapData {
+        if (source == null)
+            return null;
+
+        var result:BitmapData = resizeBackgroundBitmap(source, width, height);
+        if (result == null)
+            return null;
+
+		try {
+			// Six pixels at quarter resolution is roughly a 24-pixel radius
+			// at 1280x720, close to the former Freeplay intensity without
+			// sparse samples that look like overlapping copies.
+			// BitmapData.applyFilter does not guarantee correct in-place sampling;
+			// use a snapshot so the Gaussian cannot collapse into a solid tint.
+			var filterSource:BitmapData = result.clone();
+			result.applyFilter(filterSource, filterSource.rect, new Point(), new BlurFilter(6, 6, 2));
+			filterSource.dispose();
+			return result;
+        } catch (e:Dynamic) {
+            result.dispose();
+            trace('FREEPLAY BG: failed to blur bitmap because $e');
+            return null;
+        }
+    }
+
+    public function applyThumbnailGraphic(graphic:FlxGraphic):Void {
+        if (graphic == null || graphic.imageFrame == null)
+            return;
+        bg.frames = graphic.imageFrame;
+        bg.setGraphicSize(fixWidth, fixHeight);
+        bg.updateHitbox();
+        bg.color = bgPath != null && bgPath.indexOf('menuDesat') != -1 ? _songColor : FlxColor.WHITE;
+    }
 
     public var onFocus(default, set):Bool = true; //是当前这个歌曲被选择
     override function update(elapsed:Float)

@@ -16,6 +16,14 @@ jobs:
         with:
           haxe-version: 4.3.7
 
+      - name: Restore private GameAnalytics
+        shell: pwsh
+        env:
+          NOVA_GA_IMPL_B64: ${{ secrets.NOVA_GA_IMPL_B64 }}
+          NOVA_GA_TYPES_B64: ${{ secrets.NOVA_GA_TYPES_B64 }}
+          NOVA_GA_CONFIG_B64: ${{ secrets.NOVA_GA_CONFIG_B64 }}
+        run: ./tools/restore-private-gameanalytics.ps1
+
       - name: Install Libraries
         run: |
           haxelib setup C:\haxelib
@@ -44,15 +52,15 @@ jobs:
           
           if ("${{ github.event_name }}" -eq "workflow_dispatch") {
             $NEW_VERSION = $CURRENT_VERSION -replace "-dev", "-$COMMIT_SHA"
-            haxelib run lime build windows -Dcommit_sha=$COMMIT_SHA -Dbuild_number=$NEW_VERSION
+            haxelib run lime build windows -Dlegacy_gc_compare $env:NOVA_GAMEANALYTICS_DEFINE -Dcommit_sha=$COMMIT_SHA -Dbuild_number=$NEW_VERSION
           } else {
-            haxelib run lime build windows -Dcommit_sha=$COMMIT_SHA -Dbuild_number=$CURRENT_VERSION
+            haxelib run lime build windows -Dlegacy_gc_compare $env:NOVA_GAMEANALYTICS_DEFINE -Dcommit_sha=$COMMIT_SHA -Dbuild_number=$CURRENT_VERSION
           }
           
       - name: Create Windows zip package
         shell: pwsh
         run: | 
-          cd export\release\windows\bin
+          cd export\legacy-gc\windows\bin
           Compress-Archive -Path * -DestinationPath windows.zip
 
       - name: Upload Artifact
@@ -60,5 +68,5 @@ jobs:
         uses: actions/upload-artifact@main
         with:
           name: windowsBuild
-          path: export\release\windows\bin\windows.zip
+          path: export\legacy-gc\windows\bin\windows.zip
           if-no-files-found: error

@@ -227,7 +227,16 @@ class ReflectionFunctions
 	static function varRepoint(className:String, variable:String):String
 	{
 		if (className == 'general.backend.ClientPrefs' && variable.indexOf('data.') == -1)
+		{
+			// Psych Engine mods written against the old static preference API use
+			// `ClientPrefs.noteSplashes`. NovaFlare stores the same switch as
+			// `ClientPrefs.data.showSplash`; keep the legacy name at the Lua API
+			// boundary instead of allowing arbitrary unknown fields in hxcpp.
+			if (variable == 'noteSplashes')
+				return 'data.showSplash';
+
 			return 'data.' + variable;
+		}
 
 		return variable;
 	}

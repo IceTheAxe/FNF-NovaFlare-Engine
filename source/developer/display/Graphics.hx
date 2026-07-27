@@ -2,6 +2,9 @@ package developer.display;
 
 class Watermark extends Bitmap
 {
+	private var lastStageHeight:Int = -1;
+	private var lastScale:Float = -1;
+
 	public function new(x:Float = 10, y:Float = 10, Alpha:Float = 0.5)
 	{
 		super();
@@ -17,8 +20,14 @@ class Watermark extends Bitmap
 
 	private override function __enterFrame(deltaTime:Float):Void
 	{
+		if (!visible) return;
+		var stageHeight = Lib.current.stage.stageHeight;
+		var scale = ClientPrefs.data.watermarkScale;
+		if (stageHeight == lastStageHeight && scale == lastScale) return;
+		lastStageHeight = stageHeight;
+		lastScale = scale;
 		this.x = 5;
-		this.y = Lib.current.stage.stageHeight - 5 - ClientPrefs.data.watermarkScale * bitmapData.height;
+		this.y = stageHeight - 5 - scale * bitmapData.height;
 	}
 }
 

@@ -15,13 +15,23 @@ import lime.system.Display;
 {
 	// Version - used to detect breaking changes and reset prefs
 	public var prefsVersion:Int = 120;
+	// One-shot, non-destructive migration for the independent desktop
+	// update/render clocks. This must not reuse prefsVersion because that
+	// would reset every unrelated preference and key binding.
+	public var performanceDefaultsVersion:Int = 8;
 
 	// General
-	public var framerate:Int = 60;
-	public var drawFramerate:Int = 60;
+	public var framerate:Int = #if desktop 240 #elseif mobile 1000 #else 1000 #end;
+	public var drawFramerate:Int = #if desktop 1200 #elseif mobile 240 #else 1000 #end;
+	// Keep simulation responsive without spending the whole main thread on
+	// redundant updates; the independent render clock can use the remaining
+	// time to submit frames to the bounded GL worker.
 	public var lockRender:Bool = true;
 	public var renderThread:Bool = true;
-	public var resolution:String = 'Native';
+	// Match the engine's 1280x720 design/window size by default. "Native" on a
+	// 1080p/4K desktop renders millions of invisible extra pixels before the
+	// window compositor scales them back down.
+	public var resolution:String = '720P';
 	public var colorblindMode:String = 'None';
 	public var lowQuality:Bool = false;
 	public var gameQuality:Int = #if mobile 0 #else 1 #end;
@@ -456,7 +466,12 @@ class ClientPrefs
 			}
 			FlxG.save.data.modsData = modsData;
 
-			#if (!html5 && !switch)
+			#if desktop
+			data.framerate = 240;
+			data.drawFramerate = 1200;
+			Reflect.setField(FlxG.save.data, 'framerate', data.framerate);
+			Reflect.setField(FlxG.save.data, 'drawFramerate', data.drawFramerate);
+			#elseif (!html5 && !switch)
 			final refreshRate:Int = FlxG.stage.application.window.displayMode.refreshRate;
 			data.framerate = Std.int(FlxMath.bound(refreshRate * 2, 60, 1000));
 			data.drawFramerate = Std.int(FlxMath.bound(refreshRate, 60, 1000));
@@ -494,7 +509,11 @@ class ClientPrefs
 			for (key in Reflect.fields(data))
 				if (key != 'gameplaySettings' && 
 					key != 'arrowRGB' &&
-					key != 'arrowRGBPixel' && Reflect.hasField(FlxG.save.data, key))
+					key != 'arrowRGBPixel' &&
+					// Keep the compiled migration target. Loading the saved marker
+					// here makes the later comparison oldVersion < targetVersion
+					// compare the old value with itself and silently skip migration.
+					key != 'performanceDefaultsVersion' && Reflect.hasField(FlxG.save.data, key))
 					Reflect.setField(data, key, Reflect.field(FlxG.save.data, key));
 				else if (key == 'arrowRGB') 
 				{
@@ -529,6 +548,33 @@ class ClientPrefs
 			}
 		}
 
+		#if desktop
+		// Migrate only the measured desktop scheduling defaults. Keep every other
+		// preference and key binding intact.
+		var savedPerformanceDefaultsVersion:Dynamic = Reflect.field(FlxG.save.data, 'performanceDefaultsVersion');
+		if (savedPerformanceDefaultsVersion == null || savedPerformanceDefaultsVersion < data.performanceDefaultsVersion)
+		{
+			data.framerate = 240;
+			data.drawFramerate = 1200;
+			data.lockRender = true;
+			// Lime's GL worker keeps a bounded two-frame pipeline. Keep driver
+			// submission off the update thread; direct submission serializes UI
+			// traversal with GL commands and causes a high-FPS regression.
+			data.renderThread = true;
+			// Keep desktop high-FPS mode at the engine's authored resolution.
+			// Higher resolutions remain selectable, but should be an explicit
+			// image-quality choice rather than a hidden cost on every interface.
+			data.resolution = '720P';
+			Reflect.setField(FlxG.save.data, 'framerate', data.framerate);
+			Reflect.setField(FlxG.save.data, 'drawFramerate', data.drawFramerate);
+			Reflect.setField(FlxG.save.data, 'lockRender', data.lockRender);
+			Reflect.setField(FlxG.save.data, 'renderThread', data.renderThread);
+			Reflect.setField(FlxG.save.data, 'resolution', data.resolution);
+			Reflect.setField(FlxG.save.data, 'performanceDefaultsVersion', data.performanceDefaultsVersion);
+			FlxG.save.flush();
+		}
+		#end
+
 		if (Main.fpsVar != null)
 			Main.fpsVar.visible = data.showFPS;
 
@@ -537,18 +583,36 @@ class ClientPrefs
 
 		if (FlxG.save.data.framerate == null)
 		{
+			#if desktop
+			data.framerate = 240;
+			#else
 			final refreshRate:Int = FlxG.stage.application.window.displayMode.refreshRate * 2;
 			data.framerate = Std.int(FlxMath.bound(refreshRate, 60, 1000));
+			#end
 		}
 
 		if (FlxG.save.data.drawFramerate == null)
 		{
+			#if desktop
+			data.drawFramerate = 1200;
+			#else
 			final refreshRate:Int = FlxG.stage.application.window.displayMode.refreshRate;
 			data.drawFramerate = Std.int(FlxMath.bound(refreshRate, 60, 1000));
+			#end
 		}
 		#end
 
-		lime.graphics.opengl.GL.setMultiThreaded(data.renderThread);
+		var useRenderThread:Bool = data.renderThread;
+		#if sys
+		// Keep the saved preference as the default, while allowing repeatable
+		// render-path A/B tests without rewriting the user's save file.
+		final renderThreadOverride:String = Sys.getEnv('NOVAFLARE_RENDER_THREAD');
+		if (renderThreadOverride == '0')
+			useRenderThread = false;
+		else if (renderThreadOverride == '1')
+			useRenderThread = true;
+		#end
+		lime.graphics.opengl.GL.setMultiThreaded(useRenderThread);
 
 		FlxG.updateFramerate = data.framerate;
 		FlxG.drawFramerate = data.drawFramerate;
