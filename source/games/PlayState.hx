@@ -360,23 +360,11 @@ class PlayState extends MusicBeatState
 	
 	override public function create()
 	{
-		var createStarted:Float = haxe.Timer.stamp();
-		var lastCreateCheckpoint:Float = createStarted;
-		var createCheckpoint = function(label:String):Void
-		{
-			var now:Float = haxe.Timer.stamp();
-			trace('perf:PlayState.create phase=$label elapsed_ms='
-				+ Math.round((now - lastCreateCheckpoint) * 1000)
-				+ ' total_ms=' + Math.round((now - createStarted) * 1000));
-			lastCreateCheckpoint = now;
-		};
-		trace('perf:PlayState.create start replay=$replayMode');
 		// LoadingState deliberately keeps the previous song cached for a replay.
 		// Clearing it here defeated that reuse and rebuilt every frame/animation.
 		if (!replayMode)
 			Paths.clearStoredMemory();
 		GCManager.enable(false);
-		createCheckpoint('cache_cleanup');
 		
 		startCallback = startCountdown;
 		endCallback = endSong;
@@ -601,7 +589,6 @@ class PlayState extends MusicBeatState
 		#if HSCRIPT_ALLOWED
 		startHScriptsNamed('stages/' + curStage + '.hx');
 		#end
-		createCheckpoint('stage_and_global_scripts');
 
 		if (!stageData.hide_girlfriend)
 		{
@@ -641,7 +628,6 @@ class PlayState extends MusicBeatState
 		comboGroup = new FlxSpriteGroup();
 		add(comboGroup);
 		cachePopUpScore();
-		createCheckpoint('characters_and_score_cache');
 
 		uiGroup = new FlxSpriteGroup();
 		add(uiGroup);
@@ -788,10 +774,8 @@ class PlayState extends MusicBeatState
 		}
 		botplayTxt.cameras = [camHUD];
 		replayTxt.cameras = [camHUD];
-		createCheckpoint('gameplay_ui');
 
 		generateSong(SONG.song);
-		createCheckpoint('generate_song');
 
 		if (replayMode) {
 			replayExam.load();
@@ -868,7 +852,6 @@ class PlayState extends MusicBeatState
 		#end
 		hscriptGrp.execute();
 		hscriptGrp.call("onCreate");
-		createCheckpoint('note_event_and_song_scripts');
 
 		addMobileControls(false);
 
@@ -896,7 +879,6 @@ class PlayState extends MusicBeatState
 		callOnScripts('onCreatePost');
 
 		cacheCountdown();
-		createCheckpoint('callbacks_and_countdown_cache');
 
 		super.create();
 
@@ -909,7 +891,6 @@ class PlayState extends MusicBeatState
 			checkEventNote();
 
 		allowMinorGc = true;
-		trace('perf:PlayState.create end replay=$replayMode elapsed_ms=' + Math.round((haxe.Timer.stamp() - createStarted) * 1000));
 	}
 
 	function set_songSpeed(value:Float):Float
