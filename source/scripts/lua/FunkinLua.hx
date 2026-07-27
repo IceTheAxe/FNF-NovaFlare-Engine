@@ -1,6 +1,8 @@
 #if LUA_ALLOWED
 package scripts.lua;
 
+import general.backend.DeepDebugTracker;
+
 import haxe.Json;
 
 import openfl.Lib;
@@ -1848,7 +1850,9 @@ class FunkinLua
 				lua = null;
 				return;
 			}
-			if (isString)
+			if (!isString)
+				DeepDebugTracker.recordScript('Lua', scriptName);
+			else
 				scriptName = 'unknown';
 		}
 		catch (e:Dynamic)

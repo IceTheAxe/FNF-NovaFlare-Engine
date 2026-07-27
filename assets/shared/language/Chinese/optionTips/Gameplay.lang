@@ -26,7 +26,7 @@ sickWindow => 更改Sick评分判定的最大区间
 goodWindow => 更改Good评分判定的最大区间
 badWindow => 更改Bad评分判定的最大区间
 marvelousRating => 增加Marvelous判定
-marvelousSprite => Marvelous评分仍然使用Sick的贴图
+marvelousSprite => Marvelous评分使用新的贴图
 ratingOffset => 更改整体判定的偏移
 NoteOffsetState => 更改音乐偏移和UI贴图的位置
 

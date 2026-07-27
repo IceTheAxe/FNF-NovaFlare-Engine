@@ -1,6 +1,7 @@
 package scripts.hscript;
 
 import flixel.FlxBasic;
+import general.backend.DeepDebugTracker;
 
 #if LUA_ALLOWED
 import scripts.lua.FunkinLua;
@@ -72,6 +73,8 @@ class HScript implements ISharedScript {
 		preset(parent);
 
 		loadFile();
+		if (expr != null)
+			DeepDebugTracker.recordScript('HScript', filePath);
 		this.manualRun = manualRun;
 		if (this.manualRun)
 			execute();

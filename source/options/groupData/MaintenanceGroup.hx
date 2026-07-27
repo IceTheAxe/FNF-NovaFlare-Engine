@@ -23,6 +23,12 @@ class MaintenanceGroup extends OptionCata
 			}
 		};
         addOption(option);
+
+		#if sys
+		var option:Option = new Option(this, 'deepDebug', BOOL);
+		option.experMode = true;
+		addOption(option);
+		#end
         
         var option:Option = new Option(this, 'devConScale', FLOAT, [0.5, 3, 1]);
 		addOption(option);

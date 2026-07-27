@@ -24,6 +24,7 @@ import flixel.graphics.FlxGraphic;
 import flixel.graphics.frames.FlxFilterFrames;
 
 import general.backend.thread.ThreadEvent;
+import general.backend.DeepDebugTracker;
 import states.loadingState.backend.*;
 
 import states.freeplayState.FreeplayState;
@@ -61,7 +62,11 @@ class LoadingState extends MusicBeatState
 	}
 
 	inline static public function loadAndSwitchState(target:FlxState, stopMusic = false, intrusive:Bool = true)
+	{
+		if (ClientPrefs.data.deepDebug && Std.isOfType(target, PlayState) && PlayState.SONG != null)
+			DeepDebugTracker.begin(PlayState.SONG.song, Mods.currentModDirectory, Difficulty.getString());
 		MusicBeatState.switchState(getNextState(target, stopMusic, intrusive));
+	}
 
 	function get_loaded():Int {
 		return _loaded;

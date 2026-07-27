@@ -26,6 +26,11 @@ class Paths
 	inline public static var SOUND_EXT = #if web "mp3" #else "ogg" #end;
 	inline public static var VIDEO_EXT = "mp4";
 
+	inline static function trackedPath(path:String):String
+	{
+		DeepDebugTracker.recordResolved(path);
+		return path;
+	}
 
 	public static function clearStoredMemory()
 	{
@@ -194,12 +199,12 @@ class Paths
 		if (level == null)
 			level = library;
 		var returnPath = '$library:assets/$level/$file';
-		return returnPath;
+		return trackedPath(returnPath);
 	}
 
 	inline public static function getSharedPath(file:String = '')
 	{
-		return 'assets/shared/$file';
+		return trackedPath('assets/shared/$file');
 	}
 
 	inline static public function txt(key:String, ?library:String)
@@ -241,7 +246,7 @@ class Paths
 			return file;
 		}
 		#end
-		return 'assets/videos/$key.$VIDEO_EXT';
+		return trackedPath('assets/videos/$key.$VIDEO_EXT');
 	}
 
 	static public function sound(key:String, ?library:String, ?threadLoad:Bool):Sound
@@ -388,6 +393,7 @@ class Paths
 			if (bitmap == null)
 				return null;
 		}
+		DeepDebugTracker.recordResolved(file);
 
 		var thread:Bool = false;
 		if (threadLoad != null) thread = threadLoad;
@@ -420,6 +426,7 @@ class Paths
 	static public function cacheBitmapPBO(file:String, bitmap:BitmapData,
 		?onPBODeleted:Void->Void = null, ?sliceSize:Int = 512)
 	{
+		DeepDebugTracker.recordResolved(file);
 		Cache.localTrackedAssets.push(file);
 		var newGraphic:FlxGraphic = FlxGraphic.fromBitmapData(bitmap, false, file);
 		newGraphic.persist = true;
@@ -501,7 +508,7 @@ class Paths
 			return file;
 		}
 		#end
-		return 'assets/fonts/$key';
+		return trackedPath('assets/fonts/$key');
 	}
 
 	public static function fileExists(key:String, type:AssetType, ?ignoreMods:Bool = false, ?library:String = null)
@@ -698,7 +705,10 @@ class Paths
 	#if MODS_ALLOWED
 	inline static public function mods(key:String = '')
 	{
-		return #if mobile Sys.getCwd() + #end 'mods/' + key;
+		var result:String = #if mobile Sys.getCwd() + #end 'mods/' + key;
+		if (DeepDebugTracker.active && key.length > 0 && FileSystem.exists(result))
+			DeepDebugTracker.recordResolved(result);
+		return result;
 	}
 
 	inline static public function modsFont(key:String)
@@ -754,7 +764,7 @@ class Paths
 			var fileToCheck:String = mods(Mods.currentModDirectory + '/' + key);
 			if (FileSystem.exists(fileToCheck))
 			{
-				return fileToCheck;
+				return trackedPath(fileToCheck);
 			}
 		} //检测当前mods有没有这个文件
 
@@ -762,16 +772,16 @@ class Paths
 		{
 			var fileToCheck:String = mods(mod + '/' + key);
 			if (FileSystem.exists(fileToCheck))
-				return fileToCheck;
+				return trackedPath(fileToCheck);
 		} //检测全部mods有没有这个文件
 
 		var fileToCheck:String = mods(key);
 		if (FileSystem.exists(fileToCheck))
 		{
-			return fileToCheck;
+			return trackedPath(fileToCheck);
 		} //检测mod的根目录有没有这个文件（列如mods/images）
 
-		return #if mobile Sys.getCwd() + #end 'assets/shared/' + key;
+		return trackedPath(#if mobile Sys.getCwd() + #end 'assets/shared/' + key);
 	}
 
 	static public function modCachePath(modPath:String, key:String)

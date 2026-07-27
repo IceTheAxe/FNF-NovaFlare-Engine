@@ -25,7 +25,7 @@ sickWindow => How many milliseconds are in the SICK judge
 goodWindow => How many milliseconds are in the GOOD judge
 badWindow => How many milliseconds are in the BAD judge
 marvelousRating => Extend marvelous judge for playing
-marvelousSprite => Marvelous judge will also use "sick!" judge sprite
+marvelousSprite => Marvelous judge will be using new judge sprite
 ratingOffset => Changes rate offset
 NoteOffsetState => Changes music offset and judgement position
 

@@ -26,7 +26,7 @@ sickWindow => Sick区间
 goodWindow => Good区间
 badWindow => Bad区间
 marvelousRating => 扩大Marvelous判定
-marvelousSprite => Marvelous用Sick贴图
+marvelousSprite => 启用Marvelous贴图
 ratingOffset => 判定偏移
 NoteOffsetState => 音画偏移
 

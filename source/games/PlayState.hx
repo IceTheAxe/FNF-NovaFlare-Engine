@@ -25,6 +25,7 @@ import flixel.graphics.FlxGraphic;
 import modchart.Manager;
 
 import general.objects.AttachedSprite;
+import general.backend.DeepDebugTracker;
 
 import states.storyMenuState.StoryMenuState;
 import states.freeplayState.FreeplayState;
@@ -360,6 +361,9 @@ class PlayState extends MusicBeatState
 	
 	override public function create()
 	{
+		if (ClientPrefs.data.deepDebug && !DeepDebugTracker.active && SONG != null)
+			DeepDebugTracker.begin(SONG.song, Mods.currentModDirectory, Difficulty.getString());
+
 		// LoadingState deliberately keeps the previous song cached for a replay.
 		// Clearing it here defeated that reuse and rebuilt every frame/animation.
 		if (!replayMode)
@@ -3453,6 +3457,8 @@ class PlayState extends MusicBeatState
 		var ret:Dynamic = callOnScripts('onEndSong', null, true);
 		if (ret != LuaUtils.Function_Stop && !transitioning)
 		{
+			DeepDebugTracker.finish('completed');
+
 			#if !switch
 			var percent:Float = ratingPercent;
 			if (Math.isNaN(percent))
@@ -4964,6 +4970,9 @@ class PlayState extends MusicBeatState
 
 	override function destroy()
 	{
+		if (DeepDebugTracker.active)
+			DeepDebugTracker.finish(endingSong ? 'song_state_destroyed_after_end' : 'aborted_or_restarted');
+
 		if (scripts.lua.CustomSubstate.instance != null)
 		{
 			closeSubState();
