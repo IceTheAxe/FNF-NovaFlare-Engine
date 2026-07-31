@@ -336,7 +336,7 @@ class Shader
 				if (!sys.FileSystem.exists('logs'))
 					sys.FileSystem.createDirectory('logs');
 
-				var dateNow:String = Date.now().toString().replace(" ", "_").replace(":", "'");
+				var dateNow:String = StringTools.replace(StringTools.replace(Date.now().toString(), " ", "_"), ":", "'");
 				var logFileName = 'ShaderCompileError_${dateNow}.txt';
 				sys.io.File.saveContent('logs/' + logFileName, fullMessage);
 			}
