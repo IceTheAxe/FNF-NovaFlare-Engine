@@ -7,7 +7,6 @@ import funkin.external.apple.FNFCExtern;
 import funkin.external.android.JNIUtil;
 import funkin.external.android.CallbackUtil;
 #end
-import lime.system.System;
 import flixel.util.FlxSignal;
 
 /**
@@ -22,9 +21,9 @@ class FNFCProvider
     onFNFCOpen = new FlxTypedSignal<String->Void>();
 
     #if ios
-    FlxG.stage.window.onDropFile.add(function(path:String, state:String, x:Float, y:Float):Void
+    FlxG.stage.window.onDropFile.add(function(path:String):Void
     {
-      queryFNFC();
+      if (path != null && path.length > 0) getFNFCFromURL(path);
     });
     #elseif android
     CallbackUtil.onFNFCOpen.add(onFNFCOpen.dispatch);
@@ -34,8 +33,7 @@ class FNFCProvider
   public static function queryFNFC():Null<String>
   {
     #if ios
-    final fileURL:Null<String> = System.getHint("IOS_UIApplicationLaunchOptionsURLKey");
-    if (fileURL != null && fileURL.length > 0) getFNFCFromURL(fileURL);
+    return _lastFNFC;
     #elseif android
     final staticField = JNIUtil.createStaticField('funkin/extensions/FNFCExtension', 'lastFNFC', 'Ljava/lang/String;');
     if (staticField != null) return staticField.get();
@@ -66,6 +64,7 @@ class FNFCProvider
       switch (event)
       {
         case "FNFC_RESULTS":
+          _lastFNFC = value;
           onFNFCOpen.dispatch(value);
         default:
       }

@@ -5,7 +5,6 @@ import funkin.external.apple.ScreenUtil as NativeScreenUtil;
 #elseif android
 import funkin.external.android.ScreenUtil as NativeScreenUtil;
 #end
-import lime.system.System;
 import lime.app.Application;
 import openfl.geom.Rectangle;
 
@@ -72,19 +71,19 @@ class ScreenUtil
     // Note: iOS only spits out *insets* for "safe areas", so we can only get a broad position for the notch
     // Note: *inset* is the distance from the edge of the screen where a safe area gets defined
     // see: https://developer.apple.com/documentation/uikit/uiview/safeareainsets
-    switch (System.getDisplayOrientation(Application.current.window.display))
+    switch (Application.current.window.display.orientation)
     {
-      case DISPLAY_ORIENTATION_LANDSCAPE: // landscape
+      case lime.system.Orientation.LANDSCAPE: // landscape
         notchRect.width = leftInset;
         notchRect.height = deviceHeight;
-      case DISPLAY_ORIENTATION_LANDSCAPE_FLIPPED: // landscape
+      case lime.system.Orientation.LANDSCAPE_FLIPPED: // landscape
         notchRect.width = leftInset;
         notchRect.height = deviceHeight;
         notchRect.x = deviceWidth - rightInset;
-      case DISPLAY_ORIENTATION_PORTRAIT: // portrait
+      case lime.system.Orientation.PORTRAIT: // portrait
         notchRect.width = deviceWidth;
         notchRect.height = topInset;
-      case DISPLAY_ORIENTATION_PORTRAIT_FLIPPED: // portrait
+      case lime.system.Orientation.PORTRAIT_FLIPPED: // portrait
         notchRect.width = deviceWidth;
         notchRect.height = bottomInset;
         notchRect.y = deviceHeight - notchRect.height; // move notchRect if we are flipped, the notch is at the bottom of screen
