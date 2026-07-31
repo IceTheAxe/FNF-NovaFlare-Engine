@@ -190,13 +190,13 @@ class Strumline extends FlxSpriteGroup
    */
   public var noteVibrations:NoteVibrationsHandler = new NoteVibrationsHandler();
 
-  final inArrowControlSchemeMode:Bool = #if mobile (Preferences.usesOriginControls()
+  final inArrowControlSchemeMode:Bool = #if mobile (Preferences.usesOriginArrowLayout()
     && !ControlsHandler.hasExternalInputDevice) #else false #end;
 
   /**
    * Whether the strumline is downscroll.
    */
-  public var isDownscroll:Bool = #if mobile (Preferences.usesOriginControls()
+  public var isDownscroll:Bool = #if mobile (Preferences.usesOriginArrowLayout()
     && !ControlsHandler.hasExternalInputDevice)
     || #end Preferences.downscroll;
 

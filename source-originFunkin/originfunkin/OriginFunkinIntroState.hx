@@ -59,9 +59,6 @@ class OriginFunkinIntroState extends FlxState
 			var scale:Float = Math.min(
 				FlxG.width / video.bitmap.bitmapData.width,
 				FlxG.height / video.bitmap.bitmapData.height);
-			video.setGraphicSize(
-				Std.int(video.bitmap.bitmapData.width * scale),
-				Std.int(video.bitmap.bitmapData.height * scale));
 			video.updateHitbox();
 			video.screenCenter();
 		});

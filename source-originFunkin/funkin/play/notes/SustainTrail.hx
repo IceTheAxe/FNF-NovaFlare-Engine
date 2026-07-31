@@ -221,7 +221,7 @@ class SustainTrail extends FlxSprite
     // instead of scrollSpeed, PlayState.SONG.speed
 
     flipY = Preferences.downscroll #if mobile
-    || (Preferences.usesOriginControls()
+    || (Preferences.usesOriginArrowLayout()
       && !funkin.mobile.input.ControlsHandler.hasExternalInputDevice) #end;
 
     // alpha = 0.6;

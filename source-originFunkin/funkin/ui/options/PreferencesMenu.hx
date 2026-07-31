@@ -136,13 +136,13 @@ class PreferencesMenu extends Page<OptionsState.OptionsMenuPageName>
       Preferences.downscroll = value;
     },
       Preferences.downscroll, #if mobile ControlsHandler.hasExternalInputDevice
-      || !Preferences.usesOriginControls() #end);
+      || !Preferences.usesOriginArrowLayout() #end);
     createPrefItemCheckbox('Middle Scroll',
-      "When enabled, the player's arrows are centered.\nOn mobile, this is disabled while the Origin control scheme is selected.",
+      "When enabled, the player's arrows are centered.",
       function(value:Bool):Void
       {
         Preferences.middleScroll = value;
-      }, Preferences.middleScroll, #if mobile !Preferences.usesOriginControls() #end);
+      }, Preferences.middleScroll);
     createPrefItemCheckbox('Ghost Tapping', 'When enabled, pressing a direction with no hittable note does not reduce health or score.',
       function(value:Bool):Void
       {

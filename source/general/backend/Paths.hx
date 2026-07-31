@@ -32,6 +32,17 @@ class Paths
 		return path;
 	}
 
+	static function releaseGraphicWhenUnused(graphic:FlxGraphic):Void
+	{
+		if (graphic == null || graphic.isDestroyed)
+			return;
+
+		// Cache clearing can overlap the old state's final update/draw. Keep
+		// active sprites valid and let the final owner release the graphic.
+		graphic.persist = false;
+		graphic.destroyOnNoUse = true;
+	}
+
 	public static function clearStoredMemory()
 	{
 		var clearStarted:Float = haxe.Timer.stamp();
@@ -43,18 +54,7 @@ class Paths
 			var obj = FlxG.bitmap._cache.get(key);
 			if (obj != null && !Cache.currentTrackedAssets.exists(key))
 			{
-				// 先尝试移除 OpenFL 位图缓存（存在性检查以防版本差异）
-				#if (openfl && (openfl >= "9.0.0"))
-				if (openfl.Assets.cache != null)
-				#end
-				{
-					openfl.Assets.cache.removeBitmapData(key);
-				}
-				// 再从 flixel 位图缓存移除，移除前检查是否存在
-				if (FlxG.bitmap._cache.exists(key))
-					FlxG.bitmap._cache.remove(key);
-				// 销毁对象（已做 null 检查）
-				obj.destroy();
+				releaseGraphicWhenUnused(obj);
 			}
 		}
 
@@ -62,20 +62,14 @@ class Paths
 		for (key in Cache.currentTrackedFrames.keys())
 		{
 			if (key == null) continue;
-			var obj = Cache.getFrame(key);
-			if (obj != null)
-			{
-				if (obj is FlxGraphic)
-				{
-					var graphic = cast(obj, FlxGraphic);
-						graphic.persist = false; // make sure the garbage collector actually clears it up
-						graphic.destroyOnNoUse = true;
-						graphic.destroy();
-				} else {
-					var frames = cast(obj, FlxFramesCollection);
-						frames.destroy();
-				}
-			}
+			var cached = Cache.currentTrackedFrames.get(key);
+			if (cached == null) continue;
+
+			var graphic = cached.graphic;
+			if (graphic == null && cached.frame != null)
+				graphic = cached.frame.parent;
+
+			releaseGraphicWhenUnused(graphic);
 		}
 
 		for (key in Cache.currentTrackedAnims.keys())
@@ -125,15 +119,8 @@ class Paths
 				@:privateAccess
 				if (obj != null)
 				{
-					// remove the key from all cache maps
-					FlxG.bitmap._cache.remove(key);
-					openfl.Assets.cache.removeBitmapData(key);
 					Cache.currentTrackedAssets.remove(key);
-
-					// and get rid of the object
-					obj.persist = false; // make sure the garbage collector actually clears it up
-					obj.destroyOnNoUse = true;
-					obj.destroy();
+					releaseGraphicWhenUnused(obj);
 				}
 			}
 		}

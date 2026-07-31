@@ -1991,7 +1991,7 @@ class PlayState extends MusicBeatSubState
      */
   function initHealthBar():Void
   {
-    final isDownscroll:Bool = #if mobile (Preferences.usesOriginControls()
+    final isDownscroll:Bool = #if mobile (Preferences.usesOriginArrowLayout()
       && !ControlsHandler.hasExternalInputDevice)
       || #end Preferences.downscroll;
 
@@ -2031,7 +2031,7 @@ class PlayState extends MusicBeatSubState
     // Create subtitles if they are enabled.
     if (Preferences.subtitles)
     {
-      final isDownscroll:Bool = #if mobile (Preferences.usesOriginControls()
+      final isDownscroll:Bool = #if mobile (Preferences.usesOriginArrowLayout()
         && !ControlsHandler.hasExternalInputDevice)
         || #end Preferences.downscroll;
 
@@ -2280,7 +2280,7 @@ class PlayState extends MusicBeatSubState
     }
 
     #if mobile
-    if (Preferences.usesOriginControls() && !ControlsHandler.hasExternalInputDevice)
+    if (Preferences.usesOriginArrowLayout() && !ControlsHandler.hasExternalInputDevice)
     {
       initNoteHitbox();
     }

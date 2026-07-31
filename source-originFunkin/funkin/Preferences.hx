@@ -106,7 +106,7 @@ class Preferences
 
   /**
    * If enabled, the player's strumline is centered like NovaFlare's
-   * Middle Scroll option. Origin touch controls keep their own layout.
+   * Middle Scroll option.
    * @default `false`
    */
   public static var middleScroll(get, set):Bool;
@@ -126,11 +126,7 @@ class Preferences
 
   public static inline function usesMiddleScroll():Bool
   {
-    #if mobile
-    return middleScroll && !usesOriginControls();
-    #else
     return middleScroll;
-    #end
   }
 
   /**
@@ -656,6 +652,16 @@ class Preferences
   public static inline function usesOriginControls():Bool
   {
     return controlsScheme == FunkinHitboxControlSchemes.Origin;
+  }
+
+  /**
+   * Whether gameplay should use Origin's enlarged, bottom arrow layout.
+   * Middle Scroll keeps Origin's arrow-following touch input, but uses the
+   * standard Hitbox strumline layout.
+   */
+  public static inline function usesOriginArrowLayout():Bool
+  {
+    return usesOriginControls() && !usesMiddleScroll();
   }
 
   public static var mobileControlPositions(get, set):Array<Array<Float>>;
