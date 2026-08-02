@@ -119,16 +119,10 @@ class FPSViewer extends Sprite
 	private function isPointInFPSCounter():Bool
 	{
 		var target = isHiding ? fpsShow.bgSprite : extraShow.bgSprite;
-
-		var global = target.localToGlobal(new openfl.geom.Point(0, 0));
-		var fpsX = global.x;
-		var fpsY = global.y;
-		var fpsWidth = target.width;
-		var fpsHeight = target.height;
-
-		var mx = Lib.current.stage.mouseX;
-		var my = Lib.current.stage.mouseY;
-
-		return mx >= fpsX && mx <= fpsX + fpsWidth && my >= fpsY && my <= fpsY + fpsHeight;
+		final stage = Lib.current.stage;
+		// width/height are local to the bitmap and do not include FPSViewer's
+		// fpsScale. Stage-space bounds include the complete parent transform.
+		final bounds = target.getBounds(stage);
+		return bounds.contains(stage.mouseX, stage.mouseY);
 	}
 }

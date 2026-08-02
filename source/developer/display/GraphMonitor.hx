@@ -366,18 +366,21 @@ class GraphMonitor extends Sprite
         // Handle Input Check (Only mouse event logic here)
         if (FlxG.mouse.justPressed)
         {
-            var mx = Lib.current.stage.mouseX;
-            var my = Lib.current.stage.mouseY;
-            
-            // Use this.x/y plus manual fix
-            var absX = this.x + inputFixX; 
-            var absY = this.y + inputFixY; 
+            final stage = Lib.current.stage;
+            // GraphMonitor is nested below ExtraCounter and FPSViewer. The old
+            // absolute x/y calculation ignored every parent scale (notably
+            // fpsScale), so the visible tabs and their click regions diverged.
+            // Convert the Stage pointer into this monitor's local space instead;
+            // the complete parent translation and scale chain is then applied.
+            final localMouse = globalToLocal(new Point(stage.mouseX, stage.mouseY));
+            final mx = localMouse.x;
+            final my = localMouse.y;
             
             // Check overlap with tabs container area (bottom margin area)
-            if (mx >= absX && mx <= absX + _width && my >= absY + _height - marginGraphBottom && my <= absY + _height)
+            if (mx >= 0 && mx <= _width && my >= _height - marginGraphBottom && my <= _height)
             {
                 var tabWidth = _width / monitors.length;
-                var clickedIndex = Math.floor((mx - absX) / tabWidth);
+                var clickedIndex = Math.floor(mx / tabWidth);
                 if (clickedIndex >= 0 && clickedIndex < monitors.length)
                 {
                     selectMonitor(clickedIndex);
