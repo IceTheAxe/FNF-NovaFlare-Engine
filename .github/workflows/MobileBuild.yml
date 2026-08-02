@@ -95,13 +95,13 @@ jobs:
       - name: Install Android Libraries
         run: |
           haxelib setup ~/haxelib
-          haxelib install hmm --quiet
-          haxelib run hmm install
+          haxelib --global install hmm --quiet
+          haxelib --global run hmm install
           # A cached haxelib git checkout can drift to the upstream default
           # branch even when hmm.json pins a commit. Restore every immutable
           # dependency plus NovaFlare's compatibility fork before compilation.
           for library in polymod thx.core thx.semver FlxPartialSound; do
-            haxelib run hmm reinstall --force "$library"
+            haxelib --global run hmm reinstall --force "$library"
           done
           
           if [ "${{ steps.android_cache.outputs.update_libs }}" == "true" ]; then
@@ -109,8 +109,8 @@ jobs:
               echo "强制重新安装所有Android依赖..."
             elif [ -n "${{ steps.android_cache.outputs.libs_to_update }}" ]; then
               echo "更新指定Android依赖: ${{ steps.android_cache.outputs.libs_to_update }}"
-              haxelib install hmm
-              haxelib run hmm reinstall --force $(echo "${{ steps.android_cache.outputs.libs_to_update }}")
+              haxelib --global install hmm
+              haxelib --global run hmm reinstall --force $(echo "${{ steps.android_cache.outputs.libs_to_update }}")
             fi
           else
             echo "使用缓存，无需安装依赖"
@@ -256,11 +256,11 @@ jobs:
       - name: Install iOS Libraries
         run: |
           haxelib setup ~/haxelib
-          haxelib install hmm --quiet
-          haxelib run hmm install
+          haxelib --global install hmm --quiet
+          haxelib --global run hmm install
           # Restore pinned commits after haxelib has touched cached git clones.
           for library in polymod thx.core thx.semver FlxPartialSound; do
-            haxelib run hmm reinstall --force "$library"
+            haxelib --global run hmm reinstall --force "$library"
           done
           
           if [ "${{ steps.ios_cache.outputs.update_libs }}" == "true" ]; then
@@ -268,13 +268,16 @@ jobs:
               echo "强制重新安装所有iOS依赖..."
             elif [ -n "${{ steps.ios_cache.outputs.libs_to_update }}" ]; then
               echo "更新指定iOS依赖: ${{ steps.ios_cache.outputs.libs_to_update }}"
-              haxelib install hmm
-              haxelib run hmm reinstall --force $(echo "${{ steps.ios_cache.outputs.libs_to_update }}")
+              haxelib --global install hmm
+              haxelib --global run hmm reinstall --force $(echo "${{ steps.ios_cache.outputs.libs_to_update }}")
             fi
           else
             echo "使用缓存，无需安装依赖"
           fi
-    
+
+          echo "lime revision: $(git -C .haxelib/lime/git rev-parse HEAD)"
+          echo "openfl revision: $(git -C .haxelib/openfl/git rev-parse HEAD)"
+
       - name: Compile iOS
         run: haxelib run lime build ios -arm64 -nosign -Dlegacy_gc_compare -Dcommit_sha=$(git rev-parse --short HEAD)
         
