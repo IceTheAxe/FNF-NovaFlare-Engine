@@ -84,7 +84,7 @@ import lime.system.Display;
 	public var checkForUpdates:Bool = true;
 	public var screensaver:Bool = false;
 	public var githubCheck:Bool = false;
-	public var filesCheck:Bool = #if ios false #else true #end;
+	public var filesCheck:Bool = true;
 	public var quotaGCIncreace:Float = 1;
 
 	// Game UI
