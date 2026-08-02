@@ -98,9 +98,11 @@ jobs:
           haxelib install hmm --quiet
           haxelib run hmm install
           # A cached haxelib git checkout can drift to the upstream default
-          # branch even when hmm.json pins a ref. Reinstall this compatibility
-          # fork so mobile builds always receive the Lime 8.3-compatible API.
-          haxelib run hmm reinstall --force FlxPartialSound
+          # branch even when hmm.json pins a commit. Restore every immutable
+          # dependency plus NovaFlare's compatibility fork before compilation.
+          for library in polymod thx.core thx.semver FlxPartialSound; do
+            haxelib run hmm reinstall --force "$library"
+          done
           
           if [ "${{ steps.android_cache.outputs.update_libs }}" == "true" ]; then
             if [ "${{ steps.android_cache.outputs.skip_cache }}" == "true" ]; then
@@ -256,8 +258,10 @@ jobs:
           haxelib setup ~/haxelib
           haxelib install hmm --quiet
           haxelib run hmm install
-          # Keep the cached checkout on NovaFlare's pinned compatibility fork.
-          haxelib run hmm reinstall --force FlxPartialSound
+          # Restore pinned commits after haxelib has touched cached git clones.
+          for library in polymod thx.core thx.semver FlxPartialSound; do
+            haxelib run hmm reinstall --force "$library"
+          done
           
           if [ "${{ steps.ios_cache.outputs.update_libs }}" == "true" ]; then
             if [ "${{ steps.ios_cache.outputs.skip_cache }}" == "true" ]; then
