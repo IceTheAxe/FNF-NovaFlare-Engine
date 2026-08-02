@@ -102,10 +102,12 @@ class CopyState extends MusicBeatState
 			{
 				if (failedFiles.length > 0)
 				{
-					SUtil.showPopUp(failedFiles.join('\n'), 'Failed To Copy ${failedFiles.length} File.');
+					final reportPath = 'logs/' + Date.now().toString().replace(' ', '-').replace(':', "'") + '-CopyState.txt';
 					if (!FileSystem.exists('logs'))
 						FileSystem.createDirectory('logs');
-					File.saveContent('logs/' + Date.now().toString().replace(' ', '-').replace(':', "'") + '-CopyState' + '.txt', failedFiles.join('\n'));
+					File.saveContent(reportPath, failedFiles.join('\n'));
+					SUtil.showPopUp('${failedFiles.length} file(s) could not be copied.\nDetails were saved to:\n$reportPath',
+						'Copy Failed');
 				}
 				if (!isOption && !checkExistingFiles())
 				{
@@ -197,6 +199,17 @@ class CopyState extends MusicBeatState
 
 	public static function getFileBytes(file:String):ByteArray
 	{
+		// Non-embedded native assets have a real bundle path. Prefer it so image,
+		// audio and font assets never pass through AssetLibrary's embedded-class
+		// conversion path (an embedded Image cannot be cast to Bytes on hxcpp).
+		var path = OpenflAssets.getPath(file);
+		if (path != null && path != '' && FileSystem.exists(path))
+		{
+			var pathBytes = ByteArray.fromFile(path);
+			if (pathBytes != null)
+				return pathBytes;
+		}
+
 		// Assets.getBytes() only accepts assets declared as BINARY. Images,
 		// sounds and fonts have other manifest types even though their original
 		// packaged files still need to be copied byte-for-byte. Read through the
@@ -204,18 +217,21 @@ class CopyState extends MusicBeatState
 		var colonIndex = file.indexOf(':');
 		var libraryName = colonIndex == -1 ? '' : file.substring(0, colonIndex);
 		var symbolName = colonIndex == -1 ? file : file.substring(colonIndex + 1);
-		var library = LimeAssets.getLibrary(libraryName);
-		if (library != null)
+		try
 		{
-			var bytes:haxe.io.Bytes = library.getBytes(symbolName);
-			if (bytes != null)
-				return ByteArray.fromBytes(bytes);
+			var library = LimeAssets.getLibrary(libraryName);
+			if (library != null)
+			{
+				var bytes:haxe.io.Bytes = library.getBytes(symbolName);
+				if (bytes != null)
+					return ByteArray.fromBytes(bytes);
+			}
 		}
+		catch (_:Dynamic) {}
 
 		// Keep a path fallback for custom libraries whose getBytes
 		// implementation does not expose non-binary asset types.
-		var path = OpenflAssets.getPath(file);
-		return path == null ? null : ByteArray.fromFile(path);
+		return path == null || path == '' ? null : ByteArray.fromFile(path);
 	}
 
 	public static function getFile(file:String):String
@@ -320,8 +336,12 @@ class CopyState extends MusicBeatState
 		#else
 		locatedFiles = OpenflAssets.list();
 		// removes unwanted assets
-		var assets = locatedFiles.filter(folder -> folder.startsWith('assets/') && !folder.contains('unwantedFolder/'));
-		var mods = locatedFiles.filter(folder -> folder.startsWith('mods/') && !folder.contains('unwantedFolder/'));
+		// menuExtendHide is deliberately embedded into the executable. It has no
+		// byte-for-byte bundle file to expose in Documents and must never enter
+		// the iOS copy queue (36 PNGs otherwise fail with "Invalid Cast").
+		var assets = locatedFiles.filter(folder -> folder.startsWith('assets/')
+			&& !folder.contains('assets/shared/images/menuExtendHide/'));
+		var mods = locatedFiles.filter(folder -> folder.startsWith('mods/'));
 		locatedFiles = assets.concat(mods);
 
 		var filesToRemove:Array<String> = [];

@@ -24,6 +24,9 @@ class AudioDisplay extends FlxSprite
 	var externalAudioBuffer:AudioBuffer;
 	var useExternalAudioSource:Bool = false;
 
+	var barXPositions:Array<Int> = [];
+	var barWidths:Array<Int> = [];
+
 	public var snd:FlxSound;
 	public var symmetry:Bool = false;
 	public var stopUpdate:Bool = false;
@@ -35,7 +38,7 @@ class AudioDisplay extends FlxSprite
 	var bitmapWidth:Int;
 	var bitmapHeight:Int;
 	var barStep:Float;
-	var barWidth:Float;
+	var bitmapGap:Int;
 	var barHeights:Array<Float> = [];
 	var barColor:FlxColor;
 	var drawRect:Rectangle = new Rectangle();
@@ -44,7 +47,7 @@ class AudioDisplay extends FlxSprite
 	var getValues:Array<Bar>;
 
 	static inline final MAX_VISUAL_RATE:Float = 120;
-	static inline final MAX_BITMAP_WIDTH:Int = 512;
+	static inline final MAX_BITMAP_WIDTH:Int = 640;
 
 	public function new(snd:FlxSound = null, X:Float = 0, Y:Float = 0,
 		Width:Int, Height:Int, line:Int, gap:Int, Color:FlxColor,
@@ -64,8 +67,21 @@ class AudioDisplay extends FlxSprite
 		// raster work and GPU upload bandwidth when its shape changes.
 		bitmapWidth = Std.int(Math.min(MAX_BITMAP_WIDTH, Math.max(1, Width)));
 		bitmapHeight = Std.int(Math.max(1, Math.ceil(Height * bitmapWidth / Width)));
-		barStep = bitmapWidth / this.line;
-		barWidth = Math.max(1, barStep - gap * bitmapWidth / Width);
+		bitmapGap = Std.int(Math.max(0, Math.round(gap * bitmapWidth / Width)));
+		if (this.line > 1)
+		{
+			// Always leave at least one source pixel for every bar.
+			final maxGap = Std.int(Math.max(0,
+				Math.floor((bitmapWidth - this.line) / (this.line - 1))));
+			bitmapGap = Std.int(Math.min(bitmapGap, maxGap));
+		}
+		else
+			bitmapGap = 0;
+
+		// Round only bar starts. Every non-final bar ends exactly bitmapGap
+		// pixels before the next start, so cumulative fractional widths can no
+		// longer turn nominally equal gaps into touching/widely separated pairs.
+		barStep = (bitmapWidth + bitmapGap) / this.line;
 
 		makeGraphic(bitmapWidth, bitmapHeight, FlxColor.TRANSPARENT, true);
 		setGraphicSize(displayWidth, displayHeight);
@@ -83,6 +99,20 @@ class AudioDisplay extends FlxSprite
 		final minimum = bitmapHeight / 40;
 		for (i in 0...line)
 			barHeights.push(minimum);
+
+		barXPositions.resize(line);
+		barWidths.resize(line);
+
+		for (i in 0...line)
+		{
+			final x0 = Std.int(Math.round(barStep * i));
+			final x1 = i == line - 1
+				? bitmapWidth
+				: Std.int(Math.round(barStep * (i + 1))) - bitmapGap;
+
+			barXPositions[i] = x0;
+			barWidths[i] = Std.int(Math.max(1, x1 - x0));
+		}
 	}
 
 	override function update(elapsed:Float):Void
@@ -245,14 +275,19 @@ class AudioDisplay extends FlxSprite
 
 		bitmap.lock();
 		bitmap.fillRect(bitmap.rect, FlxColor.TRANSPARENT);
+
 		for (i in 0...line)
 		{
-			final x0 = Std.int(barStep * i);
-			final x1 = Std.int(Math.min(bitmapWidth, Math.ceil(barStep * i + barWidth)));
+			final x0 = barXPositions[i];
+			final width = barWidths[i];
+			if (width <= 0) break;
+
 			final height = Std.int(Math.min(bitmapHeight, Math.ceil(barHeights[i])));
-			drawRect.setTo(x0, bitmapHeight - height, Math.max(1, x1 - x0), height);
+
+			drawRect.setTo(x0, bitmapHeight - height, width, height);
 			bitmap.fillRect(drawRect, barColor);
 		}
+
 		bitmap.unlock();
 		dirty = true;
 	}
