@@ -7,7 +7,6 @@ import flixel.addons.ui.FlxUIState;
 import general.backend.PsychCamera;
 
 import general.shaders.ColorblindFilter;
-import gameanalytics.GABridge;
 
 #if hxvlc
 import VideoHandler;
@@ -217,7 +216,6 @@ class MusicBeatState extends FlxUIState
 
 	public static var timePassedOnState:Float = 0;
 	public var allowMinorGc:Bool = true;
-	private var gameAnalyticsElapsed:Float = 0;
 	private var lastSavedFullscreen:Null<Bool> = null;
 
 	override function update(elapsed:Float)
@@ -225,16 +223,6 @@ class MusicBeatState extends FlxUIState
 		// everyStep();
 		var oldStep:Int = curStep;
 		timePassedOnState += elapsed;
-		// Analytics has no useful 2000 Hz signal.  Preserve the complete elapsed
-		// time while removing thousands of bridge/dynamic calls per second from
-		// every state.
-		gameAnalyticsElapsed += elapsed;
-		if (gameAnalyticsElapsed >= 1 / 60)
-		{
-			GABridge.update(gameAnalyticsElapsed);
-			gameAnalyticsElapsed = 0;
-		}
-
 		updateCurStep();
 		updateBeat();
 

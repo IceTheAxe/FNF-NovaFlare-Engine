@@ -31,11 +31,10 @@ Ask an admin for the complete `private/` folder contents.
 Copy `GameAnalyticsConfig.SAMPLE.hx` → `GameAnalyticsConfig.hx`
 Fill in the real GameAnalytics game key and secret key.
 
-### 3. Enable the build flag
-Add `-D GAMEANALYTICS_ENABLED` to your build command, or use:
-```batch
-lime test windows -D GAMEANALYTICS_ENABLED
-```
+### 3. Build normally
+No build flag is required. The build checks for all three private `.hx` files
+and enables GameAnalytics automatically when they are present. If any file is
+missing, the public bridge compiles as a no-op.
 
 ### 4. Verify
 The game should now send analytics events to GameAnalytics.
@@ -64,6 +63,5 @@ Trusted workflows restore the private module from encrypted repository secrets:
 - `NOVA_GA_TYPES_B64`
 - `NOVA_GA_CONFIG_B64`
 
-The restore step enables `gameanalytics_enabled` only when all three secrets
-are available. Fork pull requests receive no repository secrets and compile
-without analytics.
+The restore step writes all three sources before Lime starts. Fork pull
+requests receive no repository secrets and compile without analytics.

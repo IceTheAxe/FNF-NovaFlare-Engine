@@ -112,6 +112,7 @@ class Main extends Sprite
 	public function new()
 	{
 		super();
+		gameanalytics.GAAppLifecycle.install();
 		#if android
 		SUtil.doPermissionsShit();
 		#end

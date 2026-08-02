@@ -19,21 +19,11 @@ $missing = @(
         ForEach-Object { $_.Key }
 )
 
-$githubEnvironment = $env:GITHUB_ENV
-
 if ($missing.Count -gt 0) {
     if ($Required) {
         throw (
             'Required private GameAnalytics sources are unavailable: ' +
             ($missing -join ', ')
-        )
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace($githubEnvironment)) {
-        [IO.File]::AppendAllText(
-            $githubEnvironment,
-            "NOVA_GAMEANALYTICS_DEFINE=$([Environment]::NewLine)",
-            [Text.UTF8Encoding]::new($false)
         )
     }
 
@@ -56,14 +46,6 @@ foreach ($entry in $encodedFiles.GetEnumerator()) {
 
     $target = Join-Path $TargetDirectory $entry.Key
     [IO.File]::WriteAllBytes($target, $bytes)
-}
-
-if (-not [string]::IsNullOrWhiteSpace($githubEnvironment)) {
-    [IO.File]::AppendAllText(
-        $githubEnvironment,
-        "NOVA_GAMEANALYTICS_DEFINE=-Dgameanalytics_enabled$([Environment]::NewLine)",
-        [Text.UTF8Encoding]::new($false)
-    )
 }
 
 Write-Output 'Private GameAnalytics module restored for this build.'

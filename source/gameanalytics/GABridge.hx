@@ -6,14 +6,15 @@ package gameanalytics;
  * All actual implementation resides in the `private/` directory
  * (gitignored — accessible only to repo admins).
  *
- * When compiled WITHOUT `-D GAMEANALYTICS_ENABLED`, every method
- * is a no-op — zero runtime cost (dead-code eliminated by Haxe).
+ * The build enables the implementation automatically when all private source
+ * files exist. Otherwise every method is a no-op and is eliminated by Haxe.
  */
 class GABridge {
 
     public static function init(?userId:String):Void {
         #if GAMEANALYTICS_ENABLED
-        GameAnalytics.init(userId);
+        if (GameAnalytics.instance == null)
+            GameAnalytics.init(userId);
         #end
     }
 

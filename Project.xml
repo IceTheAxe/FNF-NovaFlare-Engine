@@ -301,10 +301,9 @@
 	<haxeflag name="-dce" value="no" unless="windows || ios || debug" />
 	<!-- _________________________________ Custom _______________________________ -->
 
-		<!-- GameAnalytics — private module (admin builds only) -->
-		<haxedef name="GAMEANALYTICS_ENABLED" if="gameanalytics_enabled" />
-		<classpath name="private" if="gameanalytics_enabled" />
-		<haxedef name="GAMEANALYTICS_VERBOSE" if="debug && gameanalytics_enabled" />
+	<!-- GameAnalytics is enabled automatically when all private sources exist. -->
+	<classpath name="private" />
+	<haxeflag name="--macro" value="gameanalytics.GACompileConfig.configure()" />
 
 	<assets path='art/icon16.png' rename='icon.png' if="linux" />
 	<section if="mobile">

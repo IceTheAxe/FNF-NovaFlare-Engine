@@ -192,17 +192,6 @@ jobs:
             "-Dcommit_sha=$commitSha",
             "-Dbuild_number=$buildNumber"
           )
-          $isOfficialRepository = (
-            '${{ github.repository }}' -eq
-            'NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine'
-          )
-          if ($isOfficialRepository) {
-            if ($env:NOVA_GAMEANALYTICS_DEFINE -ne '-Dgameanalytics_enabled') {
-              throw 'Official Windows ZGC artifacts require private GameAnalytics'
-            }
-            $arguments += $env:NOVA_GAMEANALYTICS_DEFINE
-          }
-
           haxe --version
           haxelib @arguments
           if ($LASTEXITCODE -ne 0) {

@@ -180,8 +180,8 @@
       "name": "FlxPartialSound",
       "type": "git",
       "dir": null,
-      "ref": "2f984e244f1544ca98c0e03b9b21ae570f07ac55",
-      "url": "https://github.com/FunkinCrew/FlxPartialSound.git"
+      "ref": "main",
+      "url": "https://github.com/NovaFlare-Engine-haxelib/FlxPartialSound"
     },
     {
       "name": "format",
