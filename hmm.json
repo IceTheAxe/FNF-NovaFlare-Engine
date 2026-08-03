@@ -56,8 +56,10 @@
     },
     {
       "name": "haxeui-core",
-      "type": "haxelib",
-      "version": "1.7.0"
+      "type": "git",
+      "dir": null,
+      "ref": "main",
+      "url": "https://github.com/NovaFlare-Engine-haxelib/haxeui-core-1.7.0"
     },
     {
       "name": "haxeui-flixel",
@@ -71,8 +73,10 @@
     },
     {
       "name": "trandom",
-      "type": "haxelib",
-      "version": "1.0.0"
+      "type": "git",
+      "dir": null,
+      "ref": "main",
+      "url": "https://github.com/NovaFlare-Engine-haxelib/trandom-1.0.0"
     },
     {
       "name": "hxWebSockets",
@@ -145,8 +149,10 @@
     },
     {
       "name": "json2object",
-      "type": "haxelib",
-      "version": null
+      "type": "git",
+      "dir": null,
+      "ref": "main",
+      "url": "https://github.com/NovaFlare-Engine-haxelib/json2object-3.11.0"
     },
     {
       "name": "linc_luajit",
