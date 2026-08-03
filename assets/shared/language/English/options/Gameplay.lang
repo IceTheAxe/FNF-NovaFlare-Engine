@@ -6,6 +6,7 @@ flipChart => Flip Chart
 ghostTapping => Ghost Tapping
 guitarHeroSustains => Guitar Hero Sustains
 noReset => No Reset
+showKeybinds => Show Keybinds
 
 
 Opponent => Opponent
@@ -32,6 +33,7 @@ NoteOffsetState => Note Offset
 
 Gameplaybackend => Gameplay Backend
 
+gameplayGC => GameplayGC Takeover
 fixLNL => Fix Long Notes
 saveScoreBase => playback record storage basis
 replayQuality => Replay Quality

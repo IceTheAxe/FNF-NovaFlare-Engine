@@ -14,3 +14,4 @@ resultsScreen => Tela de Resultados
 loadingScreen => Tela de Carregamento
 loadThreads => Threads de Carregamento
 useFlixelCoords => Modo de Coordenadas da UI
+SelectGameSubState => Alternar Engine

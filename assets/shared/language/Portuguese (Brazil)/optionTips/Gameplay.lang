@@ -6,6 +6,7 @@ flipChart => Inverter o gráfico durante o jogo
 ghostTapping => Alternar se pressionar uma direção sem seta conta como erro
 guitarHeroSustains => Notas longas não podem ser pressionadas se você errar
 noReset => Alternar o uso do R para reiniciar ao game over
+showKeybinds => Mostra a tecla atribuída a cada pista acima dos receptores quando uma música começa
 
 
 Opponent => Oponente
@@ -32,6 +33,8 @@ NoteOffsetState => Altera o deslocamento da música e a posição do julgamento
 
 Gameplaybackend => Backend de Jogabilidade
 
+gameplayGC => Permite que o GameplayGC gerencie a coleta de memória durante as músicas para reduzir pausas do GC. Pode aumentar o uso de memória.
 fixLNL => Reduzir o comprimento das notas longas
 saveScoreBase => Base de armazenamento de recorde, Pontuação: maior pontuação, Precisão: maior precisão, Erros: menor número de erros, Combo: maior combo
+showReplayWatermark => Mostra a marca d'água do replay no canto inferior direito durante a reprodução
 gameOverVibration => O dispositivo vai vibrar ao receber game over

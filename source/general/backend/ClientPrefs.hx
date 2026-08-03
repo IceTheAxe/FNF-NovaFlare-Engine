@@ -55,6 +55,7 @@ import lime.system.Display;
 
 	// Backend
 	// Gameplay backend s
+	public var gameplayGC:Bool = false;
 	public var fixLNL:Int = 0; // fix long note length
 	public var saveScoreBase:String = 'Score';
 	public var mainMusic:String = 'None';

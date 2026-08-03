@@ -1,6 +1,7 @@
 Maintenance => Manutenção
 
 developerMode => Modo desenvolvedor, que desativa alguns avisos de erro e rastreamentos
+deepDebug => Registra os scripts, imagens, áudios e outros recursos usados por cada música
 devConScale => Tamanho do console usado para capturar todas as saídas de rastreamento
 
 oldHscriptVersion => Versão reduzida para usar hscript compatível com runhaxecode

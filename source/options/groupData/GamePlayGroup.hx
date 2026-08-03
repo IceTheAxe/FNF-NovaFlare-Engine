@@ -1,5 +1,7 @@
 package options.groupData;
 
+import general.backend.gc.GCManager.GameplayGC;
+
 class GamePlayGroup extends OptionCata
 {
     public function new(X:Float, Y:Float, width:Float, height:Float)
@@ -86,6 +88,12 @@ class GamePlayGroup extends OptionCata
 
         var option:Option = new Option(this, 'Gameplaybackend', TEXT);
 		addOption(option);
+
+		#if (cpp && !hxcpp_zgc)
+		var option:Option = new Option(this, 'gameplayGC', BOOL);
+		option.onChange = GameplayGC.applyPreference;
+		addOption(option);
+		#end
 
         var option:Option = new Option(this, 'fixLNL', BOOL);
         addOption(option);

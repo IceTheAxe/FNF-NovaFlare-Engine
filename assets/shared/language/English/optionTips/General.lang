@@ -1,7 +1,7 @@
 General => General
 
 framerate => Change your FPS cap
-frawFramerate => for the maximum number of frames to draw, see update upper Limit Discrimination
+drawFramerate => Sets the maximum draw frame rate independently from the update rate
 language => Change engine language
 lockRender => Will update separate from the draw update, the effect is to increase the number of frames by about two to three times (depending on device performance)
 renderThread => Separating the rendering thread improves frame rates

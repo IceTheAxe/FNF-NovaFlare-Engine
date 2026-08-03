@@ -1,7 +1,7 @@
 General => Geral
 
 framerate => Alterar o limite de FPS
-frawFramerate => Para o número máximo de frames a renderizar, veja o limite superior de atualização
+drawFramerate => Define o limite de quadros de renderização independentemente da taxa de atualização
 language => Alterar o idioma do motor
 lockRender => Atualizará separadamente da atualização de desenho, o efeito é aumentar o número de frames em cerca de duas a três vezes (dependendo do desempenho do dispositivo)
 renderThread => Separar a thread de renderização melhora as taxas de frames

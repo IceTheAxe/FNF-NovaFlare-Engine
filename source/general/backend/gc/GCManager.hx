@@ -2,6 +2,7 @@ package general.backend.gc;
 
 import cpp.RawPointer;
 import cpp.Pointer;
+import general.backend.ClientPrefs;
 
 extern class GCManager {
       /**
@@ -282,7 +283,15 @@ class LegacyGCManager {
  * NovaGC builds keep their own policy and compile these calls out.
  */
 class GameplayGC {
-	public static var active(default, null):Bool = false;
+	public static var active(get, never):Bool;
+
+	private static inline function get_active():Bool {
+		#if (cpp && !hxcpp_zgc)
+		return GCManager.isGameplayMode();
+		#else
+		return false;
+		#end
+	}
 
 	/**
 	 * Collect stale state/preloader objects before PlayState construction.
@@ -302,6 +311,11 @@ class GameplayGC {
 		// state. Restore it even when gameplay mode was prepared earlier.
 		GCManager.enable(true);
 
+		if (!ClientPrefs.data.gameplayGC) {
+			stop(false);
+			return;
+		}
+
 		if (active)
 			return;
 
@@ -310,7 +324,18 @@ class GameplayGC {
 		#else
 		GCManager.enterGameplay(96 * 1024 * 1024, 384 * 1024 * 1024);
 		#end
-		active = true;
+		#end
+	}
+
+	/**
+	 * Disabling the option leaves an existing gameplay mode immediately,
+	 * without forcing a full collection inside a live judgment window.
+	 * Enabling it is armed for the next safe begin() call.
+	 */
+	public static function applyPreference():Void {
+		#if (cpp && !hxcpp_zgc)
+		if (!ClientPrefs.data.gameplayGC)
+			stop(false);
 		#end
 	}
 
@@ -331,7 +356,6 @@ class GameplayGC {
 		if (!active)
 			return;
 
-		active = false;
 		GCManager.leaveGameplay(collectNow);
 		#end
 	}

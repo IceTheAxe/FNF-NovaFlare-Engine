@@ -6,6 +6,7 @@ flipChart => Flip chart for playing
 ghostTapping => Toggle counting pressing a directional input when no arrow is there as a miss
 guitarHeroSustains => Hold Notes can't be pressed if you miss
 noReset => Toggle pressing R to gameover
+showKeybinds => Displays each note lane's assigned key above the receptors when a song starts
 
 
 Opponent => Opponent
@@ -32,6 +33,8 @@ NoteOffsetState => Changes music offset and judgement position
 
 Gameplaybackend => Gameplay Backend
 
+gameplayGC => Let GameplayGC manage memory collection during songs to reduce GC pauses. This may increase memory usage.
 fixLNL => Reduce Long Note length
 saveScoreBase => playback record storage basis, Score: the highest score, Accuracy: with the highest accuracy, Misses: with the least number of misses, highestCombo: combo most
+showReplayWatermark => Shows the replay watermark in the bottom-right corner during playback
 gameOverVibration => Device will vibrate at game over

@@ -2,6 +2,7 @@ General => Geral
 
 framerate => Taxa de quadros
 drawFramerate => Taxa de atualização visual
+lockRender => Renderização Independente
 language => Idioma da Engine
 gameQuality => Qualidade do Jogo
 lowQuality => Baixa Qualidade

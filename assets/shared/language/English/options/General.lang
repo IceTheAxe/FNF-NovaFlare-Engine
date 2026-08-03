@@ -2,6 +2,7 @@ General => General
 
 framerate => Update Framerate Cap
 drawFramerate => Draw Framerate Cap
+lockRender => Independent Rendering
 language => Engine Language
 gameQuality => Game Quality
 lowQuality => Low Quality
