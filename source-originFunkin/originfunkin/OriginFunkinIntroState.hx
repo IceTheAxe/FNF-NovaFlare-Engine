@@ -28,6 +28,13 @@ class OriginFunkinIntroState extends FlxState
 	override public function create():Void
 	{
 		super.create();
+		FlxG.fixedTimestep = false;
+		FlxG.game.focusLostFramerate = 30;
+		@:privateAccess
+		{
+			if (FlxG.game.stage != null && FlxG.game.stage.window != null)
+				FlxG.game.stage.window.frameRate = FlxG.updateFramerate;
+		}
 
 		FlxG.camera.bgColor = FlxColor.BLACK;
 		FlxG.mouse.visible = false;
