@@ -1975,9 +1975,13 @@ class Charter extends UIState {
 
 	public function getBookmarkList():Array<ChartBookmark> {
 		var bookmarks:Array<ChartBookmark> = [];
+		var song:ChartData = PlayState.SONG;
+		if (song == null)
+			return bookmarks;
+
 		try {
-			if (PlayState.SONG.bookmarks != null)
-				bookmarks = PlayState.SONG.bookmarks;
+			if (song.bookmarks != null)
+				bookmarks = song.bookmarks;
 		} catch (e) {}
 
 		return bookmarks;

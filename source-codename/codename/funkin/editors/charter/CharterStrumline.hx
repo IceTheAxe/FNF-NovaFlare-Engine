@@ -149,7 +149,7 @@ class CharterStrumline extends UISprite {
 			hasVocals = true;
 		}
 		else {
-			vocals.destroy();
+			vocals.reset();
 			hasVocals = false;
 		}
 		vocals.group = FlxG.sound.defaultMusicGroup;
