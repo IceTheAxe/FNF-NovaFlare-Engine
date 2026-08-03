@@ -50,7 +50,7 @@ class OriginFunkinIntroState extends FlxState
 	{
 		#if VIDEOS_ALLOWED
 		var videoPath:String = OriginFunkinMode.novaFlareIntroVideoPath;
-		if (videoPath == null || videoPath.length == 0)
+		if (videoPath == null || videoPath.length == 0 || !OriginFunkinConfig.canStartVideo())
 		{
 			finishIntro();
 			return;

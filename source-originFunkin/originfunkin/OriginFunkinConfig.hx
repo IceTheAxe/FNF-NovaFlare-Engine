@@ -30,6 +30,7 @@ class OriginFunkinConfig
 	public static var modSupportEnabled(default, null):Bool = false;
 	public static var modWarningAcknowledged(default, null):Bool = false;
 	public static var configPath(default, null):Null<String>;
+	public static var startVideoEnabled(default, null):Bool = true;
 
 	static var loadedPath:Null<String>;
 
@@ -62,6 +63,7 @@ class OriginFunkinConfig
 			originNoticeAcknowledged = readBool(data, "originNoticeAcknowledged");
 			modSupportEnabled = readBool(data, "modSupportEnabled");
 			modWarningAcknowledged = readBool(data, "modWarningAcknowledged");
+			startVideoEnabled = readBool(data, "startVideoEnabled");
 		}
 		catch (error:Dynamic)
 		{
@@ -70,6 +72,12 @@ class OriginFunkinConfig
 		#else
 		resetDefaults();
 		#end
+	}
+
+	public static function canStartVideo():Bool
+	{
+		load();
+		return startVideoEnabled;
 	}
 
 	public static function shouldStartOrigin():Bool
@@ -155,7 +163,9 @@ class OriginFunkinConfig
 				hasEnteredOrigin: hasEnteredOrigin,
 				originNoticeAcknowledged: originNoticeAcknowledged,
 				modSupportEnabled: modSupportEnabled,
-				modWarningAcknowledged: modWarningAcknowledged
+				modWarningAcknowledged: modWarningAcknowledged,
+				startVideoEnabled: startVideoEnabled
+
 			}, null, "  "));
 			return true;
 		}
@@ -215,6 +225,7 @@ class OriginFunkinConfig
 		originNoticeAcknowledged = false;
 		modSupportEnabled = false;
 		modWarningAcknowledged = false;
+		startVideoEnabled = true;
 	}
 
 	static function readBool(data:Dynamic, field:String):Bool

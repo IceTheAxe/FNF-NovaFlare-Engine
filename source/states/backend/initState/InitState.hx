@@ -129,6 +129,11 @@ class InitState extends MusicBeatState
 
 		Language.resetData();
 
+		
+		originfunkin.OriginFunkinConfig.load();
+		originfunkin.OriginFunkinConfig.startVideoEnabled = ClientPrefs.data.skipTitleVideo ? false : true;
+		originfunkin.OriginFunkinConfig.save();
+
 		#if CHECK_FOR_UPDATES
 		if (ClientPrefs.data.checkForUpdates)
 		{

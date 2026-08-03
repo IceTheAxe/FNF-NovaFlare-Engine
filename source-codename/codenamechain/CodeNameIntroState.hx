@@ -42,7 +42,7 @@ class CodeNameIntroState extends FlxState
 	{
 		#if VIDEOS_ALLOWED
 		var videoPath:String = CodeNameMode.novaFlareIntroVideoPath;
-		if (videoPath == null || videoPath.length == 0)
+		if (videoPath == null || videoPath.length == 0 || !originfunkin.OriginFunkinConfig.canStartVideo())
 		{
 			finishIntro();
 			return;
