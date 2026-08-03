@@ -74,9 +74,15 @@ class SongRect extends FlxSpriteGroup {
 			// Do not decode every full-resolution song background while opening
 			// Freeplay.  Some mods ship 8K PNGs (over 150 MiB decoded each), and
 			// eagerly touching all of them permanently inflated the native heap.
-			// Reuse the already-cached menu texture until this song becomes the
-			// settled selection; that decode also produces the row thumbnail.
-			bg.loadGraphic(Paths.image('menuDesat'));
+			// Reuse one centered card crop of the current mod's menu texture until
+			// this song becomes the settled selection.  Keeping this crop separate
+			// from `path` prevents a placeholder from masquerading as a decoded
+			// per-song background in the thumbnail cache.
+			var placeholder:FlxGraphic = getCardPlaceholder(Paths.image('menuDesat'), selectShow.pixels);
+			if (placeholder != null)
+				bg.frames = placeholder.imageFrame;
+			else
+				bg.loadGraphic(Paths.image('menuDesat'));
 		}
 		bg.setGraphicSize(fixWidth, fixHeight);
 		bg.updateHitbox();
@@ -126,6 +132,41 @@ class SongRect extends FlxSpriteGroup {
         selectLight.alpha = 0;
 		add(selectLight);
     }
+
+	static function getCardPlaceholder(source:FlxGraphic, mask:BitmapData):FlxGraphic {
+		if (source == null || source.bitmap == null || source.width <= 0 || source.height <= 0)
+			return null;
+
+		var cacheKey:String = 'freeplay-card-placeholder:' + source.key;
+		if (Cache.checkFrame(cacheKey))
+			return Cache.currentTrackedFrames.get(cacheKey).graphic;
+
+		try
+		{
+			var scale:Float = Math.max(fixWidth / source.width, fixHeight / source.height);
+			var matrix:Matrix = new Matrix();
+			matrix.scale(scale, scale);
+			matrix.translate(
+				-(source.width * scale - fixWidth) * 0.5,
+				-(source.height * scale - fixHeight) * 0.5);
+
+			var thumbnail:BitmapData = new BitmapData(fixWidth, fixHeight, true, 0x00000000);
+			thumbnail.draw(source.bitmap, matrix, null, null, null, ClientPrefs.data.antialiasing);
+			if (mask != null)
+				thumbnail.copyChannel(mask,
+					new Rectangle(0, 0, fixWidth, fixHeight),
+					new Point(), BitmapDataChannel.ALPHA, BitmapDataChannel.ALPHA);
+
+			var graphic:FlxGraphic = FlxGraphic.fromBitmapData(thumbnail, false, cacheKey);
+			Cache.setFrame(cacheKey, {graphic: graphic, frame: null});
+			return graphic;
+		}
+		catch (e:Dynamic)
+		{
+			trace('FREEPLAY CARD: failed to prepare placeholder ${source.key} because $e');
+			return null;
+		}
+	}
 
 	/** Keep row identity stable while scrolling; hiding either label or icon
 	 * produces a visible flash and makes the chart author appear to vanish. */

@@ -26,11 +26,7 @@ class SUtil
 				daPath = AndroidEnvironment.getExternalStorageDirectory() + '/.' + folderName;
 		}
 		#elseif ios
-		var folderName:String = (folderOverride != null) ? folderOverride : lime.app.Application.current.meta.get("file");
-		if (folderName != null && folderName != '')
-			daPath = haxe.io.Path.addTrailingSlash(LimeSystem.documentsDirectory) + folderName;
-		else
-			daPath = LimeSystem.documentsDirectory;
+		daPath = LimeSystem.documentsDirectory;
 		#else
 		daPath = Sys.getCwd();
 		#end

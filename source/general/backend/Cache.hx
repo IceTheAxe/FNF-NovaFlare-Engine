@@ -1,5 +1,7 @@
 package general.backend;
 
+import sys.thread.Mutex;
+
 import openfl.media.Sound;
 
 import flixel.graphics.frames.FlxFramesCollection;
@@ -8,6 +10,34 @@ import flixel.graphics.FlxGraphic;
 import flixel.animation.FlxAnimationController;
 
 class Cache {
+	static var localAssetsMutex:Mutex = new Mutex();
+
+	public static function trackLocalAsset(key:String):Void
+	{
+		if (key == null)
+			return;
+
+		localAssetsMutex.acquire();
+		if (!localTrackedAssets.contains(key))
+			localTrackedAssets.push(key);
+		localAssetsMutex.release();
+	}
+
+	public static function isLocalAsset(key:String):Bool
+	{
+		localAssetsMutex.acquire();
+		var result:Bool = localTrackedAssets.contains(key);
+		localAssetsMutex.release();
+		return result;
+	}
+
+	public static function resetLocalAssets():Void
+	{
+		localAssetsMutex.acquire();
+		localTrackedAssets = [];
+		localAssetsMutex.release();
+	}
+
     // define the locally tracked assets
 	public static var localTrackedAssets:Array<String> = [];  //用于列举当前状态的所有资源（包括图形，声音）
 

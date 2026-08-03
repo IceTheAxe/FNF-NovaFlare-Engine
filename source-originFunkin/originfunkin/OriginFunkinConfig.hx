@@ -17,9 +17,12 @@ class OriginFunkinConfig
 	public static inline final MODE_AUTO:String = "auto";
 	public static inline final MODE_NOVFLARE:String = "novaflare";
 	public static inline final MODE_ORIGIN:String = "origin";
+	public static inline final MODE_CODENAME:String = "codename";
+	public static inline final CONTAINER_FOLDER_NAME:String = "Funkin";
 	public static inline final MOD_FOLDER_NAME:String = "mods-vslice";
 
-	static inline final CONFIG_FILE_NAME:String = ".originFunkin.json";
+	static inline final CONFIG_FILE_NAME:String = "chain.json";
+	static inline final LEGACY_CONFIG_FILE_NAME:String = ".originFunkin.json";
 
 	public static var preferredMode(default, null):String = MODE_AUTO;
 	public static var hasEnteredOrigin(default, null):Bool = false;
@@ -51,7 +54,7 @@ class OriginFunkinConfig
 		{
 			var data:Dynamic = Json.parse(File.getContent(path));
 			var savedMode:Dynamic = Reflect.field(data, "preferredMode");
-			if (savedMode == MODE_NOVFLARE || savedMode == MODE_ORIGIN || savedMode == MODE_AUTO)
+			if (savedMode == MODE_NOVFLARE || savedMode == MODE_ORIGIN || savedMode == MODE_CODENAME || savedMode == MODE_AUTO)
 			{
 				preferredMode = savedMode;
 			}
@@ -72,7 +75,13 @@ class OriginFunkinConfig
 	public static function shouldStartOrigin():Bool
 	{
 		load();
-		return preferredMode != MODE_NOVFLARE;
+		return preferredMode == MODE_ORIGIN || preferredMode == MODE_AUTO;
+	}
+
+	public static function shouldStartCodeName():Bool
+	{
+		load();
+		return preferredMode == MODE_CODENAME;
 	}
 
 	public static function requestOrigin():Bool
@@ -86,6 +95,13 @@ class OriginFunkinConfig
 	{
 		load();
 		preferredMode = MODE_NOVFLARE;
+		return save();
+	}
+
+	public static function requestCodeName():Bool
+	{
+		load();
+		preferredMode = MODE_CODENAME;
 		return save();
 	}
 
@@ -128,8 +144,13 @@ class OriginFunkinConfig
 
 		try
 		{
+			var parent:String = Path.directory(configPath);
+			if (parent != null && parent.length > 0 && !FileSystem.exists(parent))
+			{
+				FileSystem.createDirectory(parent);
+			}
 			File.saveContent(configPath, Json.stringify({
-				version: 1,
+				version: 2,
 				preferredMode: preferredMode,
 				hasEnteredOrigin: hasEnteredOrigin,
 				originNoticeAcknowledged: originNoticeAcknowledged,
@@ -167,7 +188,13 @@ class OriginFunkinConfig
 		}
 		#end
 
-		var candidate:String = Path.normalize(Path.join([runtimeDirectory, CONFIG_FILE_NAME]));
+		var legacyCandidate:String = Path.normalize(Path.join([runtimeDirectory, LEGACY_CONFIG_FILE_NAME]));
+		if (FileSystem.exists(legacyCandidate) && !FileSystem.isDirectory(legacyCandidate))
+		{
+			return legacyCandidate;
+		}
+
+		var candidate:String = Path.normalize(Path.join([runtimeDirectory, CONTAINER_FOLDER_NAME, CONFIG_FILE_NAME]));
 
 		// FileSystem.fullPath() can return null for a file that does not exist yet
 		// on Android. Keep the already-absolute runtime path so the first save can

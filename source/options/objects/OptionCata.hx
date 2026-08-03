@@ -91,12 +91,6 @@ class OptionCata extends FlxSpriteGroup
 
 		super.update(elapsed);
 
-		
-		if (checkPoint()) {
-			mem.cataChoose = true;
-		} else {
-			mem.cataChoose = false;
-		}
 	}
 
 	public function resetData() {

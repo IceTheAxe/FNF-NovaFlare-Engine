@@ -53,26 +53,20 @@ class NaviMember extends FlxSpriteGroup
     public var onFocus:Bool = false;
     public var cataChoose:Bool = false;
     public var allowChoose:Bool = false;
-    var focusTime:Float = 0;
     override function update(elapsed:Float)
 	{
 		super.update(elapsed);
 
         var mouse = OptionsState.instance.mouseEvent;
 
-		onFocus = mouse.overlaps(this);
+        onFocus = mouse.overlaps(this);
 
         if (cataChoose) {
-            if (focusTime > 0.2) {
-                if (specRect.alpha < 1)  specRect.alpha += EngineSet.FPSfix(0.12);
-                if (specRect.scale.y < 1) specRect.scale.y += EngineSet.FPSfix(0.12);
-            } else {
-                focusTime += elapsed;
-            }
+            specRect.alpha = Math.min(1, specRect.alpha + EngineSet.FPSfix(0.12));
+            specRect.scale.y = Math.min(1, specRect.scale.y + EngineSet.FPSfix(0.12));
         } else {
-            focusTime = 0;
-            if (specRect.alpha > 0)  specRect.alpha -= EngineSet.FPSfix(0.2);
-		    if (specRect.scale.y > 0) specRect.scale.y -= EngineSet.FPSfix(0.2);
+            specRect.alpha = 0;
+            specRect.scale.y = 0;
         }
 
 		if (onFocus) {

@@ -59,24 +59,7 @@ class VideoSprite extends FlxSpriteGroup
 
 		// callbacks
 		if (!shouldLoop)
-		{
-			videoSprite.bitmap.onEndReached.add(function()
-			{
-				if (alreadyDestroyed)
-					return;
-
-				trace('Video destroyed');
-				if (cover != null)
-				{
-					remove(cover);
-					cover.destroy();
-				}
-
-				PlayState.instance.remove(this);
-				destroy();
-				alreadyDestroyed = true;
-			});
-		}
+			videoSprite.bitmap.onEndReached.add(finishVideo);
 
 		videoSprite.bitmap.onFormatSetup.add(function()
 		{
@@ -99,27 +82,42 @@ class VideoSprite extends FlxSpriteGroup
 	}
 
 	var alreadyDestroyed:Bool = false;
+	var finishing:Bool = false;
+
+	private function finishVideo()
+	{
+		if (alreadyDestroyed || finishing)
+			return;
+		finishing = true;
+
+		var callback = finishCallback;
+		finishCallback = null;
+		onSkip = null;
+
+		if (callback != null)
+			callback();
+
+		destroy();
+	}
 
 	override function destroy()
 	{
 		if (alreadyDestroyed)
-		{
-			super.destroy();
 			return;
-		}
+
+		alreadyDestroyed = true;
+		finishing = true;
+		finishCallback = null;
+		onSkip = null;
 
 		trace('Video destroyed');
 		if (cover != null)
 		{
 			remove(cover);
 			cover.destroy();
+			cover = null;
 		}
 
-		if (finishCallback != null)
-			finishCallback();
-		onSkip = null;
-
-		PlayState.instance.remove(this);
 		super.destroy();
 	}
 
@@ -139,11 +137,22 @@ class VideoSprite extends FlxSpriteGroup
 
 			if (holdingTime >= _timeToSkip #if android || FlxG.android.justReleased.BACK #end)
 			{
-				if (onSkip != null)
-					onSkip();
+				if (alreadyDestroyed || finishing)
+					return;
+				finishing = true;
+
+				var skipCallback = onSkip;
+				onSkip = null;
 				finishCallback = null;
-				videoSprite.bitmap.onEndReached.dispatch();
-				PlayState.instance.remove(this);
+
+				if (skipCallback != null)
+					skipCallback();
+
+				if (!alreadyDestroyed && videoSprite != null && videoSprite.bitmap != null)
+					videoSprite.bitmap.onEndReached.dispatch();
+				if (!alreadyDestroyed)
+					destroy();
+
 				trace('Skipped video');
 				return;
 			}

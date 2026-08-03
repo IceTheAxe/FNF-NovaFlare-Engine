@@ -14,3 +14,4 @@ resultsScreen => Open Results Screen at end song
 loadingScreen => Add a LoadingScreen for PlayState
 loadThreads => Number of threads for loading resources
 useFlixelCoords => Uses Flixel stage coordinates for UI elements (hitbox, video playback). When disabled, uses OpenFL screen coordinates instead.
+SelectGameSubState => Switch engine, PC can choose vslice and codename, mobile only has vslice

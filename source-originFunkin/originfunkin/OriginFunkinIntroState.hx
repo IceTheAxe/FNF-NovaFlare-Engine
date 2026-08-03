@@ -21,6 +21,8 @@ class OriginFunkinIntroState extends FlxState
 
 	#if VIDEOS_ALLOWED
 	var video:FlxVideoSprite;
+	var firstFrameDisplayed:Bool = false;
+	var firstFrameWatchdog:FlxTimer;
 	#end
 
 	override public function create():Void
@@ -59,13 +61,39 @@ class OriginFunkinIntroState extends FlxState
 			var scale:Float = Math.min(
 				FlxG.width / video.bitmap.bitmapData.width,
 				FlxG.height / video.bitmap.bitmapData.height);
+			video.setGraphicSize(video.bitmap.bitmapData.width * scale, video.bitmap.bitmapData.height * scale);
 			video.updateHitbox();
 			video.screenCenter();
 		});
+		video.bitmap.onDisplay.add(onFirstVideoFrame);
+		video.bitmap.onEncounteredError.add(onVideoError);
 		video.bitmap.onEndReached.add(finishIntro);
 		add(video);
-		video.load(videoPath);
-		video.play();
+		if (!video.load(videoPath))
+		{
+			finishIntro();
+			return;
+		}
+		new FlxTimer().start(0.001, function(_):Void
+		{
+			if (!finished && video != null && video.bitmap != null && FlxG.state == this)
+			{
+				if (!video.play())
+				{
+					finishIntro();
+					return;
+				}
+
+				if (!finished && !firstFrameDisplayed)
+				{
+					firstFrameWatchdog = new FlxTimer().start(8, function(_):Void
+					{
+						if (!finished && !firstFrameDisplayed && FlxG.state == this)
+							finishIntro();
+					});
+				}
+			}
+		});
 		skipText = new FlxText(0, FlxG.height - 32, FlxG.width, "Press Enter to skip", 18);
 
 		skipText.setFormat(null, 18, FlxColor.WHITE, CENTER);
@@ -123,6 +151,24 @@ class OriginFunkinIntroState extends FlxState
 		return false;
 	}
 
+	#if VIDEOS_ALLOWED
+	function onFirstVideoFrame():Void
+	{
+		firstFrameDisplayed = true;
+		if (firstFrameWatchdog != null)
+		{
+			firstFrameWatchdog.cancel();
+			firstFrameWatchdog = null;
+		}
+	}
+
+	function onVideoError(message:String):Void
+	{
+		FlxG.log.warn('OriginFunkin intro video error: $message');
+		finishIntro();
+	}
+	#end
+
 	function finishIntro():Void
 	{
 		if (finished)
@@ -132,8 +178,16 @@ class OriginFunkinIntroState extends FlxState
 		finished = true;
 
 		#if VIDEOS_ALLOWED
+		if (firstFrameWatchdog != null)
+		{
+			firstFrameWatchdog.cancel();
+			firstFrameWatchdog = null;
+		}
+
 		if (video != null)
 		{
+			video.bitmap.onDisplay.remove(onFirstVideoFrame);
+			video.bitmap.onEncounteredError.remove(onVideoError);
 			video.bitmap.onEndReached.remove(finishIntro);
 			video.stop();
 			remove(video, true);

@@ -43,21 +43,28 @@ class LuaUtils
 
 	public static function setVarInArray(instance:Dynamic, variable:String, value:Dynamic, allowMaps:Bool = false):Any
 	{
+		if (variable == null)
+			return null;
+
+		var playState = PlayState.instance;
 		var splitProps:Array<String> = variable.split('[');
 		if (splitProps.length > 1)
 		{
 			var target:Dynamic = null;
-			if (PlayState.instance.variables.exists(splitProps[0]))
+			if (playState != null && playState.variables != null && playState.variables.exists(splitProps[0]))
 			{
-				var retVal:Dynamic = PlayState.instance.variables.get(splitProps[0]);
+				var retVal:Dynamic = playState.variables.get(splitProps[0]);
 				if (retVal != null)
 					target = retVal;
 			}
-			else
+			else if (instance != null)
 				target = Reflect.getProperty(instance, splitProps[0]);
 
 			for (i in 1...splitProps.length)
 			{
+				if (target == null)
+					return null;
+
 				var j:Dynamic = splitProps[i].substr(0, splitProps[i].length - 1);
 				if (i >= splitProps.length - 1) // Last array
 					target[j] = value;
@@ -67,57 +74,68 @@ class LuaUtils
 			return target;
 		}
 
-		if (allowMaps && isMap(instance))
+		if (instance != null && allowMaps && isMap(instance))
 		{
 			// trace(instance);
 			instance.set(variable, value);
 			return value;
 		}
 
-		if (PlayState.instance.variables.exists(variable))
+		if (playState != null && playState.variables != null && playState.variables.exists(variable))
 		{
-			PlayState.instance.variables.set(variable, value);
+			playState.variables.set(variable, value);
 			return value;
 		}
+		if (instance == null)
+			return null;
 		Reflect.setProperty(instance, variable, value);
 		return value;
 	}
 
 	public static function getVarInArray(instance:Dynamic, variable:String, allowMaps:Bool = false):Any
 	{
+		if (variable == null)
+			return null;
+
+		var playState = PlayState.instance;
 		var splitProps:Array<String> = variable.split('[');
 		if (splitProps.length > 1)
 		{
 			var target:Dynamic = null;
-			if (PlayState.instance.variables.exists(splitProps[0]))
+			if (playState != null && playState.variables != null && playState.variables.exists(splitProps[0]))
 			{
-				var retVal:Dynamic = PlayState.instance.variables.get(splitProps[0]);
+				var retVal:Dynamic = playState.variables.get(splitProps[0]);
 				if (retVal != null)
 					target = retVal;
 			}
-			else
+			else if (instance != null)
 				target = Reflect.getProperty(instance, splitProps[0]);
 
 			for (i in 1...splitProps.length)
 			{
+				if (target == null)
+					return null;
+
 				var j:Dynamic = splitProps[i].substr(0, splitProps[i].length - 1);
 				target = target[j];
 			}
 			return target;
 		}
 
-		if (allowMaps && isMap(instance))
+		if (instance != null && allowMaps && isMap(instance))
 		{
 			// trace(instance);
 			return instance.get(variable);
 		}
 
-		if (PlayState.instance.variables.exists(variable))
+		if (playState != null && playState.variables != null && playState.variables.exists(variable))
 		{
-			var retVal:Dynamic = PlayState.instance.variables.get(variable);
+			var retVal:Dynamic = playState.variables.get(variable);
 			if (retVal != null)
 				return retVal;
 		}
+		if (instance == null)
+			return null;
 		return Reflect.getProperty(instance, variable);
 	}
 
@@ -295,7 +313,8 @@ class LuaUtils
 
 	public static inline function getTargetInstance()
 	{
-		return PlayState.instance.isDead ? GameOverSubstate.instance : PlayState.instance;
+		var playState = PlayState.instance;
+		return playState != null && playState.isDead && GameOverSubstate.instance != null ? GameOverSubstate.instance : playState;
 	}
 
 	public static inline function getLowestCharacterGroup():FlxSpriteGroup

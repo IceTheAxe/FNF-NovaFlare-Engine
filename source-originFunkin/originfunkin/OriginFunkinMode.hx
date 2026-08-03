@@ -16,7 +16,9 @@ import sys.FileSystem;
 
 class OriginFunkinMode
 {
-	public static inline final FOLDER_NAME:String = "originFunkin";
+	public static inline final FOLDER_NAME:String = "OriginFunkin";
+	public static inline final ASSET_FOLDER_NAME:String = "assets";
+	static inline final LEGACY_FOLDER_NAME:String = "originFunkin";
 	public static inline final VERSION:String = "0.8.4";
 
 	public static var active(default, null):Bool = false;
@@ -189,7 +191,12 @@ class OriginFunkinMode
 		}
 		if (root == null || root.length == 0)
 		{
-			root = Path.join([Sys.getCwd(), FOLDER_NAME]);
+			root = Path.join([
+				Sys.getCwd(),
+				OriginFunkinConfig.CONTAINER_FOLDER_NAME,
+				FOLDER_NAME,
+				ASSET_FOLDER_NAME
+			]);
 		}
 		#end
 		return OriginFunkinConfig.getModRoot(root);
@@ -214,8 +221,26 @@ class OriginFunkinMode
 		var executableDirectory:String = Sys.getCwd();
 		#end
 
-		var candidate:String = FileSystem.fullPath(Path.join([executableDirectory, FOLDER_NAME]));
-		return FileSystem.exists(candidate) && FileSystem.isDirectory(candidate) ? candidate : null;
+		var preferred:String = FileSystem.fullPath(Path.join([
+			executableDirectory,
+			OriginFunkinConfig.CONTAINER_FOLDER_NAME,
+			FOLDER_NAME,
+			ASSET_FOLDER_NAME
+		]));
+		if (FileSystem.exists(preferred) && FileSystem.isDirectory(preferred)) return preferred;
+
+		var containerLegacy:String = FileSystem.fullPath(Path.join([
+			executableDirectory,
+			OriginFunkinConfig.CONTAINER_FOLDER_NAME,
+			LEGACY_FOLDER_NAME
+		]));
+		if (FileSystem.exists(containerLegacy) && FileSystem.isDirectory(containerLegacy)) return containerLegacy;
+
+		var legacy:String = FileSystem.fullPath(Path.join([executableDirectory, LEGACY_FOLDER_NAME]));
+		if (FileSystem.exists(legacy) && FileSystem.isDirectory(legacy)) return legacy;
+
+		var titledLegacy:String = FileSystem.fullPath(Path.join([executableDirectory, FOLDER_NAME]));
+		return FileSystem.exists(titledLegacy) && FileSystem.isDirectory(titledLegacy) ? titledLegacy : null;
 	}
 	#end
 

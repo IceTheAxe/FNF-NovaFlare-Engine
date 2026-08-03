@@ -70,9 +70,11 @@ class PreThreadLoad {
     }
 
     static public function bgPathCheck(mod:String, path:String):String {
-        if (!FileSystem.exists(Paths.modCachePath(mod, path + '.png')))
-            path = 'images/menuDesat.png';     
-        return Paths.modCachePath(mod, path);
+        var backgroundPath:String = Paths.modCachePath(mod, path + '.png');
+        if (FileSystem.exists(backgroundPath))
+            return backgroundPath;
+
+        return Paths.modCachePath(mod, 'images/menuDesat.png');
     }
 
     static public function iconCheck(mod:String, path:String):String {

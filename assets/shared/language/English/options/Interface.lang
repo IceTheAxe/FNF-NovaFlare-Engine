@@ -14,3 +14,4 @@ resultsScreen => Results Screen
 loadingScreen => Loading Screen
 loadThreads => Load Threads
 useFlixelCoords => UI Coordinate Mode
+SelectGameSubState => Switch engine

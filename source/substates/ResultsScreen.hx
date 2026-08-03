@@ -148,30 +148,32 @@ class ResultsScreen extends MusicBeatSubstate
 		camOther.bgColor.alpha = 0;
 		FlxG.cameras.add(camOther,false);		
 
-		var extraLoad:Bool = false;
-		var filesLoad = 'data/' + game.songName + '/background';
-		if (FileSystem.exists(Paths.modFolders(filesLoad + '.png')))
-		{
-			extraLoad = true;
-		}
-		else
+		var songBackgroundKey = 'data/' + game.songName + '/background';
+		var hasSongBackground = FileSystem.exists(Paths.modFolders(songBackgroundKey + '.png'));
+		var filesLoad = hasSongBackground ? songBackgroundKey : 'menuBG';
+		// Keep the original left-preview loader for the normal images/menuBG path.
+		// Only root-level data/<song>/background.png uses the explicit extra loader.
+		var resultBackgroundGraphic = hasSongBackground
+			? Paths.imageEX(filesLoad, null, true, false)
+			: Paths.image(filesLoad, null, true, false);
+		if (resultBackgroundGraphic == null && hasSongBackground)
 		{
 			filesLoad = 'menuBG';
-			extraLoad = false;
+			resultBackgroundGraphic = Paths.image(filesLoad, null, true, false);
 		}
 
-		background = new FlxSprite(0, 0).loadGraphic(Paths.imageEX(filesLoad, null, false, false));
+		background = new FlxSprite(0, 0).loadGraphic(resultBackgroundGraphic);
 		background.scale.x = FlxG.width * 1.05 / background.width;
 		background.scale.y = FlxG.height * 1.05 / background.height;
 		background.updateHitbox();
 		background.antialiasing = ClientPrefs.data.antialiasing;
 		background.screenCenter();
 		background.camera = camBG;
+		background.alpha = 0;
 		add(background);
 
 		var bgBlur = new BlurFilter(15.0);
-		bgBlur.apply(camBG);
-		trace('perf:ResultsScreen.new background_ms=' + Math.round((haxe.Timer.stamp() - buildStarted) * 1000));
+		background.shader = bgBlur.blurShader_reduce;
 
 		//--------------------------
 
@@ -179,7 +181,7 @@ class ResultsScreen extends MusicBeatSubstate
 		modsBG.alpha = 0;
 		add(modsBG);
 
-		modsMenu = new FlxSprite(20, 20).loadGraphic(Paths.image(filesLoad, null, true, extraLoad));
+		modsMenu = new FlxSprite(20, 20).loadGraphic(resultBackgroundGraphic);
 		modsMenu.scale.x = 600 / modsMenu.width;
 		modsMenu.scale.y = 338 / modsMenu.height;
 		modsMenu.offset.x = 0;

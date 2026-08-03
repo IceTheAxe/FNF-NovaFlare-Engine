@@ -329,9 +329,11 @@ class LoadingState extends MusicBeatState
 		soundsToPrepare = [];
 		musicToPrepare = [];
 		songsToPrepare = [];
-		requestedBitmaps.clear();
+		chartEvents = [];
+		chartNoteTypes = [];
 
 		if (loadThread != null) {
+			loadThread.minThreads = 0;
 			loadThread.cancel();
 			loadThread = null;
 		}
@@ -341,14 +343,12 @@ class LoadingState extends MusicBeatState
 			prepareEvent = null;
 		}
 		
-		// PlayState performs the matching enable at the end of its create()
-		// method. Resuming here lets the collector race the heaviest state
-		// construction and turns the loading debt into a visible catch-up pause.
-		if (!isPlayState)
-			GCManager.enable(true);
-
 		if (isPlayState)
 		{
+			// Reclaim the old state and preload-worker garbage while the completed
+			// loading screen is still visible. startCountdown() enters gameplay mode
+			// later so its heap reserve is based on the fully constructed PlayState.
+			GameplayGC.collectLoadingGarbage();
 			isPlayState = false;
 			FlxTransitionableState.skipNextTransIn = true;
 			FlxTransitionableState.skipNextTransOut = true;
@@ -356,33 +356,35 @@ class LoadingState extends MusicBeatState
 		}
 		else
 		{
-			requestedBitmaps.clear();
 			MusicBeatState.switchState(target);
 		}
 	}
 
 	function checkLoaded():Bool
 	{
-		for (key => bitmap in requestedBitmaps)
-		{
-			if (bitmap != null && Paths.cacheBitmap(key, bitmap, false) != null) {
-				trace('IMAGE: finished preloading image $key');
-			} else
-				trace('IMAGE: failed to cache image $key');
-		}
 		return (loaded >= loadMax);
 	}
 
 	public function startThreads()
 	{
 		clearInvalids();
-		requestedBitmaps.clear();
 		loadMax = imagesToPrepare.length + soundsToPrepare.length + musicToPrepare.length + songsToPrepare.length;
 		loaded = 0;
 
 		//trace('LoadingState: startThreads, loadMax: $loadMax');
-		loadThread = new ThreadPool(ClientPrefs.data.loadThreads, ClientPrefs.data.loadThreads, MULTI_THREADED);
+		var workerCount:Int = Std.int(Math.max(1, ClientPrefs.data.loadThreads));
+		#if mobile
+		workerCount = Std.int(Math.min(workerCount, 2));
+		#end
+		// Do not keep one idle worker pool alive for every song that was loaded.
+		loadThread = new ThreadPool(0, workerCount, MULTI_THREADED);
 		threadInit();
+
+		// Resolve cache hits before worker threads start. This keeps all reads of
+		// currentTrackedAssets on the main thread while completed jobs add entries.
+		var imageJobs:Array<Void->Dynamic> = [];
+		for (image in imagesToPrepare)
+			prepareImageJob(image, imageJobs);
 
 		for (sound in soundsToPrepare)
 			threadWork(() -> 
@@ -401,46 +403,68 @@ class LoadingState extends MusicBeatState
 				return {type:'song', path:song, file:Paths.returnSound(null, song, 'songs', true), alreadyLoaded: false, error: null};
 			});
 
-		
-		for (image in imagesToPrepare) {
-			threadWork(() -> 
-			{
-				var bitmap:BitmapData = null;
-				var realPath:String = null;
 
-				#if MODS_ALLOWED
-				realPath = Paths.modsImages(image);
-				if (Cache.currentTrackedAssets.exists(realPath))
-				{
-					return {type:'image', path: realPath, file: null, alreadyLoaded: true, error: null};
-				}
-				else if (FileSystem.exists(realPath)) {
-					try { 
-						bitmap = BitmapData.fromFile(realPath, true); 
-					} catch(e) {
-						return {type:'image', path: realPath, file: null, alreadyLoaded: false, error: e};
-					}
-				}
-				else
-				#end
-				{
-					realPath = Paths.getPath('images/$image.png', IMAGE);
-					if (Cache.currentTrackedAssets.exists(realPath))
-					{
-						return {type:'image', path: realPath, file: null, alreadyLoaded: true, error: null};
-					}
-					else if (OpenFlAssets.exists(realPath, IMAGE)) {
-						try { 
-							bitmap = OpenFlAssets.getBitmapData(realPath); 
-							bitmap.disposeOnUpload = true;
-						} catch(e) {
-							return {type:'image', path: realPath, file: null, alreadyLoaded: false, error: e};
-						}
-					}
-				}
-				return {type:'image', path: realPath, file: bitmap, alreadyLoaded: false, error: null};
-			});
-		};
+		for (job in imageJobs)
+			threadWork(job);
+	}
+
+	function prepareImageJob(image:String, jobs:Array<Void->Dynamic>):Void
+	{
+		var realPath:String = null;
+		var fileBacked:Bool = false;
+
+		#if MODS_ALLOWED
+		var modPath:String = Paths.modsImages(image);
+		if (Cache.currentTrackedAssets.exists(modPath))
+		{
+			Cache.trackLocalAsset(modPath);
+			trace('IMAGE: reused preloaded image ' + modPath);
+			addLoadCount();
+			return;
+		}
+		if (FileSystem.exists(modPath))
+		{
+			realPath = modPath;
+			fileBacked = true;
+		}
+		#end
+
+		if (realPath == null)
+		{
+			realPath = Paths.getPath('images/$image.png', IMAGE);
+			if (Cache.currentTrackedAssets.exists(realPath))
+			{
+				Cache.trackLocalAsset(realPath);
+				trace('IMAGE: reused preloaded image ' + realPath);
+				addLoadCount();
+				return;
+			}
+			if (!OpenFlAssets.exists(realPath, IMAGE))
+			{
+				trace('IMAGE: no such ' + realPath + ' exists');
+				addLoadCount();
+				return;
+			}
+		}
+
+		var queuedPath:String = realPath;
+		var loadFromFile:Bool = fileBacked;
+		jobs.push(() ->
+		{
+			try
+			{
+				var bitmap:BitmapData = loadFromFile
+					? BitmapData.fromFile(queuedPath, true)
+					: OpenFlAssets.getBitmapData(queuedPath, false);
+				if (bitmap != null)
+					bitmap.disposeOnUpload = true;
+				return {type:'image', path:queuedPath, file:bitmap, alreadyLoaded:false, error:null};
+			}
+			catch (e:Dynamic)
+			{
+				return {type:'image', path:queuedPath, file:null, alreadyLoaded:false, error:e};
+			}
+		});
 	}
 
 	function threadInit():Void {
@@ -449,8 +473,23 @@ class LoadingState extends MusicBeatState
 				case 'sound', 'song', 'music':
 					trace(msg.type.toUpperCase() + ': finished preloading ' + msg.path);
 				case 'image':
-					if (!msg.alreadyLoaded) {
-						requestedBitmaps.set(msg.path, msg.file);
+					if (msg.alreadyLoaded)
+					{
+						// A cache hit still belongs to the incoming state and must survive
+						// the next unused-cache pass.
+						Cache.trackLocalAsset(msg.path);
+						trace('IMAGE: reused preloaded image ' + msg.path);
+					}
+					else
+					{
+						// ThreadPool completion events are dispatched on the main thread, so
+						// upload each decoded bitmap immediately instead of retaining the
+						// whole song's raw pixels until 100%.
+						var bitmap:BitmapData = cast msg.file;
+						if (bitmap != null && Paths.cacheBitmap(msg.path, bitmap, false) != null)
+							trace('IMAGE: finished preloading image ' + msg.path);
+						else
+							trace('IMAGE: failed to cache image ' + msg.path);
 					}
 			}
 			addLoadCount();
@@ -537,7 +576,7 @@ class LoadingState extends MusicBeatState
 				for (subfolder in Mods.directoriesWithFile(Paths.getSharedPath(), '$prefix/$folder'))
 					for (file in FileSystem.readDirectory(subfolder))
 						if (file.endsWith(ext))
-							arr.push(folder + file.substr(0, file.length - ext.length));
+							putPreload(arr, folder + file.substr(0, file.length - ext.length));
 			}
 		}
 
@@ -557,6 +596,34 @@ class LoadingState extends MusicBeatState
 			else
 				i++;
 		}
+	}
+
+	override function destroy():Void
+	{
+		if (loadThread != null)
+		{
+			loadThread.minThreads = 0;
+			loadThread.cancel();
+			loadThread = null;
+		}
+		if (prepareEvent != null)
+		{
+			prepareEvent.cancel();
+			prepareEvent.destroy();
+			prepareEvent = null;
+		}
+
+		imagesToPrepare = [];
+		soundsToPrepare = [];
+		musicToPrepare = [];
+		songsToPrepare = [];
+		chartEvents = [];
+		chartNoteTypes = [];
+		target = null;
+		if (instance == this)
+			instance = null;
+
+		super.destroy();
 	}
 	
 	//////////////////////////////////////////////

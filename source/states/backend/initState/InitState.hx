@@ -59,6 +59,10 @@ class InitState extends MusicBeatState
 
 		FlxG.fixedTimestep = false;
 		FlxG.game.focusLostFramerate = 60;
+		@:privateAccess {
+			if (FlxG.game.stage != null && FlxG.game.stage.window != null)
+				FlxG.game.stage.window.frameRate = FlxG.updateFramerate;
+		}
 		FlxG.keys.preventDefaultKeys = [TAB];
 
 		super.create();
@@ -375,7 +379,14 @@ class InitState extends MusicBeatState
 		
 		if (pressedEnter)
 		{
+			#if VIDEOS_ALLOWED
+			if (video != null && !videoFinished)
+				videoEnd();
+			else
+				changeState();
+			#else
 			changeState();
+			#end
 			return;
 		}
 	
@@ -384,9 +395,14 @@ class InitState extends MusicBeatState
 	
 	#if VIDEOS_ALLOWED
 	var video:FlxVideoSprite;
+	var videoFinished:Bool = false;
+	var videoHasFrame:Bool = false;
+	var videoWatchdog:FlxTimer;
 	
 	function startVideo(name:String)
 	{
+		videoFinished = false;
+		videoHasFrame = false;
 		skipVideo = new FlxText(0, FlxG.height - 26, 0, "Press " + #if android "Back on your Phone " #else "Enter " #end + "to skip", 18);
 		skipVideo.setFormat(Assets.getFont("assets/fonts/montserrat.ttf").fontName, 18);
 		skipVideo.alpha = 0;
@@ -426,14 +442,52 @@ class InitState extends MusicBeatState
 				video.screenCenter();
 			}
 		});
-		video.bitmap.onEndReached.add(video.destroy);
-		add(video);
-		video.load(filepath);
-		video.play();
-	
-		video.bitmap.onEndReached.add(function()
+		video.bitmap.onEndReached.add(videoEnd);
+		video.bitmap.onEncounteredError.add(function(message:String):Void
 		{
+			FlxG.log.error('Video playback failed: ' + message);
 			videoEnd();
+		});
+		video.bitmap.onDisplay.add(function():Void
+		{
+			if (videoHasFrame)
+				return;
+			videoHasFrame = true;
+			if (videoWatchdog != null)
+			{
+				videoWatchdog.cancel();
+				videoWatchdog = null;
+			}
+		});
+		add(video);
+		if (!video.load(filepath))
+		{
+			FlxG.log.warn('Couldnt load video file: ' + filepath);
+			videoEnd();
+			return;
+		}
+		new FlxTimer().start(0.001, function(_):Void
+		{
+			if (video != null && video.bitmap != null && FlxG.state == this)
+			{
+				if (!video.play())
+				{
+					FlxG.log.error('Video player refused to start: ' + filepath);
+					videoEnd();
+					return;
+				}
+				if (!videoHasFrame)
+				{
+					videoWatchdog = new FlxTimer().start(8, function(_):Void
+					{
+						if (!videoFinished && !videoHasFrame && FlxG.state == this)
+						{
+							FlxG.log.error('Video produced no display frame: ' + filepath);
+							videoEnd();
+						}
+					});
+				}
+			}
 		});
 	
 		showText();
@@ -446,10 +500,23 @@ class InitState extends MusicBeatState
 	
 	function videoEnd()
 	{
+		if (videoFinished)
+			return;
+		videoFinished = true;
+		if (videoWatchdog != null)
+		{
+			videoWatchdog.cancel();
+			videoWatchdog = null;
+		}
 		if (skipVideo != null) skipVideo.visible = false;
-		if (video != null) {
-			video.stop();
-			video.visible = false;
+		var oldVideo:FlxVideoSprite = video;
+		video = null;
+		if (oldVideo != null) {
+			if (oldVideo.bitmap != null)
+				oldVideo.bitmap.onEndReached.remove(videoEnd);
+			oldVideo.stop();
+			remove(oldVideo, true);
+			oldVideo.destroy();
 		}
 		changeState();
 		trace("end");
@@ -463,7 +530,12 @@ class InitState extends MusicBeatState
 	}
 	#end
 
+	var changingState:Bool = false;
+
 	function changeState() {
+		if (changingState)
+			return;
+		changingState = true;
 		if (mustUpdate && !OutdatedState.leftState)
 		{
 			FlxTransitionableState.skipNextTransIn = true;

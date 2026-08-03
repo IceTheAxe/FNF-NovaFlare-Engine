@@ -1,4 +1,4 @@
-package animate;
+﻿package animate;
 
 import animate.FlxAnimateController.FlxAnimateAnimation;
 import animate.FlxAnimateFrames.FlxAnimateSettings;
@@ -276,6 +276,21 @@ class FlxAnimate extends FlxSprite
 		}
 
 		matrix.translate(-origin.x, -origin.y);
+
+		#if CODENAME_ENGINE_COMPAT
+		if (frameOffsetAngle != null && frameOffsetAngle != angle)
+		{
+			var angleOffset = (frameOffsetAngle - angle) * FlxAngle.TO_RAD;
+			var offsetCos = Math.cos(angleOffset);
+			var offsetSin = Math.sin(angleOffset);
+			matrix.rotateWithTrig(offsetCos, -offsetSin);
+			matrix.translate(-frameOffset.x, -frameOffset.y);
+			matrix.rotateWithTrig(offsetCos, offsetSin);
+		}
+		else
+			matrix.translate(-frameOffset.x, -frameOffset.y);
+		#end
+
 		matrix.scale(scale.x, scale.y);
 
 		if (angle != 0)

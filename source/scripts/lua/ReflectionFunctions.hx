@@ -101,6 +101,12 @@ class ReflectionFunctions
 			else
 				realObject = Reflect.getProperty(LuaUtils.getTargetInstance(), obj);
 
+			if (realObject == null)
+			{
+				FunkinLua.luaTrace('getPropertyFromGroup: Group/Array $obj doesn\'t exist!', false, false, FlxColor.RED);
+				return null;
+			}
+
 			if (Std.isOfType(realObject, FlxTypedGroup))
 			{
 				var result:Dynamic = LuaUtils.getGroupStuff(realObject.members[index], variable, allowMaps);
@@ -128,6 +134,12 @@ class ReflectionFunctions
 				realObject = LuaUtils.getPropertyLoop(split, true, false, allowMaps);
 			else
 				realObject = Reflect.getProperty(LuaUtils.getTargetInstance(), obj);
+
+			if (realObject == null)
+			{
+				FunkinLua.luaTrace('setPropertyFromGroup: Group/Array $obj doesn\'t exist!', false, false, FlxColor.RED);
+				return value;
+			}
 
 			if (Std.isOfType(realObject, FlxTypedGroup))
 			{

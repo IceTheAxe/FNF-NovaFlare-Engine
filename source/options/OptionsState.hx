@@ -213,14 +213,6 @@ class OptionsState extends MusicBeatState
 			}
 		}
 
-		for (navi in naviGroup) navi.cataChoose = false;
-		for (cata in cataGroup){
-			if (cata.checkPoint()) {
-				cata.follow.cataChoose = true;
-				break;
-			}
-		}
-
 		if (controls.BACK)
 		{
 			if (PsychUIInputText.focusOn != null)
@@ -335,6 +327,27 @@ class OptionsState extends MusicBeatState
 			else cataGroup[i].y = cataGroup[i - 1].y + cataGroup[i - 1].bg.realHeight + FlxG.width * (0.8 / 40);
 		}
 		updateCataVisibility();
+		updateCurrentCategoryIndicator();
+	}
+
+	private function updateCurrentCategoryIndicator():Void
+	{
+		var selected:OptionCata = null;
+		for (cata in cataGroup)
+		{
+			if (cata.checkPoint())
+			{
+				selected = cata;
+				break;
+			}
+		}
+
+		for (navi in naviGroup)
+		{
+			navi.cataChoose = selected != null && selected.follow == navi;
+			for (member in navi.parent)
+				member.cataChoose = selected != null && selected.mem == member;
+		}
 	}
 
 	public function cataMoveChange()
@@ -434,6 +447,9 @@ class OptionsState extends MusicBeatState
 			case 7: // NotesSubStateLegacy
 				persistentUpdate = false;
 				openSubState(new NotesSubStateLegacy());
+			case 8:
+				persistentUpdate = false;
+				openSubState(new SelectGameSubState());
 		}
 	}
 

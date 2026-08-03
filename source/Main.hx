@@ -24,6 +24,11 @@ import originfunkin.OriginFunkinErrorState;
 import originfunkin.OriginFunkinIntroState;
 import originfunkin.OriginFunkinMode;
 
+#if CODENAME_ENGINE_COMPAT
+import codenamechain.CodeNameIntroState;
+import codenamechain.CodeNameMode;
+#end
+
 import developer.display.FPSViewer;
 import developer.display.Graphics;
 import developer.console.TraceInterceptor;
@@ -93,6 +98,9 @@ class Main extends Sprite
 	public static function main():Void
 	{
 		OriginFunkinMode.detect();
+		#if CODENAME_ENGINE_COMPAT
+		CodeNameMode.detect();
+		#end
 
 		#if (cpp && windows)
 		if (!OriginFunkinMode.active)
@@ -169,6 +177,14 @@ class Main extends Sprite
 		// has been initialized. Desktop detection already ran in main(), but a
 		// second read is harmless and also honors a folder created mid-startup.
 		OriginFunkinMode.detect();
+		#end
+
+		#if CODENAME_ENGINE_COMPAT
+		if (CodeNameMode.active)
+		{
+			setupCodeNameGame();
+			return;
+		}
 		#end
 
 		if (OriginFunkinMode.active)
@@ -316,6 +332,7 @@ class Main extends Sprite
 		var startFullscreen:Bool = prepared
 			&& (Lib.current.stage.window.fullscreen || funkin.Preferences.autoFullscreen);
 
+		FlxG.fixedTimestep = false;
 		var flxGame:FlxGame = new FlxGame(1280, 720, initialState, framerate, framerate, true, startFullscreen);
 
 		if (prepared)
@@ -346,6 +363,82 @@ class Main extends Sprite
 			FlxG.scaleMode = new funkin.ui.FullScreenScaleMode();
 		}
 	}
+
+	#if CODENAME_ENGINE_COMPAT
+	private function setupCodeNameGame():Void
+	{
+		// Release builds use the CNE/NF crash message boxes instead of a
+		// permanently attached stdout window.
+		#if debug
+		codename.funkin.backend.utils.NativeAPI.allocConsole();
+		#end
+		fpsVar = new FPSViewer(0, 0);
+		fpsVar.visible = false;
+		var effect = new MouseEffect(
+			Assets.getBitmapData('assets/shared/images/menuExtend/Others/click.png').clone(),
+			Assets.getBitmapData('assets/shared/images/menuExtend/Others/circle.png').clone(),
+			Assets.getBitmapData('assets/shared/images/menuExtend/Others/star.png').clone());
+		effect.mouseEnabled = false;
+		effect.mouseChildren = false;
+		var codeNameWatermarkBitmap = Assets.getBitmapData('assets/shared/images/menuExtend/Others/watermark.png').clone();
+
+		CodeNameMode.prepare();
+		var flxGame:codename.funkin.backend.system.FunkinGame = new codename.funkin.backend.system.FunkinGame(1280, 720, CodeNameIntroState, gameConfig.framerate,
+			gameConfig.framerate, true, false);
+		loadNovaFlareOverlayPrefs();
+		flxGame.deferBitmapCacheClearOnStateSwitch = true;
+		codename.funkin.backend.system.Main.game = flxGame;
+		codenamechain.CodeNameScriptRuntime.init();
+
+		addChild(flxGame);
+		// CNE normally boots straight into MainState, which initializes Conductor
+		// before the first Framerate update. NF's CNE intro delays MainState, so
+		// seed the default BPM map before ConductorInfo reads Conductor.bpm.
+		// Main.loadGameSettings() will still run Conductor.init() and reset it.
+		codename.funkin.backend.system.Conductor.changeBPM();
+		addChild(codename.funkin.backend.system.Main.framerateSprite = new codename.funkin.backend.system.framerate.Framerate());
+		codename.funkin.backend.system.framerate.SystemInfo.init();
+
+		if (watermark != null && watermark.parent == this) removeChild(watermark);
+		watermark = new Watermark(5, Lib.current.stage.stageHeight - 5, 0.4, codeNameWatermarkBitmap);
+		addChild(watermark);
+		watermark.scaleX = watermark.scaleY = ClientPrefs.data.watermarkScale;
+		watermark.visible = ClientPrefs.data.showWatermark;
+		watermark.y = Lib.current.stage.stageHeight - 5 - watermark.scaleY * watermark.bitmapData.height;
+		addChild(effect);
+
+		Lib.current.stage.align = "tl";
+		Lib.current.stage.scaleMode = StageScaleMode.NO_SCALE;
+		Lib.current.stage.window.title = "NovaFlare Engine";
+	}
+
+	private static function loadNovaFlareOverlayPrefs():Void
+	{
+		var overlaySave:FlxSave = new FlxSave();
+		try
+		{
+			if (overlaySave.bind('funkin', CoolUtil.getSavePath()))
+			{
+				var savedVisibility:Dynamic = Reflect.field(overlaySave.data, 'showWatermark');
+				if (Std.isOfType(savedVisibility, Bool))
+					ClientPrefs.data.showWatermark = savedVisibility;
+
+				var savedScale:Dynamic = Reflect.field(overlaySave.data, 'watermarkScale');
+				if (savedScale != null)
+				{
+					var parsedScale:Float = Std.parseFloat(Std.string(savedScale));
+					if (!Math.isNaN(parsedScale))
+						ClientPrefs.data.watermarkScale = Math.max(0, Math.min(5, parsedScale));
+				}
+			}
+		}
+		catch (error:Dynamic)
+		{
+			trace('[CodeName] Could not read NovaFlare overlay preferences: $error');
+		}
+		overlaySave.destroy();
+	}
+	#end
 
 	@:allow(states.backend.initState.InitState)
 	static function resetSpriteCache(sprite:Sprite):Void

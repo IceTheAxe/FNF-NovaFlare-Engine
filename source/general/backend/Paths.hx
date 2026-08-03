@@ -86,7 +86,7 @@ class Paths
 		for (key in Cache.currentTrackedSounds.keys())
 		{
 			if (key == null) continue;
-			var shouldClear = !Cache.localTrackedAssets.contains(key) && !Cache.dumpExclusions.contains(key);
+			var shouldClear = !Cache.isLocalAsset(key) && !Cache.dumpExclusions.contains(key);
 			if (shouldClear)
 			{
 				// OpenFL 声音缓存清理：不同版本 API 行为通常安全，这里保守地包一层存在性/空值保护
@@ -99,7 +99,7 @@ class Paths
 		}
 
 		// flags everything to be cleared out next unused memory clear
-		Cache.localTrackedAssets = [];
+		Cache.resetLocalAssets();
 		Cache.currentTrackedFrames = [];
 		Cache.currentTrackedAnims = [];
 		#if !html5 openfl.Assets.cache.clear("songs"); #end
@@ -113,7 +113,7 @@ class Paths
 		for (key in Cache.currentTrackedAssets.keys())
 		{
 			// if it is not currently contained within the used local assets
-			if (!Cache.localTrackedAssets.contains(key) && !Cache.dumpExclusions.contains(key))
+			if (!Cache.isLocalAsset(key) && !Cache.dumpExclusions.contains(key))
 			{
 				var obj = Cache.currentTrackedAssets.get(key);
 				@:privateAccess
@@ -145,6 +145,125 @@ class Paths
 		currentLevel = name.toLowerCase();
 	}
 
+	#if (sys && !windows)
+	inline static function isJsonPath(file:String):Bool
+	{
+		return file != null && file.toLowerCase().endsWith('.json');
+	}
+
+	/**
+	 * Resolves a relative path below a known root without changing the logical
+	 * asset ID. Non-Windows filesystems preserve filename case, while Psych/NF
+	 * chart IDs are deliberately normalized to lowercase.
+	 */
+	static function resolveCaseInsensitiveChild(root:String, relativePath:String):Null<String>
+	{
+		if (root == null || relativePath == null || !FileSystem.exists(root) || !FileSystem.isDirectory(root))
+			return null;
+
+		var relative:String = relativePath.replace('\\', '/');
+		var exact:String = (root.endsWith('/') ? root : root + '/') + relative;
+		if (FileSystem.exists(exact))
+			return exact;
+
+		var current:String = root;
+		for (segment in relative.split('/'))
+		{
+			if (segment.length == 0 || segment == '.')
+				continue;
+			// All callers provide asset-relative paths. Never let a compatibility
+			// lookup escape the mod/shared root.
+			if (segment == '..' || !FileSystem.exists(current) || !FileSystem.isDirectory(current))
+				return null;
+
+			var direct:String = (current.endsWith('/') ? current : current + '/') + segment;
+			if (FileSystem.exists(direct))
+			{
+				current = direct;
+				continue;
+			}
+
+			var matched:String = null;
+			var lowerSegment:String = segment.toLowerCase();
+			var entries:Array<String>;
+			try
+			{
+				entries = FileSystem.readDirectory(current);
+			}
+			catch (_:Dynamic)
+			{
+				return null;
+			}
+
+			for (entry in entries)
+			{
+				if (entry.toLowerCase() != lowerSegment)
+					continue;
+
+				// If two entries differ only by case, do not guess which file the
+				// mod intended. An exact path would already have returned above.
+				if (matched != null && matched != entry)
+					return null;
+				matched = entry;
+			}
+
+			if (matched == null)
+				return null;
+			current = (current.endsWith('/') ? current : current + '/') + matched;
+		}
+
+		return FileSystem.exists(current) ? current : null;
+	}
+
+	static function resolveCaseInsensitiveModFile(key:String):Null<String>
+	{
+		var roots:Array<String> = [];
+		if (Mods.currentModDirectory != null && Mods.currentModDirectory.length > 0)
+			roots.push(mods(Mods.currentModDirectory));
+
+		for (mod in Mods.getGlobalMods())
+		{
+			var root:String = mods(mod);
+			if (!roots.contains(root))
+				roots.push(root);
+		}
+
+		var modsRoot:String = mods();
+		if (!roots.contains(modsRoot))
+			roots.push(modsRoot);
+
+		var sharedRoot:String = #if mobile Sys.getCwd() + #end 'assets/shared';
+		if (!roots.contains(sharedRoot))
+			roots.push(sharedRoot);
+
+		for (root in roots)
+		{
+			var resolved:String = resolveCaseInsensitiveChild(root, key);
+			if (resolved != null)
+				return trackedPath(resolved);
+		}
+		return null;
+	}
+
+	static function resolveCaseInsensitiveAssetId(path:String, type:AssetType):String
+	{
+		if (Assets.exists(path, type))
+			return path;
+
+		var matched:String = null;
+		var lowerPath:String = path.toLowerCase();
+		for (assetId in Assets.list(type))
+		{
+			if (assetId.toLowerCase() != lowerPath)
+				continue;
+			if (matched != null && matched != assetId)
+				return path;
+			matched = assetId;
+		}
+		return matched != null ? matched : path;
+	}
+	#end
+
 	public static function getPath(file:String, ?type:AssetType = TEXT, ?library:Null<String> = null, ?modsAllowed:Bool = true):String
 	{
 		#if MODS_ALLOWED
@@ -154,14 +273,22 @@ class Paths
 			if (library != null)
 				customFile = '$library/$file';
 
-			var modded:String = modFolders(customFile);
-			if (FileSystem.exists(modded))
+			var modded:String = #if (sys && !windows) isJsonPath(customFile)
+				? resolveCaseInsensitiveModFile(customFile) : modFolders(customFile) #else modFolders(customFile) #end;
+			if (modded != null && FileSystem.exists(modded))
 				return modded;
 		}
 		#end
 
 		if (library != null)
-			return getLibraryPath(file, library);
+		{
+			var libraryPath:String = getLibraryPath(file, library);
+			#if (sys && !windows)
+			if (isJsonPath(file))
+				libraryPath = resolveCaseInsensitiveAssetId(libraryPath, type);
+			#end
+			return libraryPath;
+		}
 
 		if (currentLevel != null)
 		{
@@ -169,11 +296,20 @@ class Paths
 			if (currentLevel != 'shared')
 			{
 				levelPath = getLibraryPathForce(file, 'week_assets', currentLevel);
+				#if (sys && !windows)
+				if (isJsonPath(file))
+					levelPath = resolveCaseInsensitiveAssetId(levelPath, type);
+				#end
 				if (Assets.exists(levelPath, type))
 					return levelPath;
 			}
 		}
-		return getSharedPath(file);
+		var sharedPath:String = getSharedPath(file);
+		#if (sys && !windows)
+		if (isJsonPath(file))
+			sharedPath = resolveCaseInsensitiveAssetId(sharedPath, type);
+		#end
+		return sharedPath;
 	}
 
 	static public function getLibraryPath(file:String, library = "shared")
@@ -255,7 +391,10 @@ class Paths
 
 	inline static public function songPath(song:String, ?postfix:String):String
 	{
-		var key:String = '${formatToSongPath(song)}';
+		var separator:Int = song.lastIndexOf('/');
+		var key:String = separator >= 0
+			? '${formatToSongPath(song.substr(0, separator))}/${song.substr(separator + 1)}'
+			: formatToSongPath(song);
 		if (postfix != null && postfix.length > 0)
 			key += '-' + postfix;
 
@@ -298,7 +437,7 @@ class Paths
 
 		if (Cache.currentTrackedAssets.exists(file))
 		{
-			Cache.localTrackedAssets.push(file);
+			Cache.trackLocalAsset(file);
 			return Cache.currentTrackedAssets.get(file);
 		}
 		else if (FileSystem.exists(file))
@@ -309,7 +448,7 @@ class Paths
 			file = getPath('images/$key.png', IMAGE, library);
 			if (Cache.currentTrackedAssets.exists(file))
 			{
-				Cache.localTrackedAssets.push(file);
+				Cache.trackLocalAsset(file);
 				return Cache.currentTrackedAssets.get(file);
 			}
 			else if (Assets.exists(file, IMAGE)) {
@@ -331,11 +470,11 @@ class Paths
 		var file:String = null;
 
 		#if MODS_ALLOWED
-		file = modFolders(key);
+		file = modsExImages(key);
 
 		if (Cache.currentTrackedAssets.exists(file))
 		{
-			Cache.localTrackedAssets.push(file);
+			Cache.trackLocalAsset(file);
 			return Cache.currentTrackedAssets.get(file);
 		}
 		else if (FileSystem.exists(file))
@@ -346,7 +485,7 @@ class Paths
 			file = getPath('images/$key.png', IMAGE, library);
 			if (Cache.currentTrackedAssets.exists(file))
 			{
-				Cache.localTrackedAssets.push(file);
+				Cache.trackLocalAsset(file);
 				return Cache.currentTrackedAssets.get(file);
 			}
 			else if (Assets.exists(file, IMAGE)) {
@@ -385,9 +524,7 @@ class Paths
 		var thread:Bool = false;
 		if (threadLoad != null) thread = threadLoad;
 
-        if (thread) bitmapMutex.acquire();
-		Cache.localTrackedAssets.push(file);
-		if (thread) bitmapMutex.release();
+		Cache.trackLocalAsset(file);
 		
 		if (allowGPU && ClientPrefs.data.cacheOnGPU && !thread)
 		{
@@ -414,7 +551,7 @@ class Paths
 		?onPBODeleted:Void->Void = null, ?sliceSize:Int = 512)
 	{
 		DeepDebugTracker.recordResolved(file);
-		Cache.localTrackedAssets.push(file);
+		Cache.trackLocalAsset(file);
 		var newGraphic:FlxGraphic = FlxGraphic.fromBitmapData(bitmap, false, file);
 		newGraphic.persist = true;
 		newGraphic.destroyOnNoUse = false;
@@ -657,12 +794,10 @@ class Paths
 				Cache.currentTrackedSounds.set(file, sound);
 				if (thread) soundMutex.release();
 			}
-			if (thread) soundMutex.acquire();
 			// currentTrackedSounds is keyed by the resolved mod file path. Track
 			// that same key so clearStoredMemory() does not evict and decode the
 			// song again on every state restart.
-			Cache.localTrackedAssets.push(file);
-			if (thread) soundMutex.release();
+			Cache.trackLocalAsset(file);
 			return Cache.currentTrackedSounds.get(file);
 		}
 		#end
@@ -686,9 +821,7 @@ class Paths
 				if (thread) soundMutex.release();
 			}
 		}
-		if (thread) soundMutex.acquire();
-		Cache.localTrackedAssets.push(gottenPath);
-		if (thread) soundMutex.release();
+		Cache.trackLocalAsset(gottenPath);
 		return Cache.currentTrackedSounds.get(gottenPath);
 	}
 
@@ -708,7 +841,13 @@ class Paths
 
 	inline static public function modsJson(key:String)
 	{
-		return modFolders('data/' + key + '.json');
+		var relativePath:String = 'data/' + key + '.json';
+		#if (sys && !windows)
+		var resolved:String = resolveCaseInsensitiveModFile(relativePath);
+		if (resolved != null)
+			return resolved;
+		#end
+		return modFolders(relativePath);
 	}
 
 	inline static public function modsVideo(key:String)

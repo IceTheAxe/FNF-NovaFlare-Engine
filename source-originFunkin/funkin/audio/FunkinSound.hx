@@ -55,11 +55,11 @@ class FunkinSound extends FlxSound implements ICloneable<FunkinSound>
    */
   static var pool(default, null):FlxTypedGroup<FunkinSound> = new FlxTypedGroup<FunkinSound>();
 
+  #if !CODENAME_ENGINE_COMPAT
   /**
-   * Calculate the current time of the sound.
-   * NOTE: You need to `add()` the sound to the scene for `update()` to increment the time.
+   * Independent per-sound mute flag from the original Funkin runtime.
+   * The Codename-enabled Flixel build supplies the same API on `FlxSound`.
    */
-  //
   public var muted(default, set):Bool = false;
 
   function set_muted(value:Bool):Bool
@@ -69,6 +69,7 @@ class FunkinSound extends FlxSound implements ICloneable<FunkinSound>
     updateTransform();
     return value;
   }
+  #end
 
   override function set_volume(value:Float):Float
   {

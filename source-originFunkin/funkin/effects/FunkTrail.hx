@@ -43,7 +43,9 @@ class FunkTrail extends FlxTrail
     if (originDelayCounter >= originDelay && this._trailLength >= 1)
     {
       originDelayCounter = 0;
+      beforeCache();
       addTrailFrame();
+      afterCache();
       this.redrawTrailSprites();
     }
 
@@ -53,13 +55,20 @@ class FunkTrail extends FlxTrail
   /**
    * An offset applied to the target position whenever a new frame is saved.
    */
-  public final frameOffset:FlxPoint = FlxPoint.get();
+  public final trailFrameOffset:FlxPoint = FlxPoint.get();
+
+  /**
+   * Callbacks for CNE mod trail compatibility.
+   * Usage: `trail.beforeCache = char.beforeTrailCache; trail.afterCache = char.afterTrailCache;`
+   */
+  public override dynamic function beforeCache():Void {}
+  public override dynamic function afterCache():Void {}
 
   override function destroy():Void
   {
     super.destroy();
 
-    frameOffset.put();
+    trailFrameOffset.put();
   }
 
   override function addTrailFrame():Void
@@ -70,9 +79,9 @@ class FunkTrail extends FlxTrail
     {
       var targ:Bopper = cast target;
       @:privateAccess
-      frameOffset.set((targ.animOffsets[0] - targ.globalOffsets[0]) * targ.scale.x, (targ.animOffsets[1] - targ.globalOffsets[1]) * targ.scale.y);
+      trailFrameOffset.set((targ.animOffsets[0] - targ.globalOffsets[0]) * targ.scale.x, (targ.animOffsets[1] - targ.globalOffsets[1]) * targ.scale.y);
 
-      _recentPositions[0]?.subtract(frameOffset.x, frameOffset.y);
+      _recentPositions[0]?.subtract(trailFrameOffset.x, trailFrameOffset.y);
     }
   }
 }

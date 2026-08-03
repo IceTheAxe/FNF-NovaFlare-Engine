@@ -26,6 +26,7 @@ import modchart.Manager;
 
 import general.objects.AttachedSprite;
 import general.backend.DeepDebugTracker;
+import general.backend.gc.GCManager.GameplayGC;
 
 import states.storyMenuState.StoryMenuState;
 import states.freeplayState.FreeplayState;
@@ -1300,6 +1301,9 @@ class PlayState extends MusicBeatState
 
 			setOnScripts('startedCountdown', true);
 			callOnScripts('onCountdownStarted');
+			// All chart, stage and script setup is now live. Pay for one full GC
+			// before timing starts, then keep song-time collections nursery-only.
+			GameplayGC.begin();
 
 			var swagCounter:Int = 0;
 			if (startOnTime > 0)
@@ -2258,6 +2262,13 @@ class PlayState extends MusicBeatState
 		{
 			persistentUpdate = true;
 			persistentDraw = true;
+			if (resumeGameplayGcAfterSubstate && !destroying && !endingSong && !transitioning && !isDead)
+			{
+				// Music is still paused here, so the safe-point full collection and
+				// heap preparation cannot move a live judgment window.
+				GameplayGC.begin();
+			}
+			resumeGameplayGcAfterSubstate = false;
 			if (FlxG.sound.music != null && !startingSong)
 				resyncVocals(true, pausedTimePos);
 
@@ -2400,6 +2411,8 @@ class PlayState extends MusicBeatState
 	}
 
 	public var paused:Bool = false;
+	private var resumeGameplayGcAfterSubstate:Bool = false;
+	private var destroying:Bool = false;
 	public var canReset:Bool = true;
 
 	var startedCountdown:Bool = false;
@@ -2576,7 +2589,8 @@ class PlayState extends MusicBeatState
 			health = 0;
 			trace("RESET = True");
 		}
-		doDeathCheck();
+		if (doDeathCheck())
+			return;
 
 		var songPosForNotes:Float = replayMode ? @:privateAccess replayExam.time : Conductor.songPosition;
 		if (unspawnNotes[0] != null)
@@ -2893,6 +2907,8 @@ class PlayState extends MusicBeatState
 		{
 			videoCutscene.pause();
 		};
+		resumeGameplayGcAfterSubstate = GameplayGC.active;
+		GameplayGC.pause();
 
 		if (replayMode) @:privateAccess replayExam.unblockKeys();
 		openSubState(new PauseSubState());
@@ -2959,6 +2975,8 @@ class PlayState extends MusicBeatState
 				vocals.stop();
 				opponentVocals.stop();
 				FlxG.sound.music.stop();
+				resumeGameplayGcAfterSubstate = false;
+				GameplayGC.finish();
 				if (videoCutscene != null)
 				{
 					videoCutscene.pause();
@@ -3382,6 +3400,8 @@ class PlayState extends MusicBeatState
 	public function finishSong(?ignoreNoteOffset:Bool = false)
 	{
 		updateTime = false;
+		resumeGameplayGcAfterSubstate = false;
+		GameplayGC.finish();
 		FlxG.sound.music.volume = 0;
 
 		vocals.volume = 0;
@@ -3576,13 +3596,11 @@ class PlayState extends MusicBeatState
 					return true;
 					}
 			}
-	}
 
-		// Always show results after all scripts have run (even if Function_Stop was returned)
+		// Continue to the results/freeplay flow only when onEndSong allows the song to end.
 		if (!transitioning)
 		{
 			ResultsScreen.savedModDir = Mods.currentModDirectory;
-			Mods.loadTopMod();
 			#if DISCORD_ALLOWED DiscordClient.resetClientID(); #end
 
 			if (ClientPrefs.data.resultsScreen)
@@ -3592,12 +3610,14 @@ class PlayState extends MusicBeatState
 			}
 			else
 			{
+				Mods.loadTopMod();
 				MusicBeatState.switchState(new FreeplayState());
 				FlxG.sound.playMusic(Paths.music('freakyMenu'), 0);
 				FlxG.sound.music.fadeIn(4, 0, 0.7);
 			}
 			changedDifficulty = false;
 			transitioning = true;
+		}
 		}
 		return true;
 	}
@@ -4969,6 +4989,10 @@ class PlayState extends MusicBeatState
 
 	override function destroy()
 	{
+		destroying = true;
+		resumeGameplayGcAfterSubstate = false;
+		GameplayGC.abort();
+
 		if (DeepDebugTracker.active)
 			DeepDebugTracker.finish(endingSong ? 'song_state_destroyed_after_end' : 'aborted_or_restarted');
 

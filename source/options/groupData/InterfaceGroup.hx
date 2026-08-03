@@ -33,12 +33,23 @@ class InterfaceGroup extends OptionCata
 		addOption(option);
 
 		var maxthread:Int = Std.int(Math.max(1, CoolUtil.getCPUThreadsCount() - #if DISCORD_ALLOWED 2 #else 1 #end));
+		#if mobile
+		maxthread = Std.int(Math.min(maxthread, 2));
+		#end
 		var option:Option = new Option(this, 'loadThreads', INT, [1, maxthread, ' Thread']);
 		addOption(option);
 
 		var option:Option = new Option(this, 'useFlixelCoords', BOOL);
 		addOption(option);
 
+		var option:Option = new Option(this, 'SelectGameSubState', STATE);
+		option.onChange = function() { changeState(8); };
+		addOption(option);
+
 		changeHeight(0); //初始化真正的height
+	}
+
+	function changeState(type:Int) {
+		OptionsState.instance.moveState(type);
 	}
 }

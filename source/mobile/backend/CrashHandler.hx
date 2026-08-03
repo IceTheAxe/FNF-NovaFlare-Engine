@@ -146,6 +146,17 @@ class CrashHandler
 			Sys.println('haxe:uncaught_error message=$m');
 			Sys.println(saveError);
 			errorText = Std.string(saveError);
+			#if (!debug && windows && CODENAME_ENGINE_COMPAT)
+			if (codenamechain.CodeNameMode.active)
+			{
+				codename.funkin.backend.utils.NativeAPI.showMessageBox(
+					"NovaFlare Engine - CodeName Error",
+					errorText,
+					codename.funkin.backend.utils.NativeAPI.MessageBoxIcon.MSG_ERROR);
+				Sys.exit(1);
+				return;
+			}
+			#end
 			if (originfunkin.OriginFunkinMode.active)
 			{
 				originfunkin.OriginFunkinMode.reportRuntimeError(errorText);

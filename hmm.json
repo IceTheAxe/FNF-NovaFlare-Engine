@@ -37,8 +37,10 @@
     },
     {
       "name": "flixel-addons",
-      "type": "haxelib",
-      "version": "3.3.2"
+      "type": "git",
+      "dir": null,
+      "ref": "main",
+      "url": "https://github.com/NovaFlare-Engine-haxelib/flixel-addons-3.3.2"
     },
     {
       "name": "flixel-ui",
@@ -106,6 +108,18 @@
       "dir": null,
       "ref": "master",
       "url": "https://github.com/NovaFlare-Engine-Concentration/hscript-iris-improved"
+    },
+    {
+      "name": "hscript-improved",
+      "type": "git",
+      "dir": null,
+      "ref": "main",
+      "url": "https://github.com/NovaFlare-Engine-haxelib/hscript-improved"
+    },
+    {
+      "name": "markdown",
+      "type": "haxelib",
+      "version": null
     },
     {
       "name": "flxsoundfilters",

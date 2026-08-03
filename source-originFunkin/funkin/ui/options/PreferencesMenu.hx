@@ -243,7 +243,7 @@ class PreferencesMenu extends Page<OptionsState.OptionsMenuPageName>
     OriginFunkinConfig.load();
     var modSupportCheckbox:CheckboxPreferenceItem = null;
     modSupportCheckbox = createPrefItemCheckbox('V-SLICE MOD SUPPORT',
-      'Load compatible FNF 0.8.4 mods from the mods-vslice folder beside originFunkin. Takes effect after restarting.',
+	      'Load compatible FNF 0.8.4 mods from the mods-vslice folder beside OriginFunkin/assets. Takes effect after restarting.',
       function(value:Bool):Void
       {
         if (value && !OriginFunkinConfig.modWarningAcknowledged)

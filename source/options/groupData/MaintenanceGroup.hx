@@ -65,18 +65,6 @@ class MaintenanceGroup extends OptionCata
 		addOption(option);
 		#end
 
-		#if sys
-		originfunkin.OriginFunkinConfig.load();
-		if (originfunkin.OriginFunkinConfig.hasEnteredOrigin)
-		{
-			var option:Option = new Option(this, 'enterOriginFunkin', STATE);
-			option.setLanguageOverride('ENTER ORIGIN FUNKIN',
-				'Exit NovaFlare Engine and start Origin Funkin on the next launch.');
-			option.onChange = enterOriginFunkin;
-			addOption(option);
-		}
-		#end
-
 		changeHeight(0); //初始化真正的height
 	}
 	

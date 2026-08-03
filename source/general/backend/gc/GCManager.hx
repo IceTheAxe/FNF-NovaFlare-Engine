@@ -67,6 +67,21 @@ extern class GCManager {
 	@:native("__hxcpp_collect") extern static function run(major:Bool):Void;
 
 	/**
+	 * Prepare the Immix heap for a timing-sensitive gameplay section.
+	 * A full collection is performed before the mode becomes active.
+	 */
+	@:native("__hxcpp_gc_enter_gameplay") extern public static function enterGameplay(reserveBytes:Int, maxHeadroomBytes:Int):Void;
+
+	/** Leave timing-sensitive gameplay mode, optionally collecting at the safe point. */
+	@:native("__hxcpp_gc_leave_gameplay") extern public static function leaveGameplay(collectNow:Bool):Void;
+
+	@:native("__hxcpp_gc_last_pause_ms") extern public static function lastPauseMs():Float;
+	@:native("__hxcpp_gc_gameplay_max_pause_ms") extern public static function gameplayMaxPauseMs():Float;
+	@:native("__hxcpp_gc_gameplay_deferred_full_count") extern public static function gameplayDeferredFullCount():Int;
+	@:native("__hxcpp_gc_gameplay_emergency_full_count") extern public static function gameplayEmergencyFullCount():Int;
+	@:native("__hxcpp_gc_is_gameplay_mode") extern public static function isGameplayMode():Bool;
+
+	/**
 	 Queues a concurrent full collection without making the UI thread wait.
 	 Repeated requests are coalesced by the native collector thread.
 	*/
@@ -260,4 +275,64 @@ class LegacyGCManager {
        @return 0 未启用，1 已启用
       */
       @:native("__hxcpp_gc_get_parallel_ref_proc_enabled") extern static function gcGetParallelRefProcEnabled():Int;
+}
+
+/**
+ * Engine-side lifecycle for Immix's low-latency gameplay mode.
+ * NovaGC builds keep their own policy and compile these calls out.
+ */
+class GameplayGC {
+	public static var active(default, null):Bool = false;
+
+	/**
+	 * Collect stale state/preloader objects before PlayState construction.
+	 * This deliberately does not enter gameplay mode: begin() must size its
+	 * reserve from the finished PlayState heap and collect its setup garbage.
+	 */
+	public static function collectLoadingGarbage():Void {
+		#if (cpp && !hxcpp_zgc)
+		GCManager.enable(true);
+		GCManager.run(true);
+		#end
+	}
+
+	public static function begin():Void {
+		#if (cpp && !hxcpp_zgc)
+		// A caller may temporarily disable collection while constructing a
+		// state. Restore it even when gameplay mode was prepared earlier.
+		GCManager.enable(true);
+
+		if (active)
+			return;
+
+		#if mobile
+		GCManager.enterGameplay(24 * 1024 * 1024, 96 * 1024 * 1024);
+		#else
+		GCManager.enterGameplay(96 * 1024 * 1024, 384 * 1024 * 1024);
+		#end
+		active = true;
+		#end
+	}
+
+	public static function pause():Void {
+		stop(true);
+	}
+
+	public static function finish():Void {
+		stop(true);
+	}
+
+	public static function abort():Void {
+		stop(false);
+	}
+
+	private static function stop(collectNow:Bool):Void {
+		#if (cpp && !hxcpp_zgc)
+		if (!active)
+			return;
+
+		active = false;
+		GCManager.leaveGameplay(collectNow);
+		#end
+	}
 }
