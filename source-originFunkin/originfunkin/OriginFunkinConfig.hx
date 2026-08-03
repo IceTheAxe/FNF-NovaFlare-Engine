@@ -137,6 +137,13 @@ class OriginFunkinConfig
 		save();
 	}
 
+	public static function setStartVideoEnabled(value:Bool):Void
+	{
+		load();
+		startVideoEnabled = value;
+		save();
+	}
+
 	public static function getModRoot(originAssetsRoot:String):String
 	{
 		return Path.join([Path.directory(originAssetsRoot), MOD_FOLDER_NAME]);
