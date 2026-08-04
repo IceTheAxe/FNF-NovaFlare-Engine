@@ -127,12 +127,6 @@ jobs:
           name: androidBuild
           path: artifacts/
 
-      - name: Download Android Haxelib
-        uses: actions/download-artifact@v4
-        with:
-          name: Haxelib
-          path: artifacts/
-
       - name: Download iOS Build
         uses: actions/download-artifact@v4
         with:
