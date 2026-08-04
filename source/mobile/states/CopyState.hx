@@ -5,7 +5,6 @@ import haxe.io.Path;
 import lime.utils.Assets as LimeAssets;
 
 import openfl.utils.Assets as OpenflAssets;
-import openfl.utils.ByteArray;
 import openfl.system.System;
 
 import flixel.addons.util.FlxAsyncLoop;
@@ -169,19 +168,13 @@ class CopyState extends MusicBeatState
 						createContentFromInternal(file);
 					else
 					{
-						var assetBytes:ByteArray = getFileBytes(assetId);
-						if (assetBytes == null)
+						var outputBytes:haxe.io.Bytes = getFileBytes(assetId);
+						if (outputBytes == null)
 						{
 							failedFiles.push('$assetId (Asset bytes are null)');
 							return;
 						}
 
-						var outputBytes:haxe.io.Bytes = assetBytes;
-						if (outputBytes == null)
-						{
-							failedFiles.push('$assetId (Could not convert asset bytes)');
-							return;
-						}
 						File.saveBytes(toFile, outputBytes);
 					}
 				}
@@ -197,7 +190,7 @@ class CopyState extends MusicBeatState
 		}
 	}
 
-	public static function getFileBytes(file:String):ByteArray
+	public static function getFileBytes(file:String):haxe.io.Bytes
 	{
 		// Non-embedded native assets have a real bundle path. Prefer it so image,
 		// audio and font assets never pass through AssetLibrary's embedded-class
@@ -205,7 +198,14 @@ class CopyState extends MusicBeatState
 		var path = OpenflAssets.getPath(file);
 		if (path != null && path != '' && FileSystem.exists(path))
 		{
-			var pathBytes = ByteArray.fromFile(path);
+			var pathBytes = try
+			{
+				File.getBytes(path);
+			}
+			catch (_:Dynamic)
+			{
+				null;
+			}
 			if (pathBytes != null)
 				return pathBytes;
 		}
@@ -224,14 +224,23 @@ class CopyState extends MusicBeatState
 			{
 				var bytes:haxe.io.Bytes = library.getBytes(symbolName);
 				if (bytes != null)
-					return ByteArray.fromBytes(bytes);
+					return bytes;
 			}
 		}
 		catch (_:Dynamic) {}
 
 		// Keep a path fallback for custom libraries whose getBytes
 		// implementation does not expose non-binary asset types.
-		return path == null || path == '' ? null : ByteArray.fromFile(path);
+		if (path == null || path == '')
+			return null;
+		return try
+		{
+			File.getBytes(path);
+		}
+		catch (_:Dynamic)
+		{
+			null;
+		}
 	}
 
 	public static function getFile(file:String):String
@@ -308,7 +317,7 @@ class CopyState extends MusicBeatState
 
 			if (FileSystem.exists(toFile))
 			{
-				var internalBytes:ByteArray = getFileBytes(getFile(file));
+				var internalBytes:haxe.io.Bytes = getFileBytes(getFile(file));
 				var externalBytes:haxe.io.Bytes = File.getBytes(toFile);
 				// If the installed asset library cannot expose bytes for an
 				// existing external file, preserve that file instead of
