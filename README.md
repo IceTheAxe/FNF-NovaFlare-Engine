@@ -61,6 +61,8 @@ We welcome everyone to use our open-source code, **but please ensure that proper
 
 The `private` directory in this repository is used for integrating NovaFlare with [GameAnalytics](https://www.gameanalytics.com) to collect usage data from our staff. It is not made public because it contains sensitive API keys, and we require real data for internal purposes.
 
+[You can use now](https://github.com/NovaFlare-Engine-Concentration/Gameanalytics-haxe/tree/main)
+
 ## CNE Mod Support
 
 Our support for the CNE mod has **been officially approved by the CNE development team**. For detailed information, please refer to the "Usage Info" section in the CNE repository's [README](https://github.com/CodenameCrew/CodenameEngine/blob/main/README.md) . [Click here for more information](https://github.com/NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine/releases/tag/V1.2.1).
