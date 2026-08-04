@@ -11,15 +11,60 @@
     <p style="margin: 12px 0;">
       <a href="https://novaflare.fun/docs-choose.html" style="font-size: 1.1em; display: block;">❗Our Docs❗</a>
     </p>
-    <p style="margin: 12px 0;">
-      <a href="http://xz.novaflare.top/" style="font-size: 1.1em; display: block;">🇨🇳 中国网络下载 (Chinese Mirror) 🇨🇳</a>
-    </p>
-    <p style="margin: 2px 0;">
-      <a href="https://online.novaflare.fun/dashboard.php" style="font-size: 0.1em; display: block;">-------------------------</a>
-    </p>
   </div>
 </div>
 <br />
+
+# Introduction
+The FNF-NovaFlare-Engine was originally created to be compatible with the Camellia mod, and it has continuously evolved into an independent engine, developed by Chinese developers. 
+
+V1.0.1 is based on FNF-Psych-Engine-0.6.3.
+V1.1.0-beta-1 and above are based on 0.7.3.
+V1.1.8-HOTFIX is based on 0.7.3 and supports mods version 1.0.0 and above (partially).
+v1.2.1: Minimum support **Psych mod 0.7.3 to 1.0.4**, **V-Slice 0.8.4**, **CodeName 1.0.1**
+
+Highly optimize a large number of pending issues, including but not limited to frame rate improvement, loading optimization, major overhauls of the underlying system, and script system overhauls...  
+Add more practical features and beautify the interface.  
+
+~~Make your device stronger, more awesome, more invincible, more frequent, more ridiculous, more despair-inducing, and more frustratingly prone to crashes.~~
+
+# Function
+## Hscript Upgrade
+
+Starting from NovaFlare 1.2.0, Hscript has been upgraded to Hscript--iris-improved. This update brings script syntax closer to actual source code, with support for `class` and `package`.
+
+## Performance Improvements
+
+- The first TPS frame count has exceeded 1000.
+- Thread separation for rendering has been implemented for the first time.
+- Immix GC optimization reduces lag during gameplay.
+
+## Interface and Underlying Updates
+
+- The freeplay option interface has been rewritten for a better visual experience.
+- The underlying Haxelib has been fully upgraded, with added recording and replay features.
+
+## Miscellaneous
+
+- ~~All open staff members of NF are Chinese (though this is not particularly relevant).~~
+
+**You'll need to explore more features on your own.**
+
+**[For more info, check out the release](https://github.com/NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine/releases)**
+
+# Notes!!!!
+## Open Source Usage
+
+We welcome everyone to use our open-source code, **but please ensure that proper credit is given to the original source.**
+
+## About the "private" Directory
+
+The `private` directory in this repository is used for integrating NovaFlare with [GameAnalytics](https://www.gameanalytics.com) to collect usage data from our staff. It is not made public because it contains sensitive API keys, and we require real data for internal purposes.
+
+## CNE Mod Support
+
+Our support for the CNE mod has **been officially approved by the CNE development team**. For detailed information, please refer to the "Usage Info" section in the CNE repository's [README](https://github.com/CodenameCrew/CodenameEngine/blob/main/README.md) . [Click here for more information](https://github.com/NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine/releases/tag/V1.2.1).
+
 
 # NovaFlare crew credits:
 | Avatar | Username | Involvement |
