@@ -68,6 +68,8 @@ CodeName Engine 运行时可能自动创建 `.temp`，这是正常的临时目�
 - 你需要去[Funkin Assets](https://github.com/FunkinCrew/funkin.assets/tree/b91f1ca5f9ee56ce1a3266c5f22cae7c4f70442b)下载所需资源
 - [资源下载直链](https://github.com/FunkinCrew/funkin.assets/archive/b91f1ca5f9ee56ce1a3266c5f22cae7c4f70442b.zip)
 
+- 模组支持：去设置打开FPS设置下方的设置以启用模组支持
+
 ### CodeName Engine
 
 - CodeName Engine 官方资源放入 `Funkin/CodeName/assets/`。
