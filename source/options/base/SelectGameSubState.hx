@@ -14,7 +14,7 @@ class SelectGameSubState extends MusicBeatSubstate
 	var ui:FlxSprite = new FlxSprite().makeGraphic(FlxG.width - 200, FlxG.height - 200, 0xFF000000);
     var subcameras:FlxCamera;
 
-	var suppostedGames:Array<String> = #if CODENAME_ENGINE_COMPAT ["Origin Funkin", "CodeName Engine"] #else ["Origin Funkin"] #end;
+	var suppostedGames:Array<String> = #if (CODENAME_ENGINE_COMPAT && !mobile) ["Origin Funkin", "CodeName Engine"] #else ["Origin Funkin"] #end;
 	var selectedGroup:FlxSpriteGroup = new FlxSpriteGroup();
 	var backButton:GeneralBack;
 
@@ -160,7 +160,7 @@ class SelectGameSubState extends MusicBeatSubstate
 			if (i == nowSelected) {
 				text.color = 0xFFFFFFFF;
 			} else {
-				#if CODENAME_ENGINE_COMPAT
+				#if (CODENAME_ENGINE_COMPAT && !mobile)
 				text.color = 0xA9A9A9;
 				#else
 				text.alpha = 0;
@@ -305,7 +305,7 @@ class SelectGameSubState extends MusicBeatSubstate
 				}
 
 			case 1:
-				#if CODENAME_ENGINE_COMPAT
+				#if (CODENAME_ENGINE_COMPAT && !mobile)
 				if (!codenamechain.CodeNameMode.canEnter())
 				{
 					SUtil.showPopUp(codenamechain.CodeNameMode.preparationError, "CodeName");

@@ -165,7 +165,7 @@ class InitState extends MusicBeatState
 		#end
 
 		#if mobile
-		if (ClientPrefs.data.filesCheck)
+		if (ClientPrefs.data.filesCheck && !ignoreCopy)
 		{
 			if (!CopyState.checkExistingFiles())
 			{
@@ -173,6 +173,7 @@ class InitState extends MusicBeatState
 				return;
 			}
 		}
+		ignoreCopy = false;
 
         // 检查assets/version.txt存不存在且里面保存的上一个版本号与当前的版本号一不一致，如果不一致或不存在，强制启动copy。
         if (!FileSystem.exists(Paths.getSharedPath('version.txt')))

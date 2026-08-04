@@ -5,6 +5,7 @@ import haxe.io.Path;
 import lime.utils.Assets as LimeAssets;
 
 import openfl.utils.Assets as OpenflAssets;
+import openfl.utils.ByteArray;
 import openfl.system.System;
 
 import flixel.addons.util.FlxAsyncLoop;
@@ -168,14 +169,13 @@ class CopyState extends MusicBeatState
 						createContentFromInternal(file);
 					else
 					{
-						var outputBytes:haxe.io.Bytes = getFileBytes(assetId);
-						if (outputBytes == null)
+						var assetBytes:ByteArray = getFileBytes(assetId);
+						if (assetBytes == null)
 						{
 							failedFiles.push('$assetId (Asset bytes are null)');
 							return;
 						}
-
-						File.saveBytes(toFile, outputBytes);
+						File.saveBytes(toFile, assetBytes);
 					}
 				}
 				else
@@ -190,56 +190,38 @@ class CopyState extends MusicBeatState
 		}
 	}
 
-	public static function getFileBytes(file:String):haxe.io.Bytes
+	public static function getFileBytes(file:String):ByteArray
 	{
-		// Non-embedded native assets have a real bundle path. Prefer it so image,
-		// audio and font assets never pass through AssetLibrary's embedded-class
-		// conversion path (an embedded Image cannot be cast to Bytes on hxcpp).
-		var path = OpenflAssets.getPath(file);
-		if (path != null && path != '' && FileSystem.exists(path))
+		switch (Path.extension(file))
 		{
-			var pathBytes = try
-			{
-				File.getBytes(path);
-			}
-			catch (_:Dynamic)
-			{
-				null;
-			}
-			if (pathBytes != null)
-				return pathBytes;
-		}
+			case 'otf' | 'ttf':
+				// keep old behavior: try direct file read for fonts first
+				try
+				{
+					return ByteArray.fromFile(file);
+				}
+				catch (_:Dynamic)
+				{
+				}
 
-		// Assets.getBytes() only accepts assets declared as BINARY. Images,
-		// sounds and fonts have other manifest types even though their original
-		// packaged files still need to be copied byte-for-byte. Read through the
-		// owning Lime library without imposing an AssetType.
-		var colonIndex = file.indexOf(':');
-		var libraryName = colonIndex == -1 ? '' : file.substring(0, colonIndex);
-		var symbolName = colonIndex == -1 ? file : file.substring(colonIndex + 1);
-		try
-		{
-			var library = LimeAssets.getLibrary(libraryName);
-			if (library != null)
-			{
-				var bytes:haxe.io.Bytes = library.getBytes(symbolName);
-				if (bytes != null)
-					return bytes;
-			}
-		}
-		catch (_:Dynamic) {}
+				// then try OpenFL raw bytes (fonts are usually safe here),
+				// then try resolved asset path as fallback
+				try
+				{
+					return OpenflAssets.getBytes(file);
+				}
+				catch (_:Dynamic)
+				{
+				}
 
-		// Keep a path fallback for custom libraries whose getBytes
-		// implementation does not expose non-binary asset types.
-		if (path == null || path == '')
-			return null;
-		return try
-		{
-			File.getBytes(path);
-		}
-		catch (_:Dynamic)
-		{
-			null;
+				var fontPath = OpenflAssets.getPath(file);
+				if (fontPath != null && fontPath != '' && FileSystem.exists(fontPath))
+					return ByteArray.fromFile(fontPath);
+
+				return null;
+
+			default:
+				return OpenflAssets.getBytes(file);
 		}
 	}
 
@@ -317,7 +299,7 @@ class CopyState extends MusicBeatState
 
 			if (FileSystem.exists(toFile))
 			{
-				var internalBytes:haxe.io.Bytes = getFileBytes(getFile(file));
+				var internalBytes:ByteArray = getFileBytes(getFile(file));
 				var externalBytes:haxe.io.Bytes = File.getBytes(toFile);
 				// If the installed asset library cannot expose bytes for an
 				// existing external file, preserve that file instead of

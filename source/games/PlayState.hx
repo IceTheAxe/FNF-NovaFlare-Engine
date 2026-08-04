@@ -947,7 +947,7 @@ class PlayState extends MusicBeatState
 	#if (LUA_ALLOWED || HSCRIPT_ALLOWED)
 	public function addTextToDebug(text:String, color:FlxColor)
 	{
-		if (!ClientPrefs.data.developerMode) return;
+		//if (!ClientPrefs.data.developerMode) return;
 		var newText:DebugLuaText = luaDebugGroup.recycle(DebugLuaText);
 		newText.text = text;
 		#if android
