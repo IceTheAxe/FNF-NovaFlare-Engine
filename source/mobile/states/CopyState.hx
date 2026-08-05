@@ -237,7 +237,7 @@ class CopyState extends MusicBeatState
 	}
 	#end
 
-	#ios
+	#if ios
 	public function copyAsset()
 	{
 		var file = locatedFiles[loopTimes];
