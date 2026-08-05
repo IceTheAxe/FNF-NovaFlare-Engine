@@ -66,16 +66,14 @@ The `private` directory in this repository is used for integrating NovaFlare wit
 ## How To Use Other Engines Mods
 > [!NOTE]
 > [How to use?](https://github.com/NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine/blob/main/NovaSetup/FunkinMods-EN.md)
-
-## CNE Mod Support
-> [!CAUTION]
-> Our support for the CNE mod has **been officially approved by the CNE development team**. For detailed information, please refer to the "Usage Info" section in the CNE repository's [README](https://github.com/CodenameCrew/CodenameEngine/blob/main/README.md) . [Click here for more information](https://github.com/NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine/releases/tag/V1.2.1).
-<img width="1087" height="521" alt="image" src="https://github.com/user-attachments/assets/fcc41210-ae20-4177-9ee5-92a564ec13f8" />
-
-## V-Slice Mod Support
 > [!WARNING]
 > **Not** guaranteed to support all mods, so **PLEASE** support their official channels.**They really did an amazing job!!**
 > **[Friday Night Funkin](https://github.com/FunkinCrew/Funkin)**------**[Codename Engine](https://github.com/CodenameCrew/CodenameEngine)**
+
+## CNE And V-Slice Mod Support
+> [!CAUTION]
+> Our support for the CNE mod has **been officially approved by the CNE development team**. For detailed information, please refer to the "Usage Info" section in the CNE repository's [README](https://github.com/CodenameCrew/CodenameEngine/blob/main/README.md) . [Click here for more information](https://github.com/NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine/releases/tag/V1.2.1).
+<img width="1087" height="521" alt="image" src="https://github.com/user-attachments/assets/fcc41210-ae20-4177-9ee5-92a564ec13f8" />
 
 ## Ah Man
 > [!CAUTION]
