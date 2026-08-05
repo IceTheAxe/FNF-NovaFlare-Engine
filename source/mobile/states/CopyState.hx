@@ -277,6 +277,7 @@ class CopyState extends MusicBeatState
 				failedFiles.push('$assetId ($err)');
 			}
 		}
+		shouldCopy = false;
 	}
 
 	public static function getFileBytes(file:String):haxe.io.Bytes
