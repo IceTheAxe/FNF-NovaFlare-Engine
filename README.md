@@ -66,6 +66,7 @@ The `private` directory in this repository is used for integrating NovaFlare wit
 ## CNE Mod Support
 > [!CAUTION]
 > Our support for the CNE mod has **been officially approved by the CNE development team**. For detailed information, please refer to the "Usage Info" section in the CNE repository's [README](https://github.com/CodenameCrew/CodenameEngine/blob/main/README.md) . [Click here for more information](https://github.com/NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine/releases/tag/V1.2.1).
+<img width="1087" height="521" alt="image" src="https://github.com/user-attachments/assets/fcc41210-ae20-4177-9ee5-92a564ec13f8" />
 
 
 # NovaFlare crew credits:
