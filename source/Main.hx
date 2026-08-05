@@ -120,11 +120,13 @@ class Main extends Sprite
 	public function new()
 	{
 		super();
-		gameanalytics.GAAppLifecycle.install();
 		#if android
 		SUtil.doPermissionsShit();
+		setupMobileStorage();
+		mobile.backend.CrashHandler.refreshNativeCrashDirectory();
 		#end
 		mobile.backend.CrashHandler.init();
+		gameanalytics.GAAppLifecycle.install();
 
 		if (stage != null)
 		{
@@ -204,15 +206,15 @@ class Main extends Sprite
 				|| (AppData.getPackageName() != Application.current.meta.get('packageName')
 					&& AppData.getPackageName() != Application.current.meta.get('packageName') + 'Backup1' // 共存
 					&& AppData.getPackageName() != Application.current.meta.get('packageName') + 'Backup2' // 共存
-					&& AppData.getPackageName() != 'com.antutu.ABenchMark' // 超频测试 安兔兔
-					&& AppData.getPackageName() != 'com.ludashi.benchmark' // 超频测试 鲁大师
+					&& AppData.getPackageName() != 'com.antutu.ABenchMark' // 超频测试 安兔
+					&& AppData.getPackageName() != 'com.ludashi.benchmark' // 超频测试 鲁大
 				)) {
 					FlxG.switchState(new PirateState());
 					return;
 				}
 		#end
 
-		///////////////////////////////////////////   --包含有读取文件的别在这个的上面运行
+		///////////////////////////////////////////   --包含有读取文件的别在这个的上面运
 
 		ExtraKeysHandler.instance = new ExtraKeysHandler();
 		ClientPrefs.loadDefaultKeys();
@@ -528,3 +530,4 @@ May the Buddha bless you with no bugs forever
              Suppress hxcpp-zgc
 No one will be able to understand it in 500 years
 */
+
