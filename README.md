@@ -55,7 +55,7 @@ Starting from NovaFlare 1.2.0, Hscript has been upgraded to Hscript--iris-improv
 # Notes!!!!
 ## Open Source Usage
 
-We welcome everyone to use our open-source code, **but please ensure that proper credit is given to the original source.**
+We welcome everyone to use our open-source code, **but please make sure to give proper credit to the original source.** Our open-source code is for reference, not for plagiarism. Of course, you can copy **small amounts** of it, but please cite the original source. Copy too much, and you might even confuse players between your engine and the NF engine. Just wait, buddy, we’ll come after you.
 
 ## About the "private" Directory
 
@@ -64,8 +64,8 @@ The `private` directory in this repository is used for integrating NovaFlare wit
 [You can use now](https://github.com/NovaFlare-Engine-Concentration/Gameanalytics-haxe/tree/main)
 
 ## CNE Mod Support
-
-Our support for the CNE mod has **been officially approved by the CNE development team**. For detailed information, please refer to the "Usage Info" section in the CNE repository's [README](https://github.com/CodenameCrew/CodenameEngine/blob/main/README.md) . [Click here for more information](https://github.com/NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine/releases/tag/V1.2.1).
+> [!CAUTION]
+> Our support for the CNE mod has **been officially approved by the CNE development team**. For detailed information, please refer to the "Usage Info" section in the CNE repository's [README](https://github.com/CodenameCrew/CodenameEngine/blob/main/README.md) . [Click here for more information](https://github.com/NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine/releases/tag/V1.2.1).
 
 
 # NovaFlare crew credits:
