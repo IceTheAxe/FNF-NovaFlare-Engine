@@ -195,30 +195,40 @@ class CopyState extends MusicBeatState
 		switch (Path.extension(file))
 		{
 			case 'otf' | 'ttf':
-				// keep old behavior: try direct file read for fonts first
+				#if ios
 				try
 				{
-					return ByteArray.fromFile(file);
+					var fontPath = OpenflAssets.getPath(file);
+					if (fontPath != null && fontPath != '' && FileSystem.exists(fontPath))
+						return ByteArray.fromFile(fontPath);
 				}
-				catch (_:Dynamic)
-				{
-				}
+				catch (_:Dynamic) { }
 
-				// then try OpenFL raw bytes (fonts are usually safe here),
-				// then try resolved asset path as fallback
 				try
 				{
 					return OpenflAssets.getBytes(file);
 				}
-				catch (_:Dynamic)
+				catch (_:Dynamic) { }
+				return null;
+				#else
+				try
 				{
+					return ByteArray.fromFile(file);
 				}
+				catch (_:Dynamic) { }
+
+				try
+				{
+					return OpenflAssets.getBytes(file);
+				}
+				catch (_:Dynamic) { }
 
 				var fontPath = OpenflAssets.getPath(file);
 				if (fontPath != null && fontPath != '' && FileSystem.exists(fontPath))
 					return ByteArray.fromFile(fontPath);
 
 				return null;
+				#end
 
 			default:
 				return OpenflAssets.getBytes(file);
