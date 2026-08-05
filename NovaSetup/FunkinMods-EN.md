@@ -65,12 +65,17 @@ CodeName Engine may automatically create a `.temp` directory at runtime; this is
 - Place V-Slice mods into `Funkin/OriginFunkin/mods-vslice/`.
 - `assets` and `mods-vslice` must be at the same directory level.
 - Do **not** place `mods-vslice` inside `assets`.
-
+- You need to download the required resources from [Funkin Assets] (https://github.com/FunkinCrew/funkin.assets/tree/b91f1ca5f9ee56ce1a3266c5f22cae7c4f70442b).
+- [Resource Download Direct Link](https://github.com/FunkinCrew/funkin.assets/archive/b91f1ca5f9ee56ce1a3266c5f22cae7c4f70442b.zip)
+- Mod Support: Go to Settings and toggle the option below FPS Settings to enable mod support.
+  
 ### CodeName Engine
 
-- Place official CodeName Engine resources into `Funkin/CodeName/assets/`.
-- Place CodeName mods into `Funkin/CodeName/mods-codename/`.
-- `assets` and `mods-codename` must be at the same directory level.
+- Place the official CodeName Engine resource into 'Funkin/CodeName/assets/'.
+- Place the CodeName module into 'Funkin/CodeName/mods-codename/'.
+- 'assets' and 'mods-codename' must be of the same level.
+- You need to download the required resources from [CodeName Engine] (https://github.com/CodenameCrew/CodenameEngine/tree/6fd77dce3ad252059b3241cb403f2b07dd5074e9).
+- [Resource Download Direct Link] (https://github.com/CodenameCrew/CodenameEngine/archive/6fd77dce3ad252059b3241cb403f2b07dd5074e9.zip), **Note**, **Extract assets inside after download is complete**
 
 ### NovaFlare Engine's Own Content
 
