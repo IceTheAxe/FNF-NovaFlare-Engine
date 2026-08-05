@@ -78,7 +78,9 @@ The `private` directory in this repository is used for integrating NovaFlare wit
 **[Codename Engine](https://github.com/CodenameCrew/CodenameEngine)**
 
 ## Ah Man
-> [!CAUTION]We **REALLY, REALLY, REALLY, REALLY** don’t want anyone to confuse the NF engine with these perfect engines. If the confusion goes beyond what we expect, **we’ll pull back the update and remove the feature that supports mods for other engines.**
+> [!CAUTION]
+> We **REALLY, REALLY, REALLY, REALLY** don’t want anyone to confuse the NF engine with these perfect engines.
+> If the confusion goes beyond what we expect, **we’ll pull back the update and remove the feature that supports mods for other engines.**
 
 
 # NovaFlare crew credits:
