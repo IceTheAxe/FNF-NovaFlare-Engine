@@ -172,3 +172,4 @@ jobs:
           name: "V${{ needs.update-versions.outputs.version_name }}"
           files: |
             artifacts/*.zip
+          allowUpdates: true
