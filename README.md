@@ -46,7 +46,7 @@ Starting from NovaFlare 1.2.0, Hscript has been upgraded to Hscript--iris-improv
 
 ## Miscellaneous
 
-- ~~All open staff members of NF are Chinese (though this is not particularly relevant).~~
+- ~~All of NF's developers are Chinese (though this is not particularly relevant).~~
 
 **You'll need to explore more features on your own.**
 
