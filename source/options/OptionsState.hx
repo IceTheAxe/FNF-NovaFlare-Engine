@@ -7,7 +7,9 @@ import options.base.NewControlsSubState;
 
 import mobile.substates.MobileControlSelectSubState;
 import mobile.substates.MobileExtraControl;
+#if mobile
 import mobile.states.CopyState;
+#end
 
 import games.backend.StageData;
 import general.backend.ui.PsychUIInputText;
@@ -442,8 +444,10 @@ class OptionsState extends MusicBeatState
 			case 5: // MobileExtraControl
 				persistentUpdate = false;
 				openSubState(new MobileExtraControl());
+			#if mobile
 			case 6: // CopyStates
 				MusicBeatState.switchState(new CopyState(true));
+			#end
 			case 7: // NotesSubStateLegacy
 				persistentUpdate = false;
 				openSubState(new NotesSubStateLegacy());

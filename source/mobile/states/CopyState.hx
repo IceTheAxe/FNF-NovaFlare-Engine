@@ -1,5 +1,6 @@
 package mobile.states;
 
+#if mobile
 import haxe.io.Path;
 
 import lime.utils.Assets as LimeAssets;
@@ -463,3 +464,4 @@ class CopyState extends MusicBeatState
 		#end
 	}
 }
+#end
