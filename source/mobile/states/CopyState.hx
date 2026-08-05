@@ -150,6 +150,7 @@ class CopyState extends MusicBeatState
 		super.update(elapsed);
 	}
 
+	#if android
 	public function copyAsset()
 	{
 		var file = locatedFiles[loopTimes];
@@ -234,6 +235,103 @@ class CopyState extends MusicBeatState
 				return OpenflAssets.getBytes(file);
 		}
 	}
+	#end
+
+	#ios
+	public function copyAsset()
+	{
+		var file = locatedFiles[loopTimes];
+		var toFile = Path.join([to, file]);
+		var assetId = getFile(file);
+		loopTimes++;
+		if (!FileSystem.exists(toFile))
+		{
+			var directory = Path.directory(toFile);
+			if (!FileSystem.exists(directory))
+				SUtil.mkDirs(directory);
+			try
+			{
+				if (OpenflAssets.exists(assetId))
+				{
+					if (textFilesExtensions.contains(Path.extension(file)))
+						createContentFromInternal(file);
+					else
+					{
+						var outputBytes:haxe.io.Bytes = getFileBytes(assetId);
+						if (outputBytes == null)
+						{
+							failedFiles.push('$assetId (Asset bytes are null)');
+							return;
+						}
+
+						File.saveBytes(toFile, outputBytes);
+					}
+				}
+				else
+				{
+					failedFiles.push(assetId + " (File Doesn't Exist)");
+				}
+			}
+			catch (err:Dynamic)
+			{
+				failedFiles.push('$assetId ($err)');
+			}
+		}
+	}
+
+	public static function getFileBytes(file:String):haxe.io.Bytes
+	{
+		// Non-embedded native assets have a real bundle path. Prefer it so image,
+		// audio and font assets never pass through AssetLibrary's embedded-class
+		// conversion path (an embedded Image cannot be cast to Bytes on hxcpp).
+		var path = OpenflAssets.getPath(file);
+		if (path != null && path != '' && FileSystem.exists(path))
+		{
+			var pathBytes = try
+			{
+				File.getBytes(path);
+			}
+			catch (_:Dynamic)
+			{
+				null;
+			}
+			if (pathBytes != null)
+				return pathBytes;
+		}
+
+		// Assets.getBytes() only accepts assets declared as BINARY. Images,
+		// sounds and fonts have other manifest types even though their original
+		// packaged files still need to be copied byte-for-byte. Read through the
+		// owning Lime library without imposing an AssetType.
+		var colonIndex = file.indexOf(':');
+		var libraryName = colonIndex == -1 ? '' : file.substring(0, colonIndex);
+		var symbolName = colonIndex == -1 ? file : file.substring(colonIndex + 1);
+		try
+		{
+			var library = LimeAssets.getLibrary(libraryName);
+			if (library != null)
+			{
+				var bytes:haxe.io.Bytes = library.getBytes(symbolName);
+				if (bytes != null)
+					return bytes;
+			}
+		}
+		catch (_:Dynamic) {}
+
+		// Keep a path fallback for custom libraries whose getBytes
+		// implementation does not expose non-binary asset types.
+		if (path == null || path == '')
+			return null;
+		return try
+		{
+			File.getBytes(path);
+		}
+		catch (_:Dynamic)
+		{
+			null;
+		}
+	}
+	#end
 
 	public static function getFile(file:String):String
 	{
