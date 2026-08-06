@@ -54,6 +54,17 @@ body:
     validations:
       required: true
 
+  - type: dropdown
+    id: gameEngine
+    attributes:
+      label: "what is your game engine?"
+      options:
+        - "NovaFlare"
+        - "V-Slice"
+        - "Codename"
+    validations:
+      required: true
+
   - type: input
     id:  VersionNumber
     attributes:
