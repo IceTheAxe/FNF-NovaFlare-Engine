@@ -132,7 +132,11 @@ class SUtil
 			'(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lorg/haxe/lime/HaxeObject;Ljava/lang/String;Lorg/haxe/lime/HaxeObject;)V')(title,
 				message, 'OK', null, null, null);
 		#else
-		FlxG.stage.window.alert(message, title);
+		var application = lime.app.Application.current;
+		if (application != null && application.window != null)
+			application.window.alert(message, title);
+		else
+			Sys.println('$title\n$message');
 		#end
 	}
 	#end

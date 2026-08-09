@@ -37,6 +37,9 @@ import developer.console.ConsoleToggleButton;
 
 import general.objects.screen.MouseEffect;
 import general.objects.ReplayOverlay;
+#if mobile
+import general.shaders.MobileShaderConverter;
+#end
 
 import states.titleState.TitleState;
 import states.backend.initState.InitState;
@@ -173,12 +176,20 @@ class Main extends Sprite
 		}
 
 		#if mobile
+		// Install the compiled defaults before FlxGame creates OpenFL's first GL
+		// programs. ClientPrefs.loadPrefs() reapplies the saved values later.
+		MobileShaderConverter.setEnabled(ClientPrefs.data.autoShaderConversion);
+		MouseEffect.setUserEffectsEnabled(ClientPrefs.data.mouseTrailEffect);
+
 		setupMobileStorage();
 		mobile.backend.CrashHandler.refreshNativeCrashDirectory();
-		// Android cannot inspect its player-visible external storage until cwd
-		// has been initialized. Desktop detection already ran in main(), but a
-		// second read is harmless and also honors a folder created mid-startup.
+
 		OriginFunkinMode.detect();
+		#if CODENAME_ENGINE_COMPAT
+		// main() runs before Android selects the external runtime directory, so
+		// detect Codename again after chain.json has been reloaded from that path.
+		CodeNameMode.detect();
+		#end
 		#end
 
 		#if CODENAME_ENGINE_COMPAT
@@ -242,7 +253,7 @@ class Main extends Sprite
 		if (watermark != null)
 		{
 			watermark.scaleX = watermark.scaleY = ClientPrefs.data.watermarkScale;
-			watermark.y += (1 - ClientPrefs.data.watermarkScale) * watermark.bitmapData.height;
+			watermark.y = Lib.current.stage.stageHeight - 5 - watermark.scaleY * watermark.bitmapData.height;
 			watermark.visible = ClientPrefs.data.showWatermark;
 		}
 
@@ -329,6 +340,10 @@ class Main extends Sprite
 		var originWatermarkBitmap = Assets.getBitmapData('assets/shared/images/menuExtend/Others/watermark.png').clone();
 
 		var prepared:Bool = OriginFunkinMode.prepare();
+		#if mobile
+		if (prepared)
+			MouseEffect.setUserEffectsEnabled(funkin.save.Save.instance.novaSettings.mouseEffects);
+		#end
 		var initialState:Class<FlxState> = OriginFunkinIntroState;
 		var framerate:Int = prepared && funkin.Preferences.unlockedFramerate ? 0 : (prepared ? funkin.Preferences.framerate : 60);
 		var startFullscreen:Bool = prepared
@@ -393,12 +408,21 @@ class Main extends Sprite
 		codenamechain.CodeNameScriptRuntime.init();
 
 		addChild(flxGame);
+		#if android
+		// The Codename chain bypasses NF's InitState, so install the Android
+		// BACK-key policy here before any Codename menu starts handling it.
+		FlxG.android.preventDefaultKeys = [BACK];
+		#end
 		// CNE normally boots straight into MainState, which initializes Conductor
 		// before the first Framerate update. NF's CNE intro delays MainState, so
 		// seed the default BPM map before ConductorInfo reads Conductor.bpm.
 		// Main.loadGameSettings() will still run Conductor.init() and reset it.
 		codename.funkin.backend.system.Conductor.changeBPM();
 		addChild(codename.funkin.backend.system.Main.framerateSprite = new codename.funkin.backend.system.framerate.Framerate());
+		#if mobile
+		codename.funkin.backend.system.Main.framerateSprite.setScale();
+		Lib.current.stage.window.onResize.add((width:Int, height:Int) -> codename.funkin.backend.system.Main.framerateSprite.setScale());
+		#end
 		codename.funkin.backend.system.framerate.SystemInfo.init();
 
 		if (watermark != null && watermark.parent == this) removeChild(watermark);

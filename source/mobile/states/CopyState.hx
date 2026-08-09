@@ -19,6 +19,26 @@ class CopyState extends MusicBeatState
 	public static var locatedFiles:Array<String> = [];
 	public static var maxLoopTimes:Int = 0;
 	public static var to:String = '';
+	#if ios
+	static inline final IOS_COPY_ATTEMPTED_FIELD:String = 'novaFlareIOSCopyStateAttempted';
+
+	/** True after automatic iOS copying has been started once on this install. */
+	public static function hasAttemptedIOSCopy():Bool
+	{
+		return FlxG.save != null
+			&& FlxG.save.data != null
+			&& Reflect.field(FlxG.save.data, IOS_COPY_ATTEMPTED_FIELD) == true;
+	}
+
+	/** Persist before entering CopyState so failures or interruption never retry it. */
+	public static function markIOSCopyAttempted():Void
+	{
+		if (FlxG.save == null || FlxG.save.data == null)
+			return;
+		Reflect.setField(FlxG.save.data, IOS_COPY_ATTEMPTED_FIELD, true);
+		FlxG.save.flush();
+	}
+	#end
 
 	public var loadingImage:FlxSprite;
 	public var bottomBG:FlxSprite;
@@ -110,6 +130,7 @@ class CopyState extends MusicBeatState
 					SUtil.showPopUp('${failedFiles.length} file(s) could not be copied.\nDetails were saved to:\n$reportPath',
 						'Copy Failed');
 				}
+				#if !ios
 				if (!isOption && !checkExistingFiles())
 				{
 					trace('reloaded CopyState...');
@@ -125,6 +146,7 @@ class CopyState extends MusicBeatState
 						return;
 					}
 				}
+				#end
 
 				canUpdate = false;
 				FlxG.sound.play(Paths.sound('confirmMenu'));
@@ -278,7 +300,6 @@ class CopyState extends MusicBeatState
 				failedFiles.push('$assetId ($err)');
 			}
 		}
-		shouldCopy = false;
 	}
 
 	public static function getFileBytes(file:String):haxe.io.Bytes

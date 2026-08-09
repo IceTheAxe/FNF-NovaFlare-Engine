@@ -38,6 +38,21 @@ class ControlsMacro
 		var fields = Context.getBuildFields();
 		for (field in fields.copy())
 		{
+			var ignoreControlGeneration = false;
+			if (field.meta != null)
+			{
+				for (metadata in field.meta)
+				{
+					if (metadata.name == ":controlsMacroIgnore")
+					{
+						ignoreControlGeneration = true;
+						break;
+					}
+				}
+			}
+			if (ignoreControlGeneration)
+				continue;
+
 			switch (field.kind)
 			{
 				case FProp(g, s, t, e):
@@ -333,15 +348,25 @@ class ControlsMacro
 		// Generated Code:
 		// inline function get_UI_UP(): Bool
 		//     return _uiUp.check(); or return Options.devMode && _uiUp.check(); depending if its dev mode
+		var checkExpr:Expr = macro $i{internalName}.check();
+		if (Context.defined("mobile")) {
+			var inputState:Expr = switch(type) {
+				case "_P": macro JUST_PRESSED;
+				case "_R": macro JUST_RELEASED;
+				default: macro PRESSED;
+			};
+			checkExpr = macro $e{checkExpr} || codename.mobile.CodeNameMobileInput.check(Control.$shortName, $e{inputState});
+		}
+		if (_allDevModeOnlyControls.contains(shortName))
+			checkExpr = macro Options.devMode && $e{checkExpr};
+
 		var getField: Field = {
 			name: "get_" + name,
 			access: [APrivate, AInline],
 			kind: FFun({
 				ret: macro : Bool,
 				params: [],
-				expr: _allDevModeOnlyControls.contains(shortName) ?
-					(macro return Options.devMode && $i{internalName}.check()) :
-					(macro return $i{internalName}.check()),
+				expr: macro return $e{checkExpr},
 				args: []
 			}),
 			pos: field.pos,

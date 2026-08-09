@@ -569,8 +569,13 @@ class EditorPlayState extends MusicBeatSubstate
 			strumLineNotes.add(babyArrow);
 			babyArrow.postAddedToGroup();
 		}
-		adaptStrumline(opponentStrums);
-		adaptStrumline(playerStrums);
+		// Non-pixel ExtraKeys scales are shared by receptors and falling notes.
+		// Resizing only the receptors from atlas frame bounds desynchronizes custom skins.
+		if (PlayState.isPixelStage)
+		{
+			adaptStrumline(opponentStrums);
+			adaptStrumline(playerStrums);
+		}
 
 		if (ClientPrefs.data.showKeybinds)
 		{

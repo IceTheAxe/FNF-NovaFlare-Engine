@@ -106,6 +106,7 @@ class Config {
 
 	public static final DISALLOW_ABSTRACT_AND_ENUM = [
 		"codename.funkin.backend.scripting.events.sprite.PlayAnimContext", // Error: expected member name or ';' after declaration specifiers, Due to define macro from math.h
+		"flixel.input.keyboard.FlxKey", // NONE/DELETE collide with native macros; use the hand-written FlxKey_HSC wrapper
 		"flixel.util.FlxDestroyUtil", // IFlxDestroyable in same file — not ready to be accessed
 	];
 

@@ -14,6 +14,8 @@ import mobile.states.CopyState;
 import games.backend.StageData;
 import general.backend.ui.PsychUIInputText;
 
+import openfl.Lib;
+
 class OptionsState extends MusicBeatState
 {
 	public static var instance:OptionsState;
@@ -498,7 +500,7 @@ class OptionsState extends MusicBeatState
 			if (Main.watermark != null)
 			{
 				Main.watermark.scaleX = Main.watermark.scaleY = ClientPrefs.data.watermarkScale;
-				Main.watermark.y += (1 - ClientPrefs.data.watermarkScale) * Main.watermark.bitmapData.height;
+				Main.watermark.y = Lib.current.stage.stageHeight - 5 - Main.watermark.scaleY * Main.watermark.bitmapData.height;
 				Main.watermark.visible = ClientPrefs.data.showWatermark;
 			}
 			switch (stateType)

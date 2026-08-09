@@ -20,10 +20,25 @@ class ReflectionFunctions
 	{
 		funk.set("getProperty", function(variable:String, ?allowMaps:Bool = false)
 		{
+			if (variable == null || variable.length == 0)
+			{
+				funk.reportRuntimeErrorOnce('getProperty:empty-path', 'getProperty received an empty property path.');
+				return null;
+			}
+
 			var split:Array<String> = variable.split('.');
+			var value:Dynamic;
 			if (split.length > 1)
-				return LuaUtils.getVarInArray(LuaUtils.getPropertyLoop(split, true, true, allowMaps), split[split.length - 1], allowMaps);
-			return LuaUtils.getVarInArray(LuaUtils.getTargetInstance(), variable, allowMaps);
+				value = LuaUtils.getVarInArray(LuaUtils.getPropertyLoop(split, true, true, allowMaps), split[split.length - 1], allowMaps);
+			else
+				value = LuaUtils.getVarInArray(LuaUtils.getTargetInstance(), variable, allowMaps);
+
+			if (value == null && StringTools.endsWith(variable, '.animation.frameName'))
+			{
+				funk.reportRuntimeErrorOnce('getProperty:missing-frame:$variable',
+					'getProperty("$variable") returned nil: the sprite has no current frame, usually because its image/atlas is missing or not loaded.');
+			}
+			return value;
 		});
 		funk.set("setProperty", function(variable:String, value:Dynamic, allowMaps:Bool = false)
 		{
@@ -290,6 +305,9 @@ class ReflectionFunctions
 
 	static function parseInstances(args:Array<Dynamic>)
 	{
+		if (args == null)
+			return [];
+
 		for (i in 0...args.length)
 		{
 			var myArg:String = cast args[i];

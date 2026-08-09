@@ -29,6 +29,7 @@ final class WindowUtils {
 	public static inline function resetClosing() __triedClosing = false;
 
 	@:dox(hide) public static inline function init() {
+		#if !mobile
 		Lib.application.window.onClose.add(function () {
 			if (preventClosing && !__triedClosing) {
 				Lib.application.window.onClose.cancel();
@@ -36,6 +37,7 @@ final class WindowUtils {
 			}
 			if (onClosing != null) onClosing();
 		});
+		#end
 	}
 
 	/**
@@ -70,7 +72,9 @@ final class WindowUtils {
 		#end
 
 		var iconPath = image != null ? image : Flags.MOD_ICON;
+		#if !mobile
 		if (Assets.exists(Paths.image(iconPath))) Lib.application.window.setIcon(lime.graphics.Image.fromBytes(Assets.getBytes(Paths.image(iconPath))));
+		#end
 	}
 
 	/**

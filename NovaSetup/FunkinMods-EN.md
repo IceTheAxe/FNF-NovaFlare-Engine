@@ -74,8 +74,8 @@ CodeName Engine may automatically create a `.temp` directory at runtime; this is
 - Place the official CodeName Engine resource into 'Funkin/CodeName/assets/'.
 - Place the CodeName module into 'Funkin/CodeName/mods-codename/'.
 - 'assets' and 'mods-codename' must be of the same level.
-- You need to download the required resources from [CodeName Engine] (https://github.com/CodenameCrew/CodenameEngine/tree/6fd77dce3ad252059b3241cb403f2b07dd5074e9).
-- [Resource Download Direct Link] (https://github.com/CodenameCrew/CodenameEngine/archive/6fd77dce3ad252059b3241cb403f2b07dd5074e9.zip), **Note**, **Extract assets inside after download is complete**
+- You need to download the required resources from [CodeName Engine](https://github.com/CodenameCrew/CodenameEngine/tree/98207cbd2e931ddd267ec834f67c13ccea546863).
+- [Resource Download Direct Link](https://github.com/CodenameCrew/CodenameEngine/archive/98207cbd2e931ddd267ec834f67c13ccea546863.zip). **Note:** extract the `assets` directory after the download completes.
 
 ### NovaFlare Engine's Own Content
 
@@ -105,7 +105,7 @@ When the engine selection screen opens:
 3. NovaFlare Engine will save your selection and exit.
 4. Launch `NovaFlare Engine` again, and the program will boot into the selected engine.
 
-**CodeName Engine is available only in the PC version; the mobile version can only enter OriginFunkin or continue using NovaFlare Engine.**
+**CodeName Engine is available on both PC and mobile. Mobile builds use NovaFlare's touch controls.**
 
 ## Launch Configuration Entry
 
@@ -121,7 +121,7 @@ The `preferredMode` field supports the following values:
 | --- | --- |
 | `novaflare` | NovaFlare Engine |
 | `origin` | OriginFunkin |
-| `codename` | CodeName Engine (PC only) |
+| `codename` | CodeName Engine |
 | `auto` | Attempts OriginFunkin first; falls back to NovaFlare Engine if resources are unavailable |
 
 It is recommended to change this via the in-game engine selection interface. Do **not** manually edit `chain.json` while the program is running.

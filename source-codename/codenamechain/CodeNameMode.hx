@@ -31,6 +31,9 @@ class CodeNameMode
 	public static function detect():Bool
 	{
 		active = false;
+		#if CODENAME_ENGINE_COMPAT
+		flixel.FlxCamera.cneShaderSizingEnabled = false;
+		#end
 		assetsAvailable = false;
 		root = null;
 		assetsRoot = null;
@@ -47,6 +50,7 @@ class CodeNameMode
 			validateLayout(candidate);
 			setResolvedRoot(candidate);
 			active = true;
+			flixel.FlxCamera.cneShaderSizingEnabled = true;
 		}
 		catch (error:Dynamic)
 		{
@@ -128,11 +132,15 @@ class CodeNameMode
 	#if sys
 	static function locateRoot():Null<String>
 	{
+		#if mobile
+		var runtimeDirectory:String = Sys.getCwd();
+		#else
 		var executablePath:String = Sys.programPath();
 		var runtimeDirectory:String = executablePath == null || executablePath.length == 0
 			? Sys.getCwd()
 			: Path.directory(executablePath);
 		if (runtimeDirectory == null || runtimeDirectory.length == 0) runtimeDirectory = Sys.getCwd();
+		#end
 
 		var preferred:String = FileSystem.fullPath(Path.join([
 			runtimeDirectory,

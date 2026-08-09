@@ -117,10 +117,15 @@ class Console extends Sprite {
 		// Logs keep batching while the panel is hidden, but their expensive
 		// TextField HTML representation is built only when the user opens it.
 		console.needsRender = true;
-		console.updateScale(ClientPrefs.data.devConScale);
+		console.updateScale(resolveDevConScale());
 		console.clampToStage();
 
 		ConsoleToggleButton.hide();
+	}
+
+	public static function refreshScaleFromPrefs():Void {
+		if (_consoleInstance == null) return;
+		_consoleInstance.updateScale(resolveDevConScale());
 	}
 
 	public static function hide():Void {
@@ -144,7 +149,7 @@ class Console extends Sprite {
 	public function new() {
 		super();
 
-		scaleX = scaleY = normalizeScale(ClientPrefs.data.devConScale);
+		scaleX = scaleY = normalizeScale(resolveDevConScale());
 		pickInitialSize();
 		createUI();
 		redraw();
@@ -235,8 +240,18 @@ class Console extends Sprite {
 	}
 
 	private static function normalizeScale(value:Float):Float {
-		if (Math.isNaN(value) || value <= 0) return 1;
+		if (Math.isNaN(value) || !Math.isFinite(value) || value <= 0) return 1;
 		return Math.max(0.5, Math.min(3, value));
+	}
+
+	private static function resolveDevConScale():Float {
+		var fallbackScale:Float = #if mobile 1.8 #else 1.5 #end;
+		if (ClientPrefs.data == null) return fallbackScale;
+
+		var raw:Dynamic = Reflect.field(ClientPrefs.data, "devConScale");
+		var parsed = Std.parseFloat(Std.string(raw));
+		if (Math.isNaN(parsed) || !Math.isFinite(parsed)) return fallbackScale;
+		return parsed;
 	}
 
 	private function pickInitialSize():Void {

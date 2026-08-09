@@ -75,8 +75,8 @@ CodeName Engine 运行时可能自动创建 `.temp`，这是正常的临时目�
 - CodeName Engine 官方资源放入 `Funkin/CodeName/assets/`。
 - CodeName 模组放入 `Funkin/CodeName/mods-codename/`。
 - `assets`、`mods-codename`必须同级。
-- 你需要去[CodeName Engine](https://github.com/CodenameCrew/CodenameEngine/tree/6fd77dce3ad252059b3241cb403f2b07dd5074e9)下载所需资源
-- [资源下载直链](https://github.com/CodenameCrew/CodenameEngine/archive/6fd77dce3ad252059b3241cb403f2b07dd5074e9.zip), **注意**，**下载完成后提取里面的assets**
+- 你需要去[CodeName Engine](https://github.com/CodenameCrew/CodenameEngine/tree/98207cbd2e931ddd267ec834f67c13ccea546863)下载所需资源
+- [资源下载直链](https://github.com/CodenameCrew/CodenameEngine/archive/98207cbd2e931ddd267ec834f67c13ccea546863.zip), **注意**，**下载完成后提取里面的assets**
 
 ### NovaFlare Engine 自身内容
 
@@ -106,7 +106,7 @@ mods/
 3. NovaFlare Engine 会保存选择并退出。
 4. 再次启动 `NovaFlare Engine`，程序会进入所选引擎。
 
-**CodeName Engine 仅在 PC 版本提供；手机版只能进入 OriginFunkin 或继续使用 NovaFlare Engine。**
+**CodeName Engine 现在同时支持 PC 与手机；手机版复用 NovaFlare Engine 的触控布局和控制设置。**
 
 ## 启动配置入口
 
@@ -122,7 +122,7 @@ Funkin/chain.json
 | --- | --- |
 | `novaflare` | NovaFlare Engine |
 | `origin` | OriginFunkin |
-| `codename` | CodeName Engine（仅 PC） |
+| `codename` | CodeName Engine |
 | `auto` | 优先尝试 OriginFunkin；资源不可用时回到 NovaFlare Engine |
 
 建议通过游戏内的引擎选择界面修改，不建议在程序运行时手动编辑 `chain.json`。

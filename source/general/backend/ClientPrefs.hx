@@ -10,14 +10,17 @@ import games.backend.ExtraKeysHandler.EKNoteColor;
 
 import lime.system.Display;
 
+#if mobile
+import general.objects.screen.MouseEffect;
+import general.shaders.MobileShaderConverter;
+#end
+
 // Add a variable here and it will get automatically saved
 @:structInit class SaveVariables
 {
-	// Version - used to detect breaking changes and reset prefs
+	//更新这个直接原地爆破所有人设置
 	public var prefsVersion:Int = 120;
-	// One-shot, non-destructive migration for the independent desktop
-	// update/render clocks. This must not reuse prefsVersion because that
-	// would reset every unrelated preference and key binding.
+	//更新这个能让性能相关的强制更新
 	public var performanceDefaultsVersion:Int = 8;
 
 	// General
@@ -25,7 +28,7 @@ import lime.system.Display;
 	public var drawFramerate:Int = 1000;
 	public var lockRender:Bool = true;
 	public var renderThread:Bool = true;
-	public var resolution:String = '720P';
+	public var resolution:String = 'Native';
 	public var colorblindMode:String = 'None';
 	public var lowQuality:Bool = false;
 	public var gameQuality:Int = #if mobile 0 #else 1 #end;
@@ -36,8 +39,10 @@ import lime.system.Display;
 	public var autoPause:Bool = true;
 	public var gcFreeZone:Bool = true;
 	#if mobile
-    public var autoOrientation:Bool = false;
-    #end
+	public var autoOrientation:Bool = false;
+	public var autoShaderConversion:Bool = true;
+	public var mouseTrailEffect:Bool = true;
+	#end
 
 	// Gameplay
 	public var downScroll:Bool = false;
@@ -609,6 +614,11 @@ class ClientPrefs
 			useRenderThread = true;
 		#end
 		lime.graphics.opengl.GL.setMultiThreaded(useRenderThread);
+
+		#if mobile
+		MobileShaderConverter.setEnabled(data.autoShaderConversion);
+		MouseEffect.setUserEffectsEnabled(data.mouseTrailEffect);
+		#end
 
 		FlxG.updateFramerate = data.framerate;
 		FlxG.drawFramerate = data.drawFramerate;

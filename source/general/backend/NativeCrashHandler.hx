@@ -14,10 +14,18 @@ import sys.FileSystem;
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+#include <mutex>
 
 static char novaflare_native_commit[128] = "unknown";
 static char novaflare_native_crash_directory[4096] = "crash";
 static char novaflare_native_report_buffer[65536];
+static char novaflare_haxe_snapshot[16384];
+static const int NOVAFLARE_HAXE_SNAPSHOT_SLOT_COUNT = 4096;
+static const size_t NOVAFLARE_HAXE_SNAPSHOT_SLOT_SIZE = 2048;
+static char novaflare_haxe_snapshot_slots[NOVAFLARE_HAXE_SNAPSHOT_SLOT_COUNT][NOVAFLARE_HAXE_SNAPSHOT_SLOT_SIZE];
+static int novaflare_haxe_snapshot_slot_count = 0;
+static std::mutex novaflare_haxe_snapshot_registry_mutex;
+static thread_local int novaflare_active_haxe_snapshot_slot = -1;
 
 struct NovaFlareNativeBuffer {
 	char* data;
@@ -38,6 +46,25 @@ static void novaflare_buffer_text(NovaFlareNativeBuffer* buffer, const char* val
 		buffer->data[buffer->length++] = *value++;
 	}
 	buffer->data[buffer->length] = 0;
+}
+
+static void novaflare_buffer_text_bounded(
+	NovaFlareNativeBuffer* buffer,
+	const char* value,
+	size_t maximumLength,
+	const char* fallback) {
+	if (value == 0) {
+		novaflare_buffer_text(buffer, fallback);
+		return;
+	}
+	size_t index = 0;
+	while (index < maximumLength
+		&& value[index] != 0
+		&& buffer->length + 1 < buffer->capacity) {
+		novaflare_buffer_char(buffer, value[index]);
+		index++;
+	}
+	if (index == maximumLength) novaflare_buffer_text(buffer, "<truncated>");
 }
 
 static void novaflare_buffer_u64(NovaFlareNativeBuffer* buffer, uint64_t value) {
@@ -111,6 +138,77 @@ static void novaflare_copy_string(char* destination, size_t capacity, const char
 	destination[index] = 0;
 }
 
+// Dynamic HScript contexts are formatted once and stored in immutable slots.
+// Entering/leaving a hot callback then becomes a thread-local integer write;
+// the fatal handler never races a source-string copy on the crashing thread.
+static int novaflare_register_haxe_snapshot(const char* snapshot) {
+	if (snapshot == 0 || snapshot[0] == 0) return -1;
+	std::lock_guard<std::mutex> lock(novaflare_haxe_snapshot_registry_mutex);
+	for (int slot = 0; slot < novaflare_haxe_snapshot_slot_count; slot++) {
+		if (strncmp(
+			novaflare_haxe_snapshot_slots[slot],
+			snapshot,
+			NOVAFLARE_HAXE_SNAPSHOT_SLOT_SIZE) == 0) return slot;
+	}
+	if (novaflare_haxe_snapshot_slot_count >= NOVAFLARE_HAXE_SNAPSHOT_SLOT_COUNT) return -1;
+	int slot = novaflare_haxe_snapshot_slot_count;
+	novaflare_copy_string(
+		novaflare_haxe_snapshot_slots[slot],
+		NOVAFLARE_HAXE_SNAPSHOT_SLOT_SIZE,
+		snapshot);
+	novaflare_haxe_snapshot_slot_count++;
+	return slot;
+}
+
+static int novaflare_enter_haxe_snapshot(int slot) {
+	int previous = novaflare_active_haxe_snapshot_slot;
+	if (slot >= 0
+		&& slot < NOVAFLARE_HAXE_SNAPSHOT_SLOT_COUNT
+		&& novaflare_haxe_snapshot_slots[slot][0] != 0) {
+		novaflare_active_haxe_snapshot_slot = slot;
+	}
+	return previous;
+}
+
+static void novaflare_leave_haxe_snapshot(int previous) {
+	novaflare_active_haxe_snapshot_slot =
+		(previous >= 0 && previous < NOVAFLARE_HAXE_SNAPSHOT_SLOT_COUNT)
+		? previous
+		: -1;
+}
+
+static void novaflare_set_haxe_snapshot(const char* snapshot) {
+	if (snapshot == 0) {
+		novaflare_haxe_snapshot[0] = 0;
+		return;
+	}
+	size_t index = 0;
+	while (snapshot[index] != 0 && index + 1 < sizeof(novaflare_haxe_snapshot)) {
+		novaflare_haxe_snapshot[index] = snapshot[index];
+		index++;
+	}
+	novaflare_haxe_snapshot[index] = 0;
+}
+
+static void novaflare_append_cached_haxe_context(NovaFlareNativeBuffer* buffer) {
+	novaflare_buffer_text(buffer, "\\n[cached_haxe_context]\\n");
+	int activeSlot = novaflare_active_haxe_snapshot_slot;
+	if (activeSlot >= 0
+		&& activeSlot < NOVAFLARE_HAXE_SNAPSHOT_SLOT_COUNT
+		&& novaflare_haxe_snapshot_slots[activeSlot][0] != 0) {
+		novaflare_buffer_key_text(buffer, "capture_status", "active-immutable-slot");
+		novaflare_buffer_key_i64(buffer, "slot", activeSlot);
+		novaflare_buffer_text(buffer, novaflare_haxe_snapshot_slots[activeSlot]);
+		novaflare_buffer_char(buffer, 10);
+	} else if (novaflare_haxe_snapshot[0] != 0) {
+		novaflare_buffer_key_text(buffer, "capture_status", "available");
+		novaflare_buffer_text(buffer, novaflare_haxe_snapshot);
+		novaflare_buffer_char(buffer, 10);
+	} else {
+		novaflare_buffer_key_text(buffer, "capture_status", "empty");
+	}
+}
+
 static void novaflare_native_crash_set_directory(const char* directory) {
 	if (directory != 0 && directory[0] != 0) {
 		novaflare_copy_string(
@@ -135,6 +233,119 @@ static wchar_t novaflare_windows_dump_path[4096];
 static wchar_t novaflare_windows_module_path[4096];
 static char novaflare_windows_module_utf8[8192];
 static ULONG_PTR novaflare_windows_stack_words[48];
+
+#if defined(HXCPP_STACK_TRACE)
+static void novaflare_windows_append_haxe_frame_unchecked(
+	NovaFlareNativeBuffer* buffer,
+	int outputIndex,
+	hx::StackFrame* frame) {
+	novaflare_buffer_char(buffer, 35);
+	if (outputIndex < 10) novaflare_buffer_char(buffer, 48);
+	novaflare_buffer_u64(buffer, outputIndex);
+	novaflare_buffer_char(buffer, 32);
+
+	if (frame == 0 || frame->position == 0) {
+		novaflare_buffer_text(buffer, "<invalid-haxe-frame>\\n");
+		return;
+	}
+
+	const hx::StackPosition* position = frame->position;
+	novaflare_buffer_text_bounded(buffer, position->fileName, 1024, "<unknown-file>");
+#if defined(HXCPP_STACK_LINE)
+	novaflare_buffer_char(buffer, 58);
+	novaflare_buffer_i64(buffer, frame->lineNumber);
+#endif
+	novaflare_buffer_text(buffer, " in ");
+	novaflare_buffer_text_bounded(buffer, position->className, 512, "<unknown-class>");
+	novaflare_buffer_char(buffer, 46);
+	novaflare_buffer_text_bounded(buffer, position->functionName, 512, "<unknown-function>");
+	novaflare_buffer_char(buffer, 10);
+}
+
+static void novaflare_windows_append_haxe_frame(
+	NovaFlareNativeBuffer* buffer,
+	int outputIndex,
+	hx::StackFrame* frame) {
+#if defined(_MSC_VER)
+	__try {
+		novaflare_windows_append_haxe_frame_unchecked(buffer, outputIndex, frame);
+	} __except(EXCEPTION_EXECUTE_HANDLER) {
+		novaflare_buffer_text(buffer, "<unreadable-haxe-frame> capture_exception_code=");
+		novaflare_buffer_hex(buffer, GetExceptionCode());
+		novaflare_buffer_char(buffer, 10);
+	}
+#else
+	novaflare_windows_append_haxe_frame_unchecked(buffer, outputIndex, frame);
+#endif
+}
+#endif
+
+static void novaflare_windows_append_live_haxe_stack_unchecked(NovaFlareNativeBuffer* buffer) {
+#if defined(HXCPP_STACK_TRACE)
+	hx::StackContext* context = hx::StackContext::getCurrent();
+	if (context == 0) {
+		novaflare_buffer_key_text(buffer, "capture_status", "thread-not-attached-to-hxcpp");
+		return;
+	}
+
+	int depth = context->getDepth();
+	if (depth < 0 || depth > 65536) {
+		novaflare_buffer_key_text(buffer, "capture_status", "invalid-frame-count");
+		novaflare_buffer_key_i64(buffer, "reported_frame_count", depth);
+		return;
+	}
+
+	const int frameLimit = 96;
+	int writtenFrameCount = depth > frameLimit ? frameLimit : depth;
+	novaflare_buffer_key_u64(buffer, "thread_id", GetCurrentThreadId());
+	novaflare_buffer_key_u64(buffer, "frame_count", depth);
+
+	for (int outputIndex = 0; outputIndex < writtenFrameCount; outputIndex++) {
+		int frameIndex = depth - 1 - outputIndex;
+		novaflare_windows_append_haxe_frame(
+			buffer,
+			outputIndex,
+			context->getStackFrame(frameIndex));
+	}
+
+	if (depth > writtenFrameCount) {
+		novaflare_buffer_text(buffer, "truncated_frame_count=");
+		novaflare_buffer_u64(buffer, depth - writtenFrameCount);
+		novaflare_buffer_char(buffer, 10);
+	}
+	if (depth == 0) {
+		novaflare_buffer_key_text(buffer, "capture_status", "no-active-haxe-frames");
+	} else {
+		novaflare_buffer_key_text(buffer, "capture_status", "ok");
+	}
+#else
+	novaflare_buffer_key_text(buffer, "capture_status", "HXCPP_STACK_TRACE-disabled");
+#endif
+}
+
+static void novaflare_windows_append_haxe_snapshot(NovaFlareNativeBuffer* buffer) {
+	novaflare_buffer_text(buffer, "\\n[haxe_runtime_snapshot]\\n");
+	novaflare_buffer_key_text(buffer, "source", "cached-hot-context-and-live-hxcpp-stack");
+	// Put the bounded dynamic-script context first so a deep native stack cannot
+	// consume the report buffer before the most actionable evidence is written.
+	novaflare_append_cached_haxe_context(buffer);
+	novaflare_buffer_text(buffer, "\\n[live_hxcpp_stack]\\n");
+#if defined(HXCPP_STACK_LINE)
+	novaflare_buffer_key_text(buffer, "line_precision", "current-source-line");
+#else
+	novaflare_buffer_key_text(buffer, "line_precision", "unavailable");
+#endif
+#if defined(_MSC_VER)
+	__try {
+		novaflare_windows_append_live_haxe_stack_unchecked(buffer);
+	} __except(EXCEPTION_EXECUTE_HANDLER) {
+		novaflare_buffer_key_text(buffer, "capture_status", "failed-while-reading-hxcpp-stack");
+		novaflare_buffer_key_hex(buffer, "capture_exception_code", GetExceptionCode());
+	}
+#else
+	novaflare_windows_append_live_haxe_stack_unchecked(buffer);
+#endif
+}
 
 static const char* novaflare_windows_exception_name(DWORD code) {
 	switch (code) {
@@ -391,6 +602,7 @@ static void novaflare_windows_write_report(EXCEPTION_POINTERS* pointers, const c
 	}
 
 	novaflare_windows_append_registers(&buffer, pointers->ContextRecord);
+	novaflare_windows_append_haxe_snapshot(&buffer);
 	novaflare_windows_write_file(
 		novaflare_windows_text_path,
 		buffer.data,
@@ -1216,6 +1428,12 @@ static void novaflare_android_signal_handler(int signalNumber, siginfo_t* signal
 		novaflare_buffer_key_hex(&buffer, "fault_address", (uint64_t)(uintptr_t)signalInfo->si_addr);
 	}
 	if (rawContext != 0) novaflare_android_append_context(&buffer, rawContext);
+	novaflare_buffer_text(&buffer, "\\n[haxe_runtime_snapshot]\\n");
+	novaflare_buffer_key_text(&buffer, "source", "cached-haxe-context");
+	// Calling Haxe/hxcpp stack formatting from a POSIX signal handler can
+	// allocate or take runtime locks. Keep Android fatal-signal reporting
+	// async-signal-safe and explicitly record whether a cached context exists.
+	novaflare_append_cached_haxe_context(&buffer);
 	novaflare_android_write_all(reportFd, buffer.data, buffer.length);
 
 	static const char mapsHeader[] = "\\n[proc_self_maps]\\n";
@@ -1325,6 +1543,45 @@ class NativeCrashHandler
 		if (Sys.getEnv("NOVAFLARE_TEST_NATIVE_CRASH") == "1")
 			untyped __cpp__('novaflare_native_crash_force_test()');
 		#end
+		#end
+	}
+
+	public static function setHaxeRuntimeSnapshot(snapshot:String):Void
+	{
+		#if (cpp && (windows || android))
+		if (snapshot == null)
+			snapshot = "";
+		untyped __cpp__('novaflare_set_haxe_snapshot({0}.utf8_str())', snapshot);
+		#end
+	}
+
+	/** Registers an immutable dynamic-script context outside the hot path. */
+	public static function registerHaxeRuntimeSnapshot(snapshot:String):Int
+	{
+		#if (cpp && (windows || android))
+		if (snapshot == null || snapshot.length == 0)
+			return -1;
+		return untyped __cpp__('novaflare_register_haxe_snapshot({0}.utf8_str())', snapshot);
+		#else
+		return -1;
+		#end
+	}
+
+	/** Activates a registered context and returns the prior slot for nesting. */
+	public static function enterHaxeRuntimeSnapshot(slot:Int):Int
+	{
+		#if (cpp && (windows || android))
+		return untyped __cpp__('novaflare_enter_haxe_snapshot({0})', slot);
+		#else
+		return -1;
+		#end
+	}
+
+	/** Restores the slot returned by enterHaxeRuntimeSnapshot(). */
+	public static function leaveHaxeRuntimeSnapshot(previous:Int):Void
+	{
+		#if (cpp && (windows || android))
+		untyped __cpp__('novaflare_leave_haxe_snapshot({0})', previous);
 		#end
 	}
 

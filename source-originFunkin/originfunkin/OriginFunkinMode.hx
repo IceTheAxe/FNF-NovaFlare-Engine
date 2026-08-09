@@ -10,6 +10,10 @@ import openfl.utils.Assets;
 import openfl.utils.AssetType;
 import openfl.text.Font;
 
+#if mobile
+import general.shaders.MobileShaderConverter;
+#end
+
 #if sys
 import sys.FileSystem;
 #end
@@ -146,7 +150,12 @@ class OriginFunkinMode
 			}
 
 			debugDisplay = new FunkinDebugDisplay(10, 10, 0xFFFFFF);
-			funkin.save.Save.load();
+			final save = funkin.save.Save.load();
+			#if mobile
+			MobileShaderConverter.setEnabled(save.novaSettings == null
+				? true
+				: (save.novaSettings.autoShaderConversion ?? true));
+			#end
 			OriginFunkinConfig.markOriginEntered();
 
 			funkin.Preferences.fancyPreview = false;
@@ -391,12 +400,15 @@ class OriginFunkinMode
 			}
 		}
 
-		// NovaFlare's normal runtime has one additional library whose layout is
-		// not part of FNF 0.8.4. Leaving it registered makes Polymod reject the
-		// official asset-library map before it can parse any core scripts.
-		if (Assets.getLibrary("week_assets") != null)
+		// Libraries owned by NovaFlare/CNE are not part of FNF 0.8.4's asset
+		// layout. Leaving any of them registered makes Polymod reject the
+		// official asset-library map before it can parse core or mod scripts.
+		for (foreignLibrary in ["week_assets", "codename_fallback", "codename_mobile"])
 		{
-			Assets.unloadLibrary("week_assets");
+			if (Assets.getLibrary(foreignLibrary) != null)
+			{
+				Assets.unloadLibrary(foreignLibrary);
+			}
 		}
 
 		if (!Assets.exists("assets/data/introText.txt", AssetType.TEXT)

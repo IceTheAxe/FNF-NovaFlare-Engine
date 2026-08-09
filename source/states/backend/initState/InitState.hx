@@ -42,6 +42,11 @@ import general.backend.device.AppData;
 import states.backend.pirateState.PirateState;
 #end
 
+#if mobile
+import sys.FileSystem;
+import sys.io.File;
+#end
+
 class InitState extends MusicBeatState
 {
 	var skipVideo:FlxText;
@@ -129,8 +134,6 @@ class InitState extends MusicBeatState
 
 		Language.resetData();
 
-		originfunkin.OriginFunkinConfig.setStartVideoEnabled(ClientPrefs.data.skipTitleVideo ? false : true);
-
 		#if CHECK_FOR_UPDATES
 		if (ClientPrefs.data.checkForUpdates)
 		{
@@ -143,10 +146,16 @@ class InitState extends MusicBeatState
 		
 					http.onData = function(data:String)
 					{
-						updateVersion = data.split('\n')[0].trim();
-						var curVersion:Float = MainMenuState.novaFlareEngineDataVersion;
-						trace('version online: ' + data.split('\n')[0].trim() + ', your version: ' + MainMenuState.novaFlareEngineVersion);
-						if (Std.parseFloat(updateVersion) > curVersion)
+						var splitLines:Array<String> = data.split('\n');
+						var onlineAppVersion:String = splitLines.length > 0 ? splitLines[0].trim() : '';
+						var onlineDataVersion:String = splitLines.length > 1 ? splitLines[1].trim() : onlineAppVersion;
+						updateVersion = onlineAppVersion != '' ? onlineAppVersion : onlineDataVersion;
+						TitleState.updateVersion = updateVersion;
+
+						var remoteCode:Int = parseVersionCode(onlineDataVersion);
+						var localCode:Int = parseVersionCode(Std.string(MainMenuState.novaFlareEngineDataVersion));
+						trace('version online: ' + updateVersion + ' (' + onlineDataVersion + '), your version: ' + MainMenuState.novaFlareEngineVersion + ' / data ' + MainMenuState.novaFlareEngineDataVersion);
+						if (remoteCode > localCode)
 						{
 							trace('versions arent matching!');
 							mustUpdate = true;
@@ -165,35 +174,48 @@ class InitState extends MusicBeatState
 		#end
 
 		#if mobile
-		if (ClientPrefs.data.filesCheck && !ignoreCopy)
+		var allowAutomaticCopy:Bool = #if ios !CopyState.hasAttemptedIOSCopy() #else true #end;
+		if (allowAutomaticCopy)
 		{
-			if (!CopyState.checkExistingFiles())
+			if (ClientPrefs.data.filesCheck && !ignoreCopy)
 			{
-				FlxG.switchState(new CopyState());
+				if (!CopyState.checkExistingFiles())
+				{
+					#if ios
+					CopyState.markIOSCopyAttempted();
+					#end
+					FlxG.switchState(new CopyState());
+					return;
+				}
+			}
+
+			// 检查assets/version.txt存不存在且里面保存的上一个版本号与当前的版本号一不一致，如果不一致或不存在，强制启动copy。
+			if (!FileSystem.exists(Paths.getSharedPath('version.txt')))
+			{
+				sys.io.File.saveContent(Paths.getSharedPath('version.txt'), 'now version: ' + Std.string(states.mainMenuState.MainMenuState.novaFlareEngineVersion) + '\n' + 'commit: ' + Std.string(states.mainMenuState.MainMenuState.novaFlareEngineCommit));
+				#if ios
+				CopyState.markIOSCopyAttempted();
+				#end
+				FlxG.switchState(new CopyState(true));
 				return;
+			}
+			else
+			{
+				var expectedContent = 'now version: ' + Std.string(states.mainMenuState.MainMenuState.novaFlareEngineVersion) + '\n' + 'commit: ' + Std.string(states.mainMenuState.MainMenuState.novaFlareEngineCommit);
+				var actualContent = sys.io.File.getContent(Paths.getSharedPath('version.txt'));
+
+				if (actualContent != expectedContent)
+				{
+					sys.io.File.saveContent(Paths.getSharedPath('version.txt'), expectedContent);
+					#if ios
+					CopyState.markIOSCopyAttempted();
+					#end
+					FlxG.switchState(new CopyState(true));
+					return;
+				}
 			}
 		}
 		ignoreCopy = false;
-
-        // 检查assets/version.txt存不存在且里面保存的上一个版本号与当前的版本号一不一致，如果不一致或不存在，强制启动copy。
-        if (!FileSystem.exists(Paths.getSharedPath('version.txt')))
-        {
-            sys.io.File.saveContent(Paths.getSharedPath('version.txt'), 'now version: ' + Std.string(states.mainMenuState.MainMenuState.novaFlareEngineVersion) + '\n' + 'commit: ' + Std.string(states.mainMenuState.MainMenuState.novaFlareEngineCommit));
-            FlxG.switchState(new CopyState(true));
-            return;
-        }
-        else
-        {
-            var expectedContent = 'now version: ' + Std.string(states.mainMenuState.MainMenuState.novaFlareEngineVersion) + '\n' + 'commit: ' + Std.string(states.mainMenuState.MainMenuState.novaFlareEngineCommit);
-            var actualContent = sys.io.File.getContent(Paths.getSharedPath('version.txt'));
-            
-            if (actualContent != expectedContent)
-            {
-                sys.io.File.saveContent(Paths.getSharedPath('version.txt'), expectedContent);
-                FlxG.switchState(new CopyState(true));
-                return;
-            }
-        }
 
 		#end
 
@@ -332,7 +354,45 @@ class InitState extends MusicBeatState
 		}
 	}
 	#end
-	
+
+	private function parseVersionCode(value:String):Int
+	{
+		if (value == null)
+			return 0;
+
+		var clean = value.trim();
+		if (clean == '')
+			return 0;
+
+		var output:Array<Int> = [];
+		var buffer:String = '';
+
+		for (i in 0...clean.length)
+		{
+			var code:Int = clean.charCodeAt(i);
+			if (code >= 48 && code <= 57)
+			{
+				buffer += clean.charAt(i);
+			}
+			else if (buffer != '')
+			{
+				output.push(Std.parseInt(buffer) ?? 0);
+				buffer = '';
+			}
+		}
+
+		if (buffer != '')
+			output.push(Std.parseInt(buffer) ?? 0);
+
+		while (output.length < 3)
+			output.push(0);
+
+		if (output.length > 3)
+			output = output.slice(0, 3);
+
+		return output[0] * 1000000 + output[1] * 1000 + output[2];
+	}
+
 	function startCutscenesIn()
 	{
 		if (!ClientPrefs.data.skipTitleVideo)
@@ -429,17 +489,14 @@ class InitState extends MusicBeatState
 	
 		video = new FlxVideoSprite(0, 0);
 		video.antialiasing = true;
-		if (!ClientPrefs.data.useFlixelCoords)
-		{
-			video.bitmap.x -= FlxG.game.x;
-			video.bitmap.y -= FlxG.game.y;
-		}
 		video.bitmap.onFormatSetup.add(function():Void
 		{
 			if (video.bitmap != null && video.bitmap.bitmapData != null)
 			{
-				final scale:Float = Math.min(FlxG.width / video.bitmap.bitmapData.width, FlxG.height / video.bitmap.bitmapData.height);
-	
+				var scale:Float = Math.min(
+					FlxG.width / video.bitmap.bitmapData.width,
+					FlxG.height / video.bitmap.bitmapData.height
+				);
 				video.setGraphicSize(video.bitmap.bitmapData.width * scale, video.bitmap.bitmapData.height * scale);
 				video.updateHitbox();
 				video.screenCenter();
@@ -552,4 +609,5 @@ class InitState extends MusicBeatState
 			MusicBeatState.switchState(new TitleState());
 		}
 	}
+
 }

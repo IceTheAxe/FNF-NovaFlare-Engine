@@ -35,6 +35,18 @@ class OptionsMenu extends TreeMenu {
 			desc: 'optionsTree.appearance-desc',
 			state: AppearanceOptions
 		},
+		#if TOUCH_CONTROLS
+		{
+			name: 'Mobile Options',
+			desc: 'Configure Codename touch controls.',
+			state: MobileOptions
+		},
+		#end
+		{
+			name: 'Extra Setting',
+			desc: 'Extra settings for the Codename state chain.',
+			state: ExtraSettings
+		},
 		#if TRANSLATIONS_SUPPORT
 		{
 			name: 'optionsTree.language-name',
@@ -66,7 +78,7 @@ class OptionsMenu extends TreeMenu {
 
 		for (i in mainOptions) if (i.name == "optionsTree.language-name" && Flags.DISABLE_LANGUAGES) mainOptions.remove(i);
 
-		addMenu(new TreeMenuScreen('optionsMenu.header.title', 'optionsMenu.header.desc', [for (o in mainOptions) new TextOption(o.name, o.desc, o.suffix != null ? o.suffix : " >", () -> {
+		addMenu(new TreeMenuScreen('optionsMenu.header.title', 'optionsMenu.header.desc', "", [for (o in mainOptions) new TextOption(o.name, o.desc, o.suffix != null ? o.suffix : " >", () -> {
 			if (o.substate != null) {
 				persistentUpdate = false;
 				persistentDraw = true;
@@ -100,7 +112,7 @@ class OptionsMenu extends TreeMenu {
 			"Exit CodeName and start NovaFlare Engine on the next launch.", "", returnToNovaFlare));
 		#end
 
-		for (i in codename.funkin.backend.assets.ModsFolder.getLoadedMods()) {
+		for (i in codename.funkin.backend.assets.ModsFolder.getLoadedMods(true, true)) {
 			var xmlPath = Paths.xml('config/options/LIB_$i');
 
 			if (Paths.assetsTree.existsSpecific(xmlPath, "TEXT")) {
@@ -235,7 +247,19 @@ class OptionsMenu extends TreeMenu {
 					options.push(new SliderOption(name, desc, Std.parseFloat(node.att.min), Std.parseFloat(node.att.max), step, segments, node.att.id, Std.parseInt(node.att.barWidth), null, FlxG.save.data));
 				case "menu":
 					options.push(new TextOption(name, desc, ' >', () -> {
-						var screen = new TreeMenuScreen(name, desc, node.getAtt("prefix").getDefault(""));
+						#if TOUCH_CONTROLS
+						var touchPadModes:Array<String> = null;
+						if (node.has.dpadMode || node.has.actionMode) {
+							var currentDPad = touchPad != null ? touchPad.curDPadMode : "LEFT_FULL";
+							var currentAction = touchPad != null ? touchPad.curActionMode : "A_B";
+							touchPadModes = [
+								node.has.dpadMode ? node.att.dpadMode : currentDPad,
+								node.has.actionMode ? node.att.actionMode : currentAction
+							];
+						}
+						#end
+						var screen = new TreeMenuScreen(name, desc, node.getAtt("prefix").getDefault(""), null,
+							#if TOUCH_CONTROLS touchPadModes #else null #end);
 						for (o in parseOptionsFromXML(screen, node)) screen.add(o);
 						addMenu(screen);
 					}));
