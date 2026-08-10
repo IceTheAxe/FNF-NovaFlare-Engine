@@ -36,11 +36,7 @@ class OptionsMenu extends TreeMenu {
 			state: AppearanceOptions
 		},
 		#if TOUCH_CONTROLS
-		{
-			name: 'Mobile Options',
-			desc: 'Configure Codename touch controls.',
-			state: MobileOptions
-		},
+		createMobileCategory(),
 		#end
 		{
 			name: 'Extra Setting',
@@ -60,6 +56,17 @@ class OptionsMenu extends TreeMenu {
 			state: MiscOptions
 		}
 	];
+
+	#if TOUCH_CONTROLS
+	static function createMobileCategory():OptionCategory
+	{
+		return {
+			name: 'Mobile Options',
+			desc: 'Configure Codename touch controls.',
+			state: (title, explanation) -> new MobileOptions(title, explanation)
+		};
+	}
+	#end
 
 	var bg:FlxSprite;
 	var debugOption:TextOption;
@@ -248,18 +255,18 @@ class OptionsMenu extends TreeMenu {
 				case "menu":
 					options.push(new TextOption(name, desc, ' >', () -> {
 						#if TOUCH_CONTROLS
-						var touchPadModes:Array<String> = null;
+						var temporaryPadLayout:Array<String> = null;
 						if (node.has.dpadMode || node.has.actionMode) {
 							var currentDPad = touchPad != null ? touchPad.curDPadMode : "LEFT_FULL";
 							var currentAction = touchPad != null ? touchPad.curActionMode : "A_B";
-							touchPadModes = [
+							temporaryPadLayout = [
 								node.has.dpadMode ? node.att.dpadMode : currentDPad,
 								node.has.actionMode ? node.att.actionMode : currentAction
 							];
 						}
 						#end
 						var screen = new TreeMenuScreen(name, desc, node.getAtt("prefix").getDefault(""), null,
-							#if TOUCH_CONTROLS touchPadModes #else null #end);
+							#if TOUCH_CONTROLS temporaryPadLayout #else null #end);
 						for (o in parseOptionsFromXML(screen, node)) screen.add(o);
 						addMenu(screen);
 					}));

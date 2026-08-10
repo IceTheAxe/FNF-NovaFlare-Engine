@@ -3,9 +3,10 @@ package codename.mobile;
 #if mobile
 import codename.funkin.backend.MusicBeatState;
 import codename.funkin.backend.MusicBeatSubstate;
+import codename.funkin.backend.MusicBeatTransition;
 import codename.funkin.backend.system.Controls.Control;
 import flixel.FlxG;
-import flixel.FlxSubState;
+import flixel.FlxState;
 import flixel.input.FlxInput.FlxInputState;
 import haxe.ds.Map;
 import mobile.funkin.backend.system.input.MobileInputID;
@@ -25,7 +26,7 @@ class CodeNameMobileInput
 {
 	static var controlBindings:Map<Control, MobileInputID> = createControlBindings();
 	static var namedControls:Map<String, Control> = createNamedControls();
-	static var consumerStack:Array<Dynamic> = [];
+	static var consumerStack:Array<FlxState> = [];
 
 	static function createControlBindings():Map<Control, MobileInputID>
 	{
@@ -51,12 +52,12 @@ class CodeNameMobileInput
 	}
 
 	/** Marks which state is currently evaluating its Controls getters. */
-	public static function beginConsumer(owner:Dynamic):Void
+	public static function beginConsumer(owner:FlxState):Void
 	{
 		consumerStack.push(owner);
 	}
 
-	public static function endConsumer(owner:Dynamic):Void
+	public static function endConsumer(owner:FlxState):Void
 	{
 		if (consumerStack.length == 0) return;
 		if (consumerStack[consumerStack.length - 1] == owner)
@@ -121,15 +122,14 @@ class CodeNameMobileInput
 	{
 		if (id == MobileInputID.NONE || !currentConsumerOwnsInput()) return false;
 
-		var top = deepestOpenSubstate();
-		if (top != null)
+		var owner = inputOwner();
+		if (owner is MusicBeatSubstate)
 		{
-			var mobileSubstate:MusicBeatSubstate = Std.downcast(top, MusicBeatSubstate);
-			return mobileSubstate != null
-				&& checkLayer(mobileSubstate.touchPad, mobileSubstate.hitbox, id, state);
+			var mobileSubstate:MusicBeatSubstate = cast owner;
+			return checkLayer(mobileSubstate.touchPad, mobileSubstate.hitbox, id, state);
 		}
 
-		var mobileState:MusicBeatState = Std.downcast(FlxG.state, MusicBeatState);
+		var mobileState:MusicBeatState = Std.downcast(owner, MusicBeatState);
 		return mobileState != null && checkLayer(mobileState.touchPad, mobileState.hitbox, id, state);
 	}
 
@@ -155,15 +155,14 @@ class CodeNameMobileInput
 	public static function pointerOverActiveControl():Bool
 	{
 		if (!currentConsumerOwnsInput()) return false;
-		var top = deepestOpenSubstate();
-		if (top != null)
+		var owner = inputOwner();
+		if (owner is MusicBeatSubstate)
 		{
-			var mobileSubstate:MusicBeatSubstate = Std.downcast(top, MusicBeatSubstate);
-			return mobileSubstate != null
-				&& pointerOverLayer(mobileSubstate.touchPad, mobileSubstate.hitbox);
+			var mobileSubstate:MusicBeatSubstate = cast owner;
+			return pointerOverLayer(mobileSubstate.touchPad, mobileSubstate.hitbox);
 		}
 
-		var mobileState:MusicBeatState = Std.downcast(FlxG.state, MusicBeatState);
+		var mobileState:MusicBeatState = Std.downcast(owner, MusicBeatState);
 		return mobileState != null && pointerOverLayer(mobileState.touchPad, mobileState.hitbox);
 	}
 
@@ -198,21 +197,30 @@ class CodeNameMobileInput
 			|| (hitbox != null && hitbox.pointerOverActiveButton());
 	}
 
-	static function deepestOpenSubstate():FlxSubState
+	/**
+	 * Returns the layer that owns touch controls. Visual transition substates are
+	 * transparent: they deliberately create no pad and must not swallow the
+	 * parent layer's input while its buttons remain visible.
+	 */
+	static function inputOwner():FlxState
 	{
 		if (FlxG.state == null) return null;
+		var owner:FlxState = FlxG.state;
 		var current = FlxG.state.subState;
-		if (current == null) return null;
-		while (current.subState != null) current = current.subState;
-		return current;
+		while (current != null)
+		{
+			if (!(current is MusicBeatTransition)) owner = current;
+			current = current.subState;
+		}
+		return owner;
 	}
 
 	static function currentConsumerOwnsInput():Bool
 	{
 		if (consumerStack.length == 0) return true;
-		var consumer = consumerStack[consumerStack.length - 1];
-		var top = deepestOpenSubstate();
-		return top != null ? consumer == top : consumer == FlxG.state;
+		var consumer:FlxState = consumerStack[consumerStack.length - 1];
+		var owner:FlxState = inputOwner();
+		return owner != null && consumer == owner;
 	}
 
 	static function parseState(name:String):FlxInputState

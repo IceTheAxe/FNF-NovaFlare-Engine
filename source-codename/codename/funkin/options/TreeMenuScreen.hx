@@ -24,7 +24,6 @@ class TreeMenuScreen extends FlxSpriteGroup {
 	public var name:String;
 	public var desc:String;
 	#if TOUCH_CONTROLS
-	public var prevMenuTPadModes:Array<String> = [];
 	var mobilePadLease:codename.mobile.MobilePadLease;
 	#end
 	/**
@@ -79,7 +78,7 @@ class TreeMenuScreen extends FlxSpriteGroup {
 		return inputEnabled = value;
 	}
 
-	public function new(name:String, desc:String, prefix:String = "", ?objects:Array<FlxSprite>, ?menuTPadModes:Array<String>) {
+	public function new(name:String, desc:String, prefix:String = "", ?objects:Array<FlxSprite>, ?temporaryPadLayout:Array<String>) {
 		super();
 		this.prefix = prefix;
 		rawName = name;
@@ -88,12 +87,8 @@ class TreeMenuScreen extends FlxSpriteGroup {
 		turboBasics = [leftTurboControl, rightTurboControl, upTurboControl, downTurboControl];
 
 		#if TOUCH_CONTROLS
-		if (menuTPadModes != null && menuTPadModes.length >= 2)
-		{
-			var state:MusicBeatState = Std.downcast(FlxG.state, MusicBeatState);
-			mobilePadLease = codename.mobile.MobilePadLease.acquire(state, menuTPadModes[0], menuTPadModes[1]);
-			if (mobilePadLease != null) prevMenuTPadModes = mobilePadLease.previous.copy();
-		}
+		mobilePadLease = codename.mobile.MobilePadLease.replaceForScreen(
+			Std.downcast(FlxG.state, MusicBeatState), temporaryPadLayout);
 		#end
 
 		if (objects != null) for (object in objects) add(object);

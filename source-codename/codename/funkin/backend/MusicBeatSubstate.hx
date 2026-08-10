@@ -201,7 +201,7 @@ class MusicBeatSubstate extends FlxSubState implements IBeatCancellableReceiver
 		#if TOUCH_CONTROLS
 		var transitionOpen = Std.isOfType(subState, MusicBeatTransition);
 		var showMobileControls = mobileControlsVisible && (subState == null || transitionOpen);
-		mobileControlLayer.updateAvailability(showMobileControls, controls.touchC, subState == null);
+		mobileControlLayer.updateAvailability(showMobileControls, controls.touchC, subState == null || transitionOpen);
 		codename.mobile.CodeNameMobileInput.beginConsumer(this);
 		#end
 		if (persistentUpdate || subState == null) {

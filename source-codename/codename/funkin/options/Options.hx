@@ -54,17 +54,20 @@ class Options
 	/** Skips NovaFlare's startup video when entering the Codename state chain. */
 	public static var skipTitleVideo:Bool = false;
 	#if TOUCH_CONTROLS
-	public static var extraHints:String = "NONE";
-	public static var hitboxPos:Bool = true;
-	public static var hitboxType:String = "gradient";
-	public static var hitboxAlpha:Float = 0.6;
-	public static var oldPadTexture:Bool = false;
+	/** Saved appearance of NovaFlare's Codename virtual pad. */
 	public static var touchPadAlpha:Float = 0.6;
+	public static var oldPadTexture:Bool = false;
+	/** Saved appearance and optional guide lanes for the gameplay hitbox. */
+	public static var hitboxAlpha:Float = 0.6;
+	public static var hitboxType:String = "gradient";
+	public static var hitboxPos:Bool = true;
+	public static var extraHints:String = "NONE";
 	#end
 	#if mobile
+	/** Allows Android to follow the device's normal idle-sleep policy. */
+	public static var screenTimeOut:Bool = false;
 	/** Automatically converts desktop GLSL programs for the active OpenGL ES context. */
 	public static var autoShaderConversion:Bool = true;
-	public static var screenTimeOut:Bool = false;
 	#end
 	#if MODCHARTING_FEATURES
 	public static var modchartingHoldSubdivisions:Int = 4;

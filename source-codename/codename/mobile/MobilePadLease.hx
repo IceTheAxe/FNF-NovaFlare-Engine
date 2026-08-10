@@ -15,10 +15,10 @@ class MobilePadLease
 	final owner:MusicBeatState;
 	var released:Bool = false;
 
-	public static function acquire(owner:MusicBeatState, dpad:String, actions:String):Null<MobilePadLease>
+	public static function replaceForScreen(owner:MusicBeatState, layout:Array<String>):Null<MobilePadLease>
 	{
-		if (owner == null || owner.touchPad == null) return null;
-		return new MobilePadLease(owner, dpad, actions);
+		if (owner == null || owner.touchPad == null || layout == null || layout.length < 2) return null;
+		return new MobilePadLease(owner, layout[0], layout[1]);
 	}
 
 	function new(owner:MusicBeatState, dpad:String, actions:String)
