@@ -141,6 +141,9 @@
 	</section>
 
 	<define name="CHECK_FOR_UPDATES" />
+	<!-- Required by the Codename contributor/update clients. Every caller still
+	     handles offline, rate-limited and empty responses at runtime. -->
+	<define name="GITHUB_API" if="CODENAME_ENGINE_COMPAT" unless="web || hl" />
 
 	<section if="MODS_ALLOWED">
 		<assets path='example_mods' rename='mods' embed='false'/>

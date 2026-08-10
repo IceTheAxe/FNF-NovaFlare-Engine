@@ -344,7 +344,11 @@ class FunkinShader extends FlxShader implements IHScriptCustomBehaviour {
 			// Shader converter never sees these sources. Convert the final,
 			// pragma-expanded program here before it reaches the mobile driver.
 			var glVersion = MobileShaderConverter.configureFromGL(gl);
-			var preparedSources = MobileShaderConverter.prepareProgram(vertex, fragment, glVersion);
+			// The user-facing converter toggle may disable compatibility work for
+			// ordinary OpenFL shaders, but FunkinShader always prepends desktop GLSL
+			// (`#version 120`). That source is never legal on OpenGL ES as-is, so the
+			// CNE-owned program path must always perform its platform conversion.
+			var preparedSources = MobileShaderConverter.prepareProgram(vertex, fragment, glVersion, true);
 			for (diagnostic in preparedSources.diagnostics)
 				Log.warn('NovaFlare GLSL ES conversion [${diagnostic.stage}:${diagnostic.line}]: ${diagnostic.message}', null);
 			vertex = preparedSources.vertex;

@@ -27,6 +27,8 @@ private typedef MobileShaderToken =
 {
 	var text:String;
 	var replacement:Null<String>;
+	var prefix:String;
+	var suffix:String;
 	var kind:Int;
 	var line:Int;
 	var preprocessor:Bool;
@@ -34,6 +36,82 @@ private typedef MobileShaderToken =
 	var braceDepth:Int;
 	var parenDepth:Int;
 	var bracketDepth:Int;
+}
+
+private typedef MobileShaderOperator =
+{
+	var start:Int;
+	var end:Int;
+	var text:String;
+	var precedence:Int;
+	var rightAssociative:Bool;
+	var promotable:Bool;
+}
+
+private typedef MobileShaderExpressionRange =
+{
+	var start:Int;
+	var end:Int;
+}
+
+private typedef MobileShaderNumericType =
+{
+	var base:Int;
+	var width:Int;
+}
+
+private typedef MobileShaderNumericScope =
+{
+	var parent:Int;
+	var start:Int;
+	var end:Int;
+}
+
+private typedef MobileShaderNumericSymbol =
+{
+	var name:String;
+	var type:MobileShaderNumericType;
+	var scope:Int;
+	var index:Int;
+	var visibleFrom:Int;
+	var end:Int;
+}
+
+private typedef MobileShaderNumericFunction =
+{
+	var name:String;
+	var returnType:MobileShaderNumericType;
+	var parameterTypes:Array<MobileShaderNumericType>;
+	var openParen:Int;
+	var closeParen:Int;
+	var bodyOpen:Int;
+	var bodyClose:Int;
+}
+
+private typedef MobileShaderNumericMacro =
+{
+	var name:String;
+	var body:MobileShaderExpressionRange;
+	var activeFrom:Int;
+}
+
+private typedef MobileShaderNumericContext =
+{
+	var scopeAt:Array<Int>;
+	var scopes:Array<MobileShaderNumericScope>;
+	var conditionalDepths:Array<Int>;
+	var symbols:Array<MobileShaderNumericSymbol>;
+	var functions:Map<String, Array<MobileShaderNumericFunction>>;
+	var declaredFunctions:Map<String, Bool>;
+	var userTypes:Map<String, Bool>;
+	var macroNames:Map<String, Bool>;
+	var macroTypes:Map<String, MobileShaderNumericType>;
+	var macroStarts:Map<String, Int>;
+	var macroBodies:Array<MobileShaderNumericMacro>;
+	var operators:Array<MobileShaderOperator>;
+	var operatorAt:Array<Null<MobileShaderOperator>>;
+	var convertiblePreprocessor:Array<Bool>;
+	var wrappedRanges:Map<String, Bool>;
 }
 
 private typedef MobileShaderGlobalInitializer =
@@ -75,7 +153,7 @@ private typedef MobileShaderGlobalInitLowering =
  */
 class MobileShaderConverter
 {
-	public static inline var ABI_VERSION:Int = 3;
+	public static inline var ABI_VERSION:Int = 4;
 
 	public static var enabled(default, null):Bool = true;
 	public static var revision(default, null):Int = 1;
@@ -86,6 +164,15 @@ class MobileShaderConverter
 	private static inline var WHITESPACE:Int = 3;
 	private static inline var COMMENT:Int = 4;
 	private static inline var STRING:Int = 5;
+
+	private static inline var NUMERIC_UNKNOWN:Int = 0;
+	private static inline var NUMERIC_BOOL:Int = 1;
+	private static inline var NUMERIC_INT:Int = 2;
+	private static inline var NUMERIC_UINT:Int = 3;
+	private static inline var NUMERIC_FLOAT:Int = 4;
+	private static inline var NUMERIC_SAMPLER_FLOAT:Int = 5;
+	private static inline var NUMERIC_SAMPLER_INT:Int = 6;
+	private static inline var NUMERIC_SAMPLER_UINT:Int = 7;
 
 	private static var contextSignature:String = '';
 	private static var contextObject:Dynamic;
@@ -190,9 +277,10 @@ class MobileShaderConverter
 		return Math.isNaN(result) || result <= 0 ? 2 : result;
 	}
 
-	public static function prepareProgram(vertexSource:String, fragmentSource:String, glVersion:Float):MobileShaderProgramSources
+	public static function prepareProgram(vertexSource:String, fragmentSource:String, glVersion:Float,
+		forceConversion:Bool = false):MobileShaderProgramSources
 	{
-		if (!enabled)
+		if (!enabled && !forceConversion)
 		{
 			return {
 				vertex: vertexSource,
@@ -250,6 +338,12 @@ class MobileShaderConverter
 		else
 			es100FragmentOutput = convertToES100(tokens, isFragment, macroNames, extensionLines, generatedHeader,
 				canWrapEntryPoint, diagnostics);
+
+		// Desktop GLSL 1.20 permits implicit int-to-float widening in numeric
+		// expressions. GLSL ES does not, so preserve the desktop expression tree
+		// and insert an explicit conversion only where both operand types can be
+		// proven from declarations, constructors, builtins or simple constants.
+		widenDesktopNumericExpressions(tokens, macroNames);
 
 		var loweredInitializers = lowerGlobalRuntimeInitializers(tokens, globalInitializers, entryPoints, canWrapEntryPoint,
 			stage, diagnostics);
@@ -683,6 +777,1103 @@ class MobileShaderConverter
 		if (es100FragmentOutput != null)
 			generatedFooter.push('    gl_FragColor = $es100FragmentOutput;');
 		generatedFooter.push('}');
+	}
+
+	private static function widenDesktopNumericExpressions(tokens:Array<MobileShaderToken>, macroNames:Map<String, Bool>):Void
+	{
+		var context = createNumericContext(tokens, macroNames);
+		if (context.operators.length == 0) return;
+
+		// Resolve object-like numeric macros before touching expressions. This lets
+		// declarations such as `#define TWO_PI (PI * 2)` participate without ever
+		// treating function-like macros as typed functions.
+		for (_ in 0...4)
+		{
+			var changed = false;
+			for (macroEntry in context.macroBodies)
+			{
+				var inferred = inferNumericRange(tokens, macroEntry.body.start, macroEntry.body.end,
+					macroEntry.body.start, context, 0);
+				if (inferred.base != NUMERIC_UNKNOWN && !context.macroTypes.exists(macroEntry.name))
+				{
+					context.macroTypes.set(macroEntry.name, inferred);
+					changed = true;
+				}
+			}
+			if (!changed) break;
+		}
+
+		context.operators.sort(function(left, right)
+		{
+			if (left.precedence != right.precedence) return right.precedence - left.precedence;
+			return left.rightAssociative ? right.start - left.start : left.start - right.start;
+		});
+
+		for (op in context.operators)
+		{
+			if (!op.promotable || context.conditionalDepths[op.start] > 0) continue;
+			var left = findNumericOperand(tokens, op, true, context);
+			var right = findNumericOperand(tokens, op, false, context);
+			if (left == null || right == null) continue;
+
+			var leftType = inferNumericRange(tokens, left.start, left.end, op.start, context, 0);
+			var rightType = inferNumericRange(tokens, right.start, right.end, op.end, context, 0);
+			if (op.text == '=' || op.text == '+=' || op.text == '-='
+				|| op.text == '*=' || op.text == '/=')
+			{
+				if (isFloatNumeric(leftType) && isScalarInteger(rightType))
+					wrapNumericRange(tokens, right, context);
+				continue;
+			}
+
+			if (isFloatNumeric(leftType) && isScalarInteger(rightType))
+				wrapNumericRange(tokens, right, context);
+			else if (isScalarInteger(leftType) && isFloatNumeric(rightType))
+				wrapNumericRange(tokens, left, context);
+		}
+	}
+
+	private static function createNumericContext(tokens:Array<MobileShaderToken>, macroNames:Map<String, Bool>):MobileShaderNumericContext
+	{
+		var scopeAt = [for (_ in 0...tokens.length) 0];
+		var scopes:Array<MobileShaderNumericScope> = [{parent: -1, start: 0, end: tokens.length}];
+		var scopeStack:Array<Int> = [0];
+		for (i in 0...tokens.length)
+		{
+			var token = tokens[i];
+			if (!token.preprocessor && !token.removed && token.kind == SYMBOL && tokenValue(token) == '{')
+			{
+				var child = scopes.length;
+				scopes.push({parent: scopeStack[scopeStack.length - 1], start: i, end: tokens.length});
+				scopeStack.push(child);
+				scopeAt[i] = child;
+			}
+			else
+			{
+				scopeAt[i] = scopeStack[scopeStack.length - 1];
+				if (!token.preprocessor && !token.removed && token.kind == SYMBOL && tokenValue(token) == '}'
+					&& scopeStack.length > 1)
+				{
+					var closing = scopeStack.pop();
+					scopes[closing].end = i;
+				}
+			}
+		}
+
+		var context:MobileShaderNumericContext = {
+			scopeAt: scopeAt,
+			scopes: scopes,
+			conditionalDepths: collectConditionalDepths(tokens),
+			symbols: [],
+			functions: new Map(),
+			declaredFunctions: new Map(),
+			userTypes: new Map(),
+			macroNames: macroNames,
+			macroTypes: new Map(),
+			macroStarts: new Map(),
+			macroBodies: [],
+			operators: [],
+			operatorAt: [for (_ in 0...tokens.length) null],
+			convertiblePreprocessor: [for (_ in 0...tokens.length) false],
+			wrappedRanges: new Map()
+		};
+
+		collectNumericUserTypes(tokens, context);
+		collectNumericMacros(tokens, macroNames, context);
+		collectNumericDeclarations(tokens, context);
+		collectNumericOperators(tokens, context);
+		return context;
+	}
+
+	private static function collectNumericUserTypes(tokens:Array<MobileShaderToken>, context:MobileShaderNumericContext):Void
+	{
+		for (i in 0...tokens.length)
+		{
+			var token = tokens[i];
+			if (token.removed || token.preprocessor || token.kind != IDENTIFIER || tokenValue(token) != 'struct') continue;
+			var nameIndex = nextSignificant(tokens, i);
+			if (nameIndex >= 0 && tokens[nameIndex].kind == IDENTIFIER)
+				context.userTypes.set(tokenValue(tokens[nameIndex]), true);
+		}
+	}
+
+	private static function collectNumericMacros(tokens:Array<MobileShaderToken>, macroNames:Map<String, Bool>,
+		context:MobileShaderNumericContext):Void
+	{
+		var definitionCounts:Map<String, Int> = new Map();
+		var unsafeNames:Map<String, Bool> = new Map();
+		var conditionalDepth = 0;
+		for (i in 0...tokens.length)
+		{
+			if (!tokens[i].preprocessor || tokens[i].kind != SYMBOL || tokenValue(tokens[i]) != '#') continue;
+			var directiveIndex = nextSignificantInDirective(tokens, i);
+			if (directiveIndex < 0) continue;
+			var directiveName = tokenValue(tokens[directiveIndex]);
+			if (directiveName == 'endif' && conditionalDepth > 0) conditionalDepth--;
+			if (directiveName == 'define' || directiveName == 'undef')
+			{
+				var macroIndex = nextSignificantInDirective(tokens, directiveIndex);
+				if (macroIndex >= 0 && tokens[macroIndex].kind == IDENTIFIER)
+				{
+					var macroName = tokenValue(tokens[macroIndex]);
+					if (directiveName == 'define')
+					{
+						var count = definitionCounts.exists(macroName) ? definitionCounts.get(macroName) : 0;
+						definitionCounts.set(macroName, count + 1);
+						if (conditionalDepth > 0 || count > 0) unsafeNames.set(macroName, true);
+					}
+					else
+						unsafeNames.set(macroName, true);
+				}
+			}
+			if (directiveName == 'if' || directiveName == 'ifdef' || directiveName == 'ifndef') conditionalDepth++;
+		}
+
+		for (i in 0...tokens.length)
+		{
+			if (!tokens[i].preprocessor || tokens[i].kind != SYMBOL || tokenValue(tokens[i]) != '#') continue;
+			var directive = nextSignificantInDirective(tokens, i);
+			if (directive < 0 || tokenValue(tokens[directive]) != 'define') continue;
+			var nameIndex = nextSignificantInDirective(tokens, directive);
+			if (nameIndex < 0 || tokens[nameIndex].kind != IDENTIFIER || !macroNames.exists(tokens[nameIndex].text)) continue;
+			var name = tokens[nameIndex].text;
+			if (unsafeNames.exists(name) || definitionCounts.get(name) != 1) continue;
+			var bodyStart = nextSignificantInDirective(tokens, nameIndex);
+			if (bodyStart < 0) continue;
+			// No whitespace between a macro name and `(` means a function-like macro.
+			if (bodyStart == nameIndex + 1 && tokenValue(tokens[bodyStart]) == '(') continue;
+
+			var bodyEnd = bodyStart;
+			while (bodyEnd + 1 < tokens.length)
+			{
+				var nextToken = tokens[bodyEnd + 1];
+				if (!nextToken.preprocessor) break;
+				if (nextToken.kind == WHITESPACE && nextToken.text.indexOf('\n') >= 0)
+				{
+					var continuation = previousSignificant(tokens, bodyEnd + 1);
+					if (continuation < bodyStart || tokenValue(tokens[continuation]) != '\\') break;
+				}
+				bodyEnd++;
+			}
+			while (bodyEnd >= bodyStart && (tokens[bodyEnd].kind == WHITESPACE || tokens[bodyEnd].kind == COMMENT)) bodyEnd--;
+			if (bodyEnd < bodyStart) continue;
+			for (j in bodyStart...(bodyEnd + 1)) context.convertiblePreprocessor[j] = true;
+			context.macroStarts.set(name, bodyEnd);
+			context.macroBodies.push({name: name, body: {start: bodyStart, end: bodyEnd}, activeFrom: bodyEnd});
+
+			var first = firstNumericSignificant(tokens, bodyStart, bodyEnd);
+			var last = lastNumericSignificant(tokens, bodyStart, bodyEnd);
+			if (first >= 0 && first == last)
+			{
+				var directType = numericAtomicType(tokens[first]);
+				if (directType.base != NUMERIC_UNKNOWN) context.macroTypes.set(name, directType);
+			}
+		}
+	}
+
+	private static function collectNumericDeclarations(tokens:Array<MobileShaderToken>, context:MobileShaderNumericContext):Void
+	{
+		var parameterNames:Map<Int, Bool> = new Map();
+		for (nameIndex in 0...tokens.length)
+		{
+			if (tokens[nameIndex].preprocessor || tokens[nameIndex].removed || tokens[nameIndex].kind != IDENTIFIER) continue;
+			var open = nextSignificant(tokens, nameIndex);
+			if (open < 0 || tokenValue(tokens[open]) != '(') continue;
+			var close = findMatching(tokens, open, '(', ')');
+			if (close < 0) continue;
+			var after = nextSignificant(tokens, close);
+			if (after < 0 || (tokenValue(tokens[after]) != '{' && tokenValue(tokens[after]) != ';')) continue;
+			var returnIndex = numericFunctionReturnIndex(tokens, nameIndex);
+			if (returnIndex < 0 || tokens[returnIndex].kind != IDENTIFIER
+				|| isNumericControlKeyword(tokenValue(tokens[returnIndex])) || tokenValue(tokens[returnIndex]) == 'return'
+				|| tokenValue(tokens[returnIndex]) == 'case') continue;
+			var returnType = numericTypeFromName(tokenValue(tokens[returnIndex]));
+			context.declaredFunctions.set(tokenValue(tokens[nameIndex]), true);
+
+			var bodyOpen = tokenValue(tokens[after]) == '{' ? after : -1;
+			var bodyClose = bodyOpen >= 0 ? findMatching(tokens, bodyOpen, '{', '}') : -1;
+			var parameterTypes:Array<MobileShaderNumericType> = [];
+			var parameterStart = nextSignificant(tokens, open);
+			while (parameterStart >= 0 && parameterStart < close)
+			{
+				var comma = findNumericSeparator(tokens, parameterStart, close, ',');
+				var parameterEnd = comma >= 0 ? previousSignificant(tokens, comma) : previousSignificant(tokens, close);
+				var typeIndex = parameterStart;
+				var parameterType = unknownNumericType();
+				while (typeIndex >= 0 && typeIndex <= parameterEnd)
+				{
+					if (tokens[typeIndex].kind == IDENTIFIER)
+					{
+						var typeName = tokenValue(tokens[typeIndex]);
+						parameterType = numericTypeFromName(typeName);
+						if (parameterType.base != NUMERIC_UNKNOWN || context.userTypes.exists(typeName)
+							|| !isNumericParameterQualifier(typeName)) break;
+					}
+					typeIndex = nextSignificant(tokens, typeIndex);
+				}
+				if (typeIndex >= 0 && typeIndex <= parameterEnd)
+				{
+					var parameterName = nextSignificant(tokens, typeIndex);
+					var arrayParameter = false;
+					while (parameterName >= 0 && parameterName <= parameterEnd && tokenValue(tokens[parameterName]) == '[')
+					{
+						arrayParameter = true;
+						var arrayClose = findMatching(tokens, parameterName, '[', ']');
+						if (arrayClose < 0 || arrayClose > parameterEnd)
+						{
+							parameterName = -1;
+							break;
+						}
+						parameterName = nextSignificant(tokens, arrayClose);
+					}
+					while (parameterName >= 0 && parameterName < close && isNumericParameterQualifier(tokenValue(tokens[parameterName])))
+						parameterName = nextSignificant(tokens, parameterName);
+					var effectiveType = arrayParameter ? unknownNumericType() : parameterType;
+					if (parameterName >= 0 && parameterName <= parameterEnd && tokens[parameterName].kind == IDENTIFIER)
+					{
+						parameterNames.set(parameterName, true);
+						var parameterAfter = nextSignificant(tokens, parameterName);
+						if (arrayParameter || (parameterAfter >= 0 && parameterAfter <= parameterEnd
+							&& tokenValue(tokens[parameterAfter]) == '['))
+							effectiveType = unknownNumericType();
+						if (context.conditionalDepths[nameIndex] > 0) effectiveType = unknownNumericType();
+						if (bodyOpen >= 0)
+							context.symbols.push({name: tokenValue(tokens[parameterName]), type: effectiveType,
+								scope: context.scopeAt[bodyOpen], index: parameterName,
+								visibleFrom: bodyOpen,
+								end: bodyClose >= 0 ? bodyClose : context.scopes[context.scopeAt[bodyOpen]].end});
+					}
+					parameterTypes.push(effectiveType);
+				}
+				if (comma < 0) break;
+				parameterStart = nextSignificant(tokens, comma);
+			}
+
+			if (context.conditionalDepths[nameIndex] == 0)
+			{
+				var overloads = context.functions.get(tokenValue(tokens[nameIndex]));
+				if (overloads == null)
+				{
+					overloads = [];
+					context.functions.set(tokenValue(tokens[nameIndex]), overloads);
+				}
+				overloads.push({name: tokenValue(tokens[nameIndex]), returnType: returnType,
+					parameterTypes: parameterTypes, openParen: open, closeParen: close,
+					bodyOpen: bodyOpen, bodyClose: bodyClose});
+			}
+		}
+
+		for (i in 0...tokens.length)
+		{
+			if (tokens[i].preprocessor || tokens[i].removed || tokens[i].kind != IDENTIFIER) continue;
+			var declarationName = tokenValue(tokens[i]);
+			var declarationType = numericTypeFromName(declarationName);
+			if (declarationType.base == NUMERIC_UNKNOWN && !context.userTypes.exists(declarationName)) continue;
+			var nameIndex = nextSignificant(tokens, i);
+			if (nameIndex < 0 || tokens[nameIndex].kind != IDENTIFIER || parameterNames.exists(nameIndex)) continue;
+			var afterName = nextSignificant(tokens, nameIndex);
+			if (afterName >= 0 && tokenValue(tokens[afterName]) == '(') continue;
+			var effectiveType = afterName >= 0 && tokenValue(tokens[afterName]) == '['
+				|| context.conditionalDepths[nameIndex] > 0 ? unknownNumericType() : declarationType;
+			var declarationEnd = numericDeclarationEnd(tokens, nameIndex, context);
+
+			context.symbols.push({name: tokenValue(tokens[nameIndex]), type: effectiveType,
+				scope: context.scopeAt[nameIndex], index: nameIndex,
+				visibleFrom: numericDeclarationVisibleFrom(tokens, nameIndex),
+				end: declarationEnd});
+			var separator = nameIndex;
+			while (true)
+			{
+				var comma = findNumericSeparator(tokens, separator, tokens.length, ',');
+				var semicolon = findNumericSeparator(tokens, separator, tokens.length, ';');
+				if (semicolon < 0 || (comma >= 0 && comma > semicolon) || comma < 0) break;
+				var nextName = nextSignificant(tokens, comma);
+				if (nextName < 0 || nextName >= semicolon || tokens[nextName].kind != IDENTIFIER) break;
+				var nextAfter = nextSignificant(tokens, nextName);
+				var nextType = nextAfter >= 0 && tokenValue(tokens[nextAfter]) == '['
+					|| context.conditionalDepths[nextName] > 0 ? unknownNumericType() : declarationType;
+				context.symbols.push({name: tokenValue(tokens[nextName]), type: nextType,
+					scope: context.scopeAt[nextName], index: nextName,
+					visibleFrom: numericDeclarationVisibleFrom(tokens, nextName),
+					end: declarationEnd});
+				separator = nextName;
+			}
+		}
+	}
+
+	private static function numericFunctionReturnIndex(tokens:Array<MobileShaderToken>, nameIndex:Int):Int
+	{
+		var cursor = previousSignificant(tokens, nameIndex);
+		while (cursor >= 0 && tokenValue(tokens[cursor]) == ']')
+		{
+			var open = findNumericOpening(tokens, cursor, '[', ']');
+			if (open < 0) return -1;
+			cursor = previousSignificant(tokens, open);
+		}
+		return cursor;
+	}
+
+	private static function numericDeclarationVisibleFrom(tokens:Array<MobileShaderToken>, nameIndex:Int):Int
+	{
+		var cursor = nextSignificant(tokens, nameIndex);
+		while (cursor >= 0 && tokenValue(tokens[cursor]) == '[')
+		{
+			var close = findMatching(tokens, cursor, '[', ']');
+			if (close < 0) return nameIndex;
+			cursor = nextSignificant(tokens, close);
+		}
+		var hasInitializer = cursor >= 0 && tokenValue(tokens[cursor]) == '=';
+		var baseBrace = tokens[nameIndex].braceDepth;
+		var baseParen = tokens[nameIndex].parenDepth;
+		var baseBracket = tokens[nameIndex].bracketDepth;
+		var i = cursor;
+		while (i >= 0 && i < tokens.length)
+		{
+			var token = tokens[i];
+			if (!token.preprocessor && !token.removed && token.kind == SYMBOL
+				&& token.braceDepth == baseBrace && token.parenDepth == baseParen && token.bracketDepth == baseBracket)
+			{
+				var value = tokenValue(token);
+				if (value == ',' || value == ';') return hasInitializer ? i : nameIndex;
+			}
+			if (!token.preprocessor && (token.braceDepth < baseBrace || token.parenDepth < baseParen
+				|| token.bracketDepth < baseBracket)) break;
+			i = nextSignificant(tokens, i);
+		}
+		return nameIndex;
+	}
+
+	private static function numericDeclarationEnd(tokens:Array<MobileShaderToken>, nameIndex:Int,
+		context:MobileShaderNumericContext):Int
+	{
+		var defaultEnd = context.scopes[context.scopeAt[nameIndex]].end;
+		var statementEnd = numericUnbracedDeclarationEnd(tokens, nameIndex);
+		if (statementEnd >= 0) return statementEnd;
+		var targetDepth = tokens[nameIndex].parenDepth;
+		if (targetDepth <= 0) return defaultEnd;
+		var cursor = nameIndex - 1;
+		while (cursor >= 0)
+		{
+			var token = tokens[cursor];
+			if (!token.preprocessor && !token.removed && token.kind == SYMBOL && tokenValue(token) == '('
+				&& token.parenDepth < targetDepth)
+			{
+				var close = findMatching(tokens, cursor, '(', ')');
+				var before = previousSignificant(tokens, cursor);
+				if (close >= nameIndex && before >= 0 && tokenValue(tokens[before]) == 'for')
+				{
+					var body = nextSignificant(tokens, close);
+					if (body < 0) return close;
+					if (tokenValue(tokens[body]) == '{')
+					{
+						var bodyClose = findMatching(tokens, body, '{', '}');
+						return bodyClose >= 0 ? bodyClose : defaultEnd;
+					}
+					var statementEnd = findNumericStatementEnd(tokens, body, defaultEnd + 1);
+					return statementEnd >= 0 ? statementEnd : close;
+				}
+			}
+			cursor--;
+		}
+		return defaultEnd;
+	}
+
+	private static function numericUnbracedDeclarationEnd(tokens:Array<MobileShaderToken>, nameIndex:Int):Int
+	{
+		var declarationStart = previousSignificant(tokens, nameIndex);
+		if (declarationStart < 0) return -1;
+		var before = previousSignificant(tokens, declarationStart);
+		while (before >= 0 && tokens[before].kind == IDENTIFIER && isNumericDeclarationQualifier(tokenValue(tokens[before])))
+		{
+			declarationStart = before;
+			before = previousSignificant(tokens, declarationStart);
+		}
+
+		var controlled = before >= 0 && (tokenValue(tokens[before]) == 'else' || tokenValue(tokens[before]) == 'do');
+		if (!controlled && before >= 0 && tokenValue(tokens[before]) == ')')
+		{
+			var open = findNumericOpening(tokens, before, '(', ')');
+			var keyword = open >= 0 ? previousSignificant(tokens, open) : -1;
+			controlled = keyword >= 0 && (tokenValue(tokens[keyword]) == 'if' || tokenValue(tokens[keyword]) == 'while'
+				|| tokenValue(tokens[keyword]) == 'for' || tokenValue(tokens[keyword]) == 'switch');
+		}
+		if (!controlled) return -1;
+		return findNumericSeparator(tokens, nameIndex, tokens.length, ';');
+	}
+
+	private static function findNumericStatementEnd(tokens:Array<MobileShaderToken>, start:Int, limit:Int):Int
+	{
+		start = firstNumericSignificant(tokens, start, limit - 1);
+		if (start < 0 || start >= limit) return -1;
+		var value = tokenValue(tokens[start]);
+		if (value == ';') return start;
+		if (value == '{') return findMatching(tokens, start, '{', '}');
+
+		if (value == 'if' || value == 'for' || value == 'while' || value == 'switch')
+		{
+			var open = nextSignificant(tokens, start);
+			if (open < 0 || open >= limit || tokenValue(tokens[open]) != '(') return -1;
+			var close = findMatching(tokens, open, '(', ')');
+			if (close < 0 || close >= limit) return -1;
+			var body = nextSignificant(tokens, close);
+			var bodyEnd = body >= 0 && body < limit ? findNumericStatementEnd(tokens, body, limit) : -1;
+			if (bodyEnd < 0) return -1;
+			if (value == 'if')
+			{
+				var possibleElse = nextSignificant(tokens, bodyEnd);
+				if (possibleElse >= 0 && possibleElse < limit && tokenValue(tokens[possibleElse]) == 'else')
+				{
+					var elseBody = nextSignificant(tokens, possibleElse);
+					if (elseBody < 0 || elseBody >= limit) return -1;
+					var elseEnd = findNumericStatementEnd(tokens, elseBody, limit);
+					if (elseEnd >= 0) return elseEnd;
+				}
+			}
+			return bodyEnd;
+		}
+
+		if (value == 'do')
+		{
+			var body = nextSignificant(tokens, start);
+			var bodyEnd = body >= 0 && body < limit ? findNumericStatementEnd(tokens, body, limit) : -1;
+			if (bodyEnd < 0) return -1;
+			var whileIndex = nextSignificant(tokens, bodyEnd);
+			var open = whileIndex >= 0 && tokenValue(tokens[whileIndex]) == 'while'
+				? nextSignificant(tokens, whileIndex) : -1;
+			var close = open >= 0 && tokenValue(tokens[open]) == '(' ? findMatching(tokens, open, '(', ')') : -1;
+			var semicolon = close >= 0 ? nextSignificant(tokens, close) : -1;
+			return semicolon >= 0 && semicolon < limit && tokenValue(tokens[semicolon]) == ';' ? semicolon : bodyEnd;
+		}
+
+		return findNumericSeparator(tokens, start, limit, ';');
+	}
+
+	private static function findNumericSeparator(tokens:Array<MobileShaderToken>, start:Int, limit:Int, value:String):Int
+	{
+		var baseBrace = tokens[start].braceDepth;
+		var baseParen = tokens[start].parenDepth;
+		var baseBracket = tokens[start].bracketDepth;
+		var i = start + 1;
+		while (i < limit && i < tokens.length)
+		{
+			var token = tokens[i];
+			if (!token.preprocessor && !token.removed && token.kind == SYMBOL
+				&& token.braceDepth == baseBrace && token.parenDepth == baseParen && token.bracketDepth == baseBracket
+				&& tokenValue(token) == value) return i;
+			if (!token.preprocessor && token.braceDepth < baseBrace) break;
+			i++;
+		}
+		return -1;
+	}
+
+	private static function collectNumericOperators(tokens:Array<MobileShaderToken>, context:MobileShaderNumericContext):Void
+	{
+		var i = 0;
+		while (i < tokens.length)
+		{
+			var op = readNumericOperator(tokens, i, context.convertiblePreprocessor);
+			if (op == null)
+			{
+				i++;
+				continue;
+			}
+			context.operators.push(op);
+			for (j in op.start...(op.end + 1)) context.operatorAt[j] = op;
+			i = op.end + 1;
+		}
+	}
+
+	private static function readNumericOperator(tokens:Array<MobileShaderToken>, index:Int,
+		convertiblePreprocessor:Array<Bool>):Null<MobileShaderOperator>
+	{
+		var token = tokens[index];
+		if (token.removed || token.kind != SYMBOL || (token.preprocessor && !convertiblePreprocessor[index])) return null;
+		var first = tokenValue(token);
+		var second = index + 1 < tokens.length && tokens[index + 1].kind == SYMBOL
+			&& tokens[index + 1].preprocessor == token.preprocessor ? tokenValue(tokens[index + 1]) : '';
+		var pair = first + second;
+		if (pair == '++' || pair == '--') return null;
+
+		var text = first;
+		var end = index;
+		var third = index + 2 < tokens.length && tokens[index + 2].kind == SYMBOL
+			&& tokens[index + 2].preprocessor == token.preprocessor ? tokenValue(tokens[index + 2]) : '';
+		if ((pair == '<<' || pair == '>>') && third == '=')
+		{
+			text = pair + third;
+			end = index + 2;
+		}
+		else if (pair == '+=' || pair == '-=' || pair == '*=' || pair == '/=' || pair == '%=' || pair == '&='
+			|| pair == '|=' || pair == '^=' || pair == '==' || pair == '!='
+			|| pair == '<=' || pair == '>=' || pair == '&&' || pair == '||' || pair == '<<' || pair == '>>')
+		{
+			text = pair;
+			end = index + 1;
+		}
+		else if (first == '=' && index > 0 && tokens[index - 1].kind == SYMBOL
+			&& (tokenValue(tokens[index - 1]) == '+' || tokenValue(tokens[index - 1]) == '-'
+				|| tokenValue(tokens[index - 1]) == '*' || tokenValue(tokens[index - 1]) == '/'
+				|| tokenValue(tokens[index - 1]) == '%' || tokenValue(tokens[index - 1]) == '&'
+				|| tokenValue(tokens[index - 1]) == '|' || tokenValue(tokens[index - 1]) == '^' || tokenValue(tokens[index - 1]) == '='
+				|| tokenValue(tokens[index - 1]) == '!' || tokenValue(tokens[index - 1]) == '<'
+				|| tokenValue(tokens[index - 1]) == '>')) return null;
+
+		var precedence = switch (text)
+		{
+			case '=', '+=', '-=', '*=', '/=', '%=', '&=', '|=', '^=', '<<=', '>>=': 1;
+			case '||': 3;
+			case '&&': 4;
+			case '|': 5;
+			case '^': 6;
+			case '&': 7;
+			case '==', '!=': 8;
+			case '<', '<=', '>', '>=': 9;
+			case '<<', '>>': 10;
+			case '+', '-': 11;
+			case '*', '/', '%': 12;
+			default: -1;
+		};
+		if (precedence < 0) return null;
+		if ((text == '+' || text == '-') && !numericTokenCanEndExpression(tokens, previousSignificant(tokens, index))) return null;
+		var promotable = text == '=' || text == '+=' || text == '-=' || text == '*=' || text == '/='
+			|| text == '+' || text == '-' || text == '*' || text == '/'
+			|| text == '==' || text == '!=' || text == '<' || text == '<=' || text == '>' || text == '>=';
+		return {start: index, end: end, text: text, precedence: precedence,
+			rightAssociative: precedence == 1, promotable: promotable};
+	}
+
+	private static function numericTokenCanEndExpression(tokens:Array<MobileShaderToken>, index:Int):Bool
+	{
+		if (index < 0) return false;
+		var token = tokens[index];
+		if (token.kind == NUMBER) return true;
+		if (token.kind == IDENTIFIER)
+		{
+			var value = tokenValue(token);
+			return value != 'return' && value != 'case' && value != 'if' && value != 'while' && value != 'for'
+				&& value != 'switch' && value != 'do' && value != 'else' && numericTypeFromName(value).base == NUMERIC_UNKNOWN;
+		}
+		return token.kind == SYMBOL && (tokenValue(token) == ')' || tokenValue(token) == ']');
+	}
+
+	private static inline function isNumericControlKeyword(value:String):Bool
+	{
+		return value == 'if' || value == 'while' || value == 'for' || value == 'switch';
+	}
+
+	private static function findNumericOpening(tokens:Array<MobileShaderToken>, closeIndex:Int, open:String, close:String):Int
+	{
+		var depth = 0;
+		var i = closeIndex;
+		while (i >= 0)
+		{
+			if (!tokens[i].removed && tokens[i].kind == SYMBOL)
+			{
+				var value = tokenValue(tokens[i]);
+				if (value == close) depth++;
+				else if (value == open && --depth == 0) return i;
+			}
+			i--;
+		}
+		return -1;
+	}
+
+	private static function findNumericOperand(tokens:Array<MobileShaderToken>, op:MobileShaderOperator, left:Bool,
+		context:MobileShaderNumericContext):Null<MobileShaderExpressionRange>
+	{
+		var base = tokens[op.start];
+		var cursor = left ? previousSignificant(tokens, op.start) : nextSignificant(tokens, op.end);
+		if (cursor < 0) return null;
+		var start = cursor;
+		var end = cursor;
+
+		while (cursor >= 0 && cursor < tokens.length)
+		{
+			var token = tokens[cursor];
+			if (token.removed || token.kind == WHITESPACE || token.kind == COMMENT)
+			{
+				cursor = left ? previousSignificant(tokens, cursor) : nextSignificant(tokens, cursor);
+				continue;
+			}
+			if (token.preprocessor != base.preprocessor) break;
+			if (token.braceDepth < base.braceDepth || token.parenDepth < base.parenDepth
+				|| token.bracketDepth < base.bracketDepth) break;
+			if (left && !token.preprocessor && token.kind == SYMBOL && tokenValue(token) == ')')
+			{
+				var open = findNumericOpening(tokens, cursor, '(', ')');
+				var beforeOpen = open >= 0 ? previousSignificant(tokens, open) : -1;
+				if (beforeOpen >= 0 && tokens[beforeOpen].kind == IDENTIFIER
+					&& isNumericControlKeyword(tokenValue(tokens[beforeOpen]))) break;
+			}
+
+			var sameLevel = token.braceDepth == base.braceDepth && token.parenDepth == base.parenDepth
+				&& token.bracketDepth == base.bracketDepth;
+			if (sameLevel)
+			{
+				var value = tokenValue(token);
+				if (value == ';' || value == ',' || value == '{' || value == '}' || value == '?' || value == ':'
+					|| value == ')' || value == ']') break;
+				if (token.preprocessor && (value == '(' || value == ')')) break;
+				var typeStartsCall = token.kind == IDENTIFIER && numericTypeFromName(value).base != NUMERIC_UNKNOWN
+					&& nextSignificant(tokens, cursor) >= 0 && tokenValue(tokens[nextSignificant(tokens, cursor)]) == '(';
+				if (token.kind == IDENTIFIER && (value == 'return' || value == 'case' || value == 'if' || value == 'while'
+					|| value == 'for' || value == 'switch' || value == 'do' || value == 'else'
+					|| (numericTypeFromName(value).base != NUMERIC_UNKNOWN && !typeStartsCall))) break;
+
+				var other = context.operatorAt[cursor];
+				if (other != null && other.start != op.start)
+				{
+					var shouldStop = other.precedence < op.precedence
+						|| (other.precedence == op.precedence && (left ? op.rightAssociative : !op.rightAssociative));
+					if (shouldStop) break;
+					cursor = left ? other.start : other.end;
+				}
+			}
+
+			if (left) start = cursor; else end = cursor;
+			cursor = left ? previousSignificant(tokens, cursor) : nextSignificant(tokens, cursor);
+		}
+		return start <= end ? {start: start, end: end} : null;
+	}
+
+	private static function inferNumericRange(tokens:Array<MobileShaderToken>, start:Int, end:Int, useIndex:Int,
+		context:MobileShaderNumericContext, depth:Int):MobileShaderNumericType
+	{
+		if (depth > 48 || start < 0 || end < start || end >= tokens.length) return unknownNumericType();
+		start = firstNumericSignificant(tokens, start, end);
+		end = lastNumericSignificant(tokens, start, end);
+		if (start < 0 || end < start) return unknownNumericType();
+		if (context.wrappedRanges.exists(numericRangeKey(start, end))) return floatNumericType(1);
+
+		while (tokenValue(tokens[start]) == '(')
+		{
+			var close = findMatching(tokens, start, '(', ')');
+			if (close != end) break;
+			start = firstNumericSignificant(tokens, start + 1, end - 1);
+			end = lastNumericSignificant(tokens, start, end - 1);
+			if (start < 0 || end < start) return unknownNumericType();
+			if (context.wrappedRanges.exists(numericRangeKey(start, end))) return floatNumericType(1);
+		}
+
+		var main = findMainNumericOperator(tokens, start, end, context);
+		if (main != null)
+		{
+			var leftEnd = previousSignificant(tokens, main.start);
+			var rightStart = nextSignificant(tokens, main.end);
+			if (leftEnd < start || rightStart < 0 || rightStart > end) return unknownNumericType();
+			var leftType = inferNumericRange(tokens, start, leftEnd, useIndex, context, depth + 1);
+			var rightType = inferNumericRange(tokens, rightStart, end, useIndex, context, depth + 1);
+			return switch (main.text)
+			{
+				case '=', '+=', '-=', '*=', '/=', '%=': leftType;
+				case '==', '!=', '<', '<=', '>', '>=', '&&', '||': boolNumericType();
+				case '%', '<<', '>>', '&', '|', '^': isScalarIntegral(leftType) && isScalarIntegral(rightType)
+					? intNumericType() : unknownNumericType();
+				case '+', '-', '*', '/': numericArithmeticResult(leftType, rightType);
+				default: unknownNumericType();
+			};
+		}
+
+		var firstValue = tokenValue(tokens[start]);
+		if ((firstValue == '+' || firstValue == '-') && start < end)
+			return inferNumericRange(tokens, nextSignificant(tokens, start), end, useIndex, context, depth + 1);
+		if (firstValue == '!') return boolNumericType();
+
+		if (start == end) return inferNumericAtom(tokens, start, useIndex, context, depth + 1);
+
+		var topDot = -1;
+		for (i in start...(end + 1))
+		{
+			var token = tokens[i];
+			if (!token.removed && !token.preprocessor && token.kind == SYMBOL && tokenValue(token) == '.'
+				&& token.braceDepth == tokens[start].braceDepth && token.parenDepth == tokens[start].parenDepth
+				&& token.bracketDepth == tokens[start].bracketDepth) topDot = i;
+		}
+		if (topDot >= 0)
+		{
+			var field = nextSignificant(tokens, topDot);
+			if (field == end && tokens[field].kind == IDENTIFIER)
+			{
+				var owner = inferNumericRange(tokens, start, previousSignificant(tokens, topDot), useIndex, context, depth + 1);
+				var width = numericSwizzleWidth(tokenValue(tokens[field]));
+				return width > 0 && owner.base != NUMERIC_UNKNOWN ? {base: owner.base, width: width} : unknownNumericType();
+			}
+		}
+
+		if (tokens[start].kind == IDENTIFIER)
+		{
+			var open = nextSignificant(tokens, start);
+			if (open >= 0 && tokenValue(tokens[open]) == '(')
+			{
+				var close = findMatching(tokens, open, '(', ')');
+				if (close == end) return inferNumericCall(tokens, start, open, close, useIndex, context, depth + 1);
+			}
+			if (open >= 0 && tokenValue(tokens[open]) == '[')
+			{
+				var close = findMatching(tokens, open, '[', ']');
+				if (close == end)
+				{
+					var owner = inferNumericAtom(tokens, start, useIndex, context, depth + 1);
+					return owner.width > 1 ? {base: owner.base, width: 1} : owner;
+				}
+			}
+		}
+
+		return unknownNumericType();
+	}
+
+	private static function findMainNumericOperator(tokens:Array<MobileShaderToken>, start:Int, end:Int,
+		context:MobileShaderNumericContext):Null<MobileShaderOperator>
+	{
+		var first = tokens[start];
+		var selected:MobileShaderOperator = null;
+		for (op in context.operators)
+		{
+			if (op.start < start || op.end > end) continue;
+			var token = tokens[op.start];
+			if (token.braceDepth != first.braceDepth || token.parenDepth != first.parenDepth
+				|| token.bracketDepth != first.bracketDepth) continue;
+			if (selected == null || op.precedence < selected.precedence
+				|| (op.precedence == selected.precedence
+					&& (op.rightAssociative ? op.start < selected.start : op.start > selected.start)))
+				selected = op;
+		}
+		return selected;
+	}
+
+	private static function inferNumericAtom(tokens:Array<MobileShaderToken>, index:Int, useIndex:Int,
+		context:MobileShaderNumericContext, depth:Int):MobileShaderNumericType
+	{
+		var direct = numericAtomicType(tokens[index]);
+		if (direct.base != NUMERIC_UNKNOWN) return direct;
+		if (tokens[index].kind != IDENTIFIER) return unknownNumericType();
+		var name = tokenValue(tokens[index]);
+		var originalName = tokens[index].text;
+		if (originalName == 'gl_FragColor' || originalName == 'gl_FragData' || originalName == 'gl_Position' || originalName == 'gl_FragCoord'
+			|| originalName == 'gl_PointCoord') return floatNumericType(originalName == 'gl_PointCoord' ? 2 : 4);
+		if (originalName == 'gl_PointSize' || originalName == 'gl_FragDepth' || originalName == 'gl_FragDepthEXT')
+			return floatNumericType(1);
+		if (tokens[index].preprocessor)
+		{
+			var macroType = activeNumericMacroType(name, useIndex, context);
+			return macroType != null ? macroType : unknownNumericType();
+		}
+		var macroType = activeNumericMacroType(name, useIndex, context);
+		if (macroType != null) return macroType;
+		if (context.macroNames.exists(name) || context.macroNames.exists(originalName)) return unknownNumericType();
+		for (symbol in context.symbols)
+			if (symbol.index == index) return symbol.type;
+		return resolveNumericSymbol(name, useIndex, context);
+	}
+
+	private static function inferNumericCall(tokens:Array<MobileShaderToken>, nameIndex:Int, open:Int, close:Int, useIndex:Int,
+		context:MobileShaderNumericContext, depth:Int):MobileShaderNumericType
+	{
+		var name = tokenValue(tokens[nameIndex]);
+		var originalName = tokens[nameIndex].text;
+		if (context.macroNames.exists(name) || context.macroNames.exists(originalName)) return unknownNumericType();
+
+		var declaredName:String = null;
+		if (context.declaredFunctions.exists(name)) declaredName = name;
+		else if (context.declaredFunctions.exists(originalName)) declaredName = originalName;
+		if (declaredName != null)
+		{
+			var declaredOverloads = context.functions.get(declaredName);
+			if (declaredOverloads == null || declaredOverloads.length == 0) return unknownNumericType();
+			var declaredReturn = declaredOverloads[0].returnType;
+			for (candidate in declaredOverloads)
+				if (candidate.returnType.base != declaredReturn.base || candidate.returnType.width != declaredReturn.width)
+					return unknownNumericType();
+			return declaredReturn;
+		}
+
+		var constructor = numericTypeFromName(name);
+		if (constructor.base != NUMERIC_UNKNOWN) return constructor;
+		if (name == 'dot' || name == 'length' || name == 'distance' || name == 'determinant') return floatNumericType(1);
+		if (name == 'noise1') return floatNumericType(1);
+		if (name == 'noise2') return floatNumericType(2);
+		if (name == 'noise3') return floatNumericType(3);
+		if (name == 'noise4') return floatNumericType(4);
+
+		var firstArgument = nextSignificant(tokens, open);
+		var firstArgumentEnd = firstArgument;
+		if (firstArgument >= 0 && firstArgument < close)
+		{
+			var comma = findNumericSeparator(tokens, firstArgument, close, ',');
+			firstArgumentEnd = comma >= 0 ? previousSignificant(tokens, comma) : previousSignificant(tokens, close);
+		}
+		var firstType = firstArgument >= 0 && firstArgument < close && firstArgumentEnd >= firstArgument
+			? inferNumericRange(tokens, firstArgument, firstArgumentEnd, useIndex, context, depth + 1) : unknownNumericType();
+		if (originalName == 'texture2D' || originalName == 'textureCube' || originalName == 'texture2DProj'
+			|| originalName == 'texture2DLod' || originalName == 'textureCubeLod' || originalName == 'texture2DProjLod'
+			|| originalName == 'texture2DLodEXT' || originalName == 'textureCubeLodEXT'
+			|| originalName == 'texture2DProjLodEXT'
+			|| originalName == 'texture2DGradEXT' || originalName == 'textureCubeGradEXT'
+			|| originalName == 'texture2DProjGradEXT')
+			return floatNumericType(4);
+		if (originalName == 'texture' || originalName == 'textureProj' || originalName == 'textureLod'
+			|| originalName == 'textureGrad' || originalName == 'textureProjLod' || originalName == 'textureProjGrad')
+		{
+			return switch (firstType.base)
+			{
+				case NUMERIC_SAMPLER_FLOAT: floatNumericType(firstType.width);
+				case NUMERIC_SAMPLER_INT: {base: NUMERIC_INT, width: firstType.width};
+				case NUMERIC_SAMPLER_UINT: {base: NUMERIC_UINT, width: firstType.width};
+				default: unknownNumericType();
+			};
+		}
+		if (name == 'sin' || name == 'cos' || name == 'tan' || name == 'asin' || name == 'acos' || name == 'atan'
+			|| name == 'pow' || name == 'exp' || name == 'log' || name == 'exp2' || name == 'log2' || name == 'sqrt'
+			|| name == 'inversesqrt' || name == 'abs' || name == 'sign' || name == 'floor' || name == 'ceil'
+			|| name == 'fract' || name == 'mod' || name == 'min' || name == 'max' || name == 'clamp' || name == 'mix'
+			|| name == 'step' || name == 'smoothstep' || name == 'normalize' || name == 'reflect' || name == 'refract')
+			return firstType;
+
+		return unknownNumericType();
+	}
+
+	private static function resolveNumericSymbol(name:String, useIndex:Int,
+		context:MobileShaderNumericContext):MobileShaderNumericType
+	{
+		var useScope = useIndex >= 0 && useIndex < context.scopeAt.length ? context.scopeAt[useIndex] : 0;
+		var best:MobileShaderNumericSymbol = null;
+		var bestDistance = 0x3FFFFFFF;
+		for (symbol in context.symbols)
+		{
+			if (symbol.name != name || symbol.visibleFrom > useIndex || useIndex > symbol.end
+				|| !numericScopeContains(symbol.scope, useScope, context.scopes)) continue;
+			var distance = numericScopeDistance(symbol.scope, useScope, context.scopes);
+			if (best == null || distance < bestDistance || (distance == bestDistance && symbol.index > best.index))
+			{
+				best = symbol;
+				bestDistance = distance;
+			}
+		}
+		return best != null ? best.type : unknownNumericType();
+	}
+
+	private static function activeNumericMacroType(name:String, useIndex:Int,
+		context:MobileShaderNumericContext):Null<MobileShaderNumericType>
+	{
+		var type = context.macroTypes.get(name);
+		var activeFrom = context.macroStarts.get(name);
+		return type != null && activeFrom != null && useIndex > activeFrom ? type : null;
+	}
+
+	private static function numericScopeContains(ancestor:Int, child:Int, scopes:Array<MobileShaderNumericScope>):Bool
+	{
+		var cursor = child;
+		while (cursor >= 0)
+		{
+			if (cursor == ancestor) return true;
+			cursor = scopes[cursor].parent;
+		}
+		return false;
+	}
+
+	private static function numericScopeDistance(ancestor:Int, child:Int, scopes:Array<MobileShaderNumericScope>):Int
+	{
+		var distance = 0;
+		var cursor = child;
+		while (cursor >= 0 && cursor != ancestor)
+		{
+			cursor = scopes[cursor].parent;
+			distance++;
+		}
+		return cursor == ancestor ? distance : 0x3FFFFFFF;
+	}
+
+	private static function wrapNumericRange(tokens:Array<MobileShaderToken>, range:MobileShaderExpressionRange,
+		context:MobileShaderNumericContext):Void
+	{
+		var start = firstNumericSignificant(tokens, range.start, range.end);
+		var end = lastNumericSignificant(tokens, start, range.end);
+		if (start < 0 || end < start) return;
+		var key = numericRangeKey(start, end);
+		if (context.wrappedRanges.exists(key)) return;
+
+		var literalIndex = start;
+		if ((tokenValue(tokens[start]) == '+' || tokenValue(tokens[start]) == '-') && start < end)
+			literalIndex = nextSignificant(tokens, start);
+		if (literalIndex == end && isPlainDecimalInteger(tokens[literalIndex]))
+		{
+			tokens[literalIndex].replacement = tokenValue(tokens[literalIndex]) + '.0';
+		}
+		else
+		{
+			tokens[start].prefix = 'float(' + tokens[start].prefix;
+			tokens[end].suffix += ')';
+		}
+		context.wrappedRanges.set(key, true);
+	}
+
+	private static function numericArithmeticResult(left:MobileShaderNumericType,
+		right:MobileShaderNumericType):MobileShaderNumericType
+	{
+		if (left.base == NUMERIC_UNKNOWN || right.base == NUMERIC_UNKNOWN) return unknownNumericType();
+		if (left.base == NUMERIC_FLOAT || right.base == NUMERIC_FLOAT)
+			return floatNumericType(left.width > right.width ? left.width : right.width);
+		if (isScalarIntegral(left) && isScalarIntegral(right))
+			return left.base == NUMERIC_UINT || right.base == NUMERIC_UINT ? uintNumericType() : intNumericType();
+		return unknownNumericType();
+	}
+
+	private static function numericAtomicType(token:MobileShaderToken):MobileShaderNumericType
+	{
+		if (token.kind == NUMBER)
+		{
+			var value = tokenValue(token);
+			var lower = value.toLowerCase();
+			if (StringTools.startsWith(lower, '0x'))
+				return StringTools.endsWith(lower, 'u') ? uintNumericType() : intNumericType();
+			if (lower.indexOf('.') >= 0 || lower.indexOf('e') >= 0 || StringTools.endsWith(lower, 'f')
+				|| StringTools.endsWith(lower, 'lf')) return floatNumericType(1);
+			if (StringTools.endsWith(lower, 'u')) return uintNumericType();
+			return intNumericType();
+		}
+		if (token.kind == IDENTIFIER && (tokenValue(token) == 'true' || tokenValue(token) == 'false')) return boolNumericType();
+		return unknownNumericType();
+	}
+
+	private static function numericTypeFromName(name:String):MobileShaderNumericType
+	{
+		return switch (name)
+		{
+			case 'bool': boolNumericType();
+			case 'bvec2': {base: NUMERIC_BOOL, width: 2};
+			case 'bvec3': {base: NUMERIC_BOOL, width: 3};
+			case 'bvec4': {base: NUMERIC_BOOL, width: 4};
+			case 'int': intNumericType();
+			case 'ivec2': {base: NUMERIC_INT, width: 2};
+			case 'ivec3': {base: NUMERIC_INT, width: 3};
+			case 'ivec4': {base: NUMERIC_INT, width: 4};
+			case 'uint': uintNumericType();
+			case 'uvec2': {base: NUMERIC_UINT, width: 2};
+			case 'uvec3': {base: NUMERIC_UINT, width: 3};
+			case 'uvec4': {base: NUMERIC_UINT, width: 4};
+			case 'float', 'double': floatNumericType(1);
+			case 'vec2', 'dvec2': floatNumericType(2);
+			case 'vec3', 'dvec3': floatNumericType(3);
+			case 'vec4', 'dvec4': floatNumericType(4);
+			case 'mat2', 'mat2x2', 'dmat2', 'dmat2x2': floatNumericType(4);
+			case 'mat3', 'mat3x3', 'dmat3', 'dmat3x3': floatNumericType(9);
+			case 'mat4', 'mat4x4', 'dmat4', 'dmat4x4': floatNumericType(16);
+			case 'mat2x3', 'mat3x2', 'dmat2x3', 'dmat3x2': floatNumericType(6);
+			case 'mat2x4', 'mat4x2', 'dmat2x4', 'dmat4x2': floatNumericType(8);
+			case 'mat3x4', 'mat4x3', 'dmat3x4', 'dmat4x3': floatNumericType(12);
+			default:
+				var lower = name.toLowerCase();
+				var width = lower.indexOf('shadow') >= 0 ? 1 : 4;
+				if (StringTools.startsWith(lower, 'isampler')) {base: NUMERIC_SAMPLER_INT, width: width};
+				else if (StringTools.startsWith(lower, 'usampler')) {base: NUMERIC_SAMPLER_UINT, width: width};
+				else if (StringTools.startsWith(lower, 'sampler')) {base: NUMERIC_SAMPLER_FLOAT, width: width};
+				else unknownNumericType();
+		};
+	}
+
+	private static function numericSwizzleWidth(value:String):Int
+	{
+		if (value.length < 1 || value.length > 4) return 0;
+		for (alphabet in ['xyzw', 'rgba', 'stpq'])
+		{
+			var matches = true;
+			for (i in 0...value.length)
+				if (alphabet.indexOf(value.charAt(i)) < 0)
+				{
+					matches = false;
+					break;
+				}
+			if (matches) return value.length;
+		}
+		return 0;
+	}
+
+	private static inline function isNumericParameterQualifier(value:String):Bool
+	{
+		return value == 'const' || value == 'in' || value == 'out' || value == 'inout'
+			|| value == 'lowp' || value == 'mediump' || value == 'highp' || value == 'precise'
+			|| value == 'centroid' || value == 'flat' || value == 'smooth' || value == 'noperspective'
+			|| value == 'invariant';
+	}
+
+	private static inline function isNumericDeclarationQualifier(value:String):Bool
+	{
+		return isNumericParameterQualifier(value) || value == 'uniform' || value == 'attribute'
+			|| value == 'varying' || value == 'buffer' || value == 'shared' || value == 'coherent'
+			|| value == 'volatile' || value == 'restrict' || value == 'readonly' || value == 'writeonly';
+	}
+
+	private static function firstNumericSignificant(tokens:Array<MobileShaderToken>, start:Int, end:Int):Int
+	{
+		if (start < 0) start = 0;
+		if (end >= tokens.length) end = tokens.length - 1;
+		for (i in start...(end + 1))
+			if (!tokens[i].removed && tokens[i].kind != WHITESPACE && tokens[i].kind != COMMENT) return i;
+		return -1;
+	}
+
+	private static function lastNumericSignificant(tokens:Array<MobileShaderToken>, start:Int, end:Int):Int
+	{
+		if (start < 0 || end < start) return -1;
+		if (end >= tokens.length) end = tokens.length - 1;
+		var i = end;
+		while (i >= start)
+		{
+			if (!tokens[i].removed && tokens[i].kind != WHITESPACE && tokens[i].kind != COMMENT) return i;
+			i--;
+		}
+		return -1;
+	}
+
+	private static inline function isFloatNumeric(type:MobileShaderNumericType):Bool
+	{
+		return type.base == NUMERIC_FLOAT;
+	}
+
+	private static inline function isScalarInteger(type:MobileShaderNumericType):Bool
+	{
+		return type.width == 1 && type.base == NUMERIC_INT;
+	}
+
+	private static inline function isScalarIntegral(type:MobileShaderNumericType):Bool
+	{
+		return type.width == 1 && (type.base == NUMERIC_INT || type.base == NUMERIC_UINT);
+	}
+
+	private static inline function unknownNumericType():MobileShaderNumericType
+	{
+		return {base: NUMERIC_UNKNOWN, width: 0};
+	}
+
+	private static inline function boolNumericType():MobileShaderNumericType
+	{
+		return {base: NUMERIC_BOOL, width: 1};
+	}
+
+	private static inline function intNumericType():MobileShaderNumericType
+	{
+		return {base: NUMERIC_INT, width: 1};
+	}
+
+	private static inline function uintNumericType():MobileShaderNumericType
+	{
+		return {base: NUMERIC_UINT, width: 1};
+	}
+
+	private static inline function floatNumericType(width:Int):MobileShaderNumericType
+	{
+		return {base: NUMERIC_FLOAT, width: width};
+	}
+
+	private static inline function numericRangeKey(start:Int, end:Int):String
+	{
+		return start + ':' + end;
+	}
+
+	private static function isPlainDecimalInteger(token:MobileShaderToken):Bool
+	{
+		if (token.kind != NUMBER) return false;
+		return ~/^(?:0|[1-9][0-9]*)$/.match(tokenValue(token));
 	}
 
 	private static function convertToES300(tokens:Array<MobileShaderToken>, isFragment:Bool, macroNames:Map<String, Bool>,
@@ -1768,6 +2959,8 @@ class MobileShaderConverter
 		return {
 			text: text,
 			replacement: null,
+			prefix: '',
+			suffix: '',
 			kind: kind,
 			line: line,
 			preprocessor: preprocessor,
@@ -1788,7 +2981,9 @@ class MobileShaderConverter
 				for (i in 0...countNewlines(token.text)) output.add('\n');
 				continue;
 			}
+			output.add(token.prefix);
 			output.add(token.replacement != null ? token.replacement : token.text);
+			output.add(token.suffix);
 		}
 		return output.toString();
 	}
@@ -1797,7 +2992,12 @@ class MobileShaderConverter
 	{
 		var output = new StringBuf();
 		for (i in start...end)
-			if (!tokens[i].removed) output.add(tokenValue(tokens[i]));
+			if (!tokens[i].removed)
+			{
+				output.add(tokens[i].prefix);
+				output.add(tokenValue(tokens[i]));
+				output.add(tokens[i].suffix);
+			}
 		return output.toString();
 	}
 

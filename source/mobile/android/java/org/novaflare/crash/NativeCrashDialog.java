@@ -38,10 +38,10 @@ public final class NativeCrashDialog
 					try
 					{
 						AlertDialog dialog = new AlertDialog.Builder(activity)
-							.setTitle("NovaFlare Engine - 应用程序闪退 / Application Crash")
+							.setTitle("NovaFlare Engine - 游戏报错 / Game Crash")
 							.setMessage(
-								"应用程序已闪退，错误信息已保存至 crash 文件夹。\n\n"
-								+ "The application has crashed. Error information was saved to the crash folder.")
+								"游戏报错，错误信息已保存至 crash 文件夹。\n\n"
+								+ "The game has crashed. Error information was saved to the crash folder.")
 							.setCancelable(false)
 							.setPositiveButton("确定 / OK", new DialogInterface.OnClickListener()
 							{

@@ -278,6 +278,15 @@ class ControlsMacro
 
 		var keyset: Null<String> = null;
 		var expr: Expr = null;
+		// The field suffix describes Codename's internal action name, but it is
+		// not the source of truth for the action edge. Several public controls
+		// (ACCEPT, BACK, CHANGE_MODE, ...) intentionally have no `_P` suffix even
+		// though their metadata is `@:justPressed`.
+		var mobileInputState:Expr = switch(type) {
+			case "_P": macro JUST_PRESSED;
+			case "_R": macro JUST_RELEASED;
+			default: macro PRESSED;
+		};
 		var metasToRemove = [];
 		for (meta in field.meta)
 		{
@@ -298,15 +307,19 @@ class ControlsMacro
 				case ":pressed":
 					keyset = extractString(meta.params[0]);
 					expr = macro func($i{internalName}, PRESSED);
+					mobileInputState = macro PRESSED;
 				case ":justPressed":
 					keyset = extractString(meta.params[0]);
 					expr = macro func($i{internalName}, JUST_PRESSED);
+					mobileInputState = macro JUST_PRESSED;
 				case ":released":
 					keyset = extractString(meta.params[0]);
 					expr = macro func($i{internalName}, RELEASED);
+					mobileInputState = macro RELEASED;
 				case ":justReleased":
 					keyset = extractString(meta.params[0]);
 					expr = macro func($i{internalName}, JUST_RELEASED);
+					mobileInputState = macro JUST_RELEASED;
 				case ":devModeOnly":
 					if (!_allDevModeOnlyControls.contains(shortName))
 						_allDevModeOnlyControls.push(shortName);
@@ -350,12 +363,7 @@ class ControlsMacro
 		//     return _uiUp.check(); or return Options.devMode && _uiUp.check(); depending if its dev mode
 		var checkExpr:Expr = macro $i{internalName}.check();
 		if (Context.defined("mobile")) {
-			var inputState:Expr = switch(type) {
-				case "_P": macro JUST_PRESSED;
-				case "_R": macro JUST_RELEASED;
-				default: macro PRESSED;
-			};
-			checkExpr = macro $e{checkExpr} || codename.mobile.CodeNameMobileInput.check(Control.$shortName, $e{inputState});
+			checkExpr = macro $e{checkExpr} || codename.mobile.CodeNameMobileInput.check(Control.$shortName, $e{mobileInputState});
 		}
 		if (_allDevModeOnlyControls.contains(shortName))
 			checkExpr = macro Options.devMode && $e{checkExpr};

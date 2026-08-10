@@ -103,8 +103,8 @@ class ConsoleToggleButton extends Sprite {
 
 	private function updatePosition():Void {
 		if (Lib.current == null || Lib.current.stage == null) return;
-		x = Lib.current.stage.stageWidth - WIDTH - 14;
-		y = 14;
+		x = Lib.current.stage.stageWidth - WIDTH - #if mobile 50 #else 14 #end;
+		y = #if mobile 50 #else 14 #end;
 	}
 
 	private function redraw():Void {

@@ -15,7 +15,7 @@ class ExtraSettings extends TreeMenuScreen
 			() -> codenamechain.CodeNameOverlaySettings.applyMouseEffects(Options.mouseEffects)));
 
 		#if mobile
-		add(new Checkbox('Automatic Shader Conversion',
+		add(new Checkbox('Shader Conversion',
 			'Automatically converts desktop OpenFL shaders for OpenGL ES 2.0 and 3.0+.',
 			'autoShaderConversion',
 			() -> general.shaders.MobileShaderConverter.setEnabled(Options.autoShaderConversion)));
