@@ -18,11 +18,6 @@ import general.shaders.MobileShaderConverter;
 // Add a variable here and it will get automatically saved
 @:structInit class SaveVariables
 {
-	//更新这个直接原地爆破所有人设置
-	public var prefsVersion:Int = 120;
-	//更新这个能让性能相关的强制更新
-	public var performanceDefaultsVersion:Int = 8;
-
 	// General
 	public var framerate:Int = 1000;
 	public var drawFramerate:Int = 1000;
@@ -446,135 +441,43 @@ class ClientPrefs
 	{
 		#if ACHIEVEMENTS_ALLOWED Achievements.load(); #end
 
-		if (FlxG.save.data.prefsVersion != data.prefsVersion)
-		{
-			data = {};
-			modsData = [];
-			for (key in Reflect.fields(defaultData))
+		for (key in Reflect.fields(data))
+			if (key != 'gameplaySettings' &&
+				key != 'arrowRGB' &&
+				key != 'arrowRGBPixel' && Reflect.hasField(FlxG.save.data, key))
+				Reflect.setField(data, key, Reflect.field(FlxG.save.data, key));
+			else if (key == 'arrowRGB')
 			{
-				if (key == 'arrowRGB' || key == 'arrowRGBPixel' || key == 'modsData')
-					continue;
-				if (key == 'gameplaySettings')
-				{
-					data.gameplaySettings.clear();
-					for (k => v in defaultData.gameplaySettings)
-						data.gameplaySettings.set(k, v);
-					FlxG.save.data.gameplaySettings = data.gameplaySettings;
-					continue;
-				}
-				Reflect.setField(data, key, Reflect.field(defaultData, key));
-				Reflect.setField(FlxG.save.data, key, Reflect.field(defaultData, key));
+				loadArrowRGBData('arrowRGB.json', false, ExtraKeysHandler.instance.data.colors);
 			}
-			FlxG.save.data.modsData = modsData;
-
-			#if desktop
-			data.framerate = 240;
-			data.drawFramerate = 1200;
-			Reflect.setField(FlxG.save.data, 'framerate', data.framerate);
-			Reflect.setField(FlxG.save.data, 'drawFramerate', data.drawFramerate);
-			#elseif (!html5 && !switch)
-			final refreshRate:Int = FlxG.stage.application.window.displayMode.refreshRate;
-			data.framerate = Std.int(FlxMath.bound(refreshRate * 2, 60, 1000));
-			data.drawFramerate = Std.int(FlxMath.bound(refreshRate, 60, 1000));
-			Reflect.setField(FlxG.save.data, 'framerate', data.framerate);
-			Reflect.setField(FlxG.save.data, 'drawFramerate', data.drawFramerate);
-			#end
-
-			FlxG.save.flush();
-
-			#if sys
-			if (FileSystem.exists('arrowRGB.json')) FileSystem.deleteFile('arrowRGB.json');
-			if (FileSystem.exists('arrowRGBPixel.json')) FileSystem.deleteFile('arrowRGBPixel.json');
-			#end
-			loadArrowRGBData('arrowRGB.json', false, ExtraKeysHandler.instance.data.colors);
-			loadArrowRGBData('arrowRGBPixel.json', true, ExtraKeysHandler.instance.data.pixelNoteColors);
-
-			if (defaultKeys == null)
-				loadDefaultKeys();
-
-			keyBinds.clear();
-			for (name => keys in defaultKeys)
-				keyBinds.set(name, keys.copy());
-
-			var controlSave:FlxSave = new FlxSave();
-			controlSave.bind('controls_v4', CoolUtil.getSavePath());
-			if (controlSave != null)
+			else if (key == 'arrowRGBPixel')
 			{
-				controlSave.data.keyboard = defaultKeys;
-				controlSave.flush();
+				loadArrowRGBData('arrowRGBPixel.json', true, ExtraKeysHandler.instance.data.pixelNoteColors);
+			}
+
+		if (FlxG.save.data.modsData != null)
+			modsData = FlxG.save.data.modsData;
+		else
+			modsData = [];
+
+		var save:FlxSave = new FlxSave();
+		save.bind('controls_v4', CoolUtil.getSavePath());
+		if (save != null)
+		{
+			if (save.data.keyboard != null)
+			{
+				var loadedControls:Map<String, Array<FlxKey>> = save.data.keyboard;
+				for (control => keys in loadedControls)
+					if (keyBinds.exists(control))
+					{
+						var arr = keyBinds.get(control);
+						arr.resize(0);
+						for (i in keys)
+							arr.push(i);
+					}
 			}
 			reloadVolumeKeys();
 		}
-		else
-		{
-			for (key in Reflect.fields(data))
-				if (key != 'gameplaySettings' && 
-					key != 'arrowRGB' &&
-					key != 'arrowRGBPixel' &&
-					// Keep the compiled migration target. Loading the saved marker
-					// here makes the later comparison oldVersion < targetVersion
-					// compare the old value with itself and silently skip migration.
-					key != 'performanceDefaultsVersion' && Reflect.hasField(FlxG.save.data, key))
-					Reflect.setField(data, key, Reflect.field(FlxG.save.data, key));
-				else if (key == 'arrowRGB') 
-				{
-					loadArrowRGBData('arrowRGB.json', false, ExtraKeysHandler.instance.data.colors);
-				} 
-				else if (key == 'arrowRGBPixel') 
-				{
-					loadArrowRGBData('arrowRGBPixel.json', true, ExtraKeysHandler.instance.data.pixelNoteColors);
-				}
-
-			if (FlxG.save.data.modsData != null)
-				modsData = FlxG.save.data.modsData;
-			else modsData = [];
-
-			var save:FlxSave = new FlxSave();
-			save.bind('controls_v4', CoolUtil.getSavePath());
-			if (save != null)
-			{
-				if (save.data.keyboard != null)
-				{
-					var loadedControls:Map<String, Array<FlxKey>> = save.data.keyboard;
-					for (control => keys in loadedControls)
-						if (keyBinds.exists(control))
-						{
-							var arr = keyBinds.get(control);
-							arr.resize(0);
-							for (i in keys)
-								arr.push(i);
-						}
-				}
-				reloadVolumeKeys();
-			}
-		}
-
-		#if desktop
-		// Migrate only the measured desktop scheduling defaults. Keep every other
-		// preference and key binding intact.
-		var savedPerformanceDefaultsVersion:Dynamic = Reflect.field(FlxG.save.data, 'performanceDefaultsVersion');
-		if (savedPerformanceDefaultsVersion == null || savedPerformanceDefaultsVersion < data.performanceDefaultsVersion)
-		{
-			data.framerate = 240;
-			data.drawFramerate = 1200;
-			data.lockRender = true;
-			// Lime's GL worker keeps a bounded two-frame pipeline. Keep driver
-			// submission off the update thread; direct submission serializes UI
-			// traversal with GL commands and causes a high-FPS regression.
-			data.renderThread = true;
-			// Keep desktop high-FPS mode at the engine's authored resolution.
-			// Higher resolutions remain selectable, but should be an explicit
-			// image-quality choice rather than a hidden cost on every interface.
-			data.resolution = '720P';
-			Reflect.setField(FlxG.save.data, 'framerate', data.framerate);
-			Reflect.setField(FlxG.save.data, 'drawFramerate', data.drawFramerate);
-			Reflect.setField(FlxG.save.data, 'lockRender', data.lockRender);
-			Reflect.setField(FlxG.save.data, 'renderThread', data.renderThread);
-			Reflect.setField(FlxG.save.data, 'resolution', data.resolution);
-			Reflect.setField(FlxG.save.data, 'performanceDefaultsVersion', data.performanceDefaultsVersion);
-			FlxG.save.flush();
-		}
-		#end
 
 		if (Main.fpsVar != null)
 			Main.fpsVar.visible = data.showFPS;
@@ -584,22 +487,14 @@ class ClientPrefs
 
 		if (FlxG.save.data.framerate == null)
 		{
-			#if desktop
-			data.framerate = 240;
-			#else
 			final refreshRate:Int = FlxG.stage.application.window.displayMode.refreshRate * 2;
 			data.framerate = Std.int(FlxMath.bound(refreshRate, 60, 1000));
-			#end
 		}
 
 		if (FlxG.save.data.drawFramerate == null)
 		{
-			#if desktop
-			data.drawFramerate = 1200;
-			#else
 			final refreshRate:Int = FlxG.stage.application.window.displayMode.refreshRate;
 			data.drawFramerate = Std.int(FlxMath.bound(refreshRate, 60, 1000));
-			#end
 		}
 		#end
 
