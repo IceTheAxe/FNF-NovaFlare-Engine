@@ -242,8 +242,11 @@ class MusicBeatState extends FlxUIState
 
 		if (FlxG.save.data != null && lastSavedFullscreen != FlxG.fullscreen)
 		{
+			var changedByUser:Bool = lastSavedFullscreen != null;
 			lastSavedFullscreen = FlxG.fullscreen;
 			FlxG.save.data.fullscreen = lastSavedFullscreen;
+			if (changedByUser)
+				ClientPrefs.scheduleProtectedSettingsCheckpoint(0.1);
 		}
 
 		// This is the hottest stage dispatch in the engine.  Avoid allocating a
