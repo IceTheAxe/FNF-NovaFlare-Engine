@@ -262,14 +262,24 @@ class Highscore
 		if (hasLegacy || migrated || normalized || (!hasCompleteDedicatedSave && (hasDedicatedWeek || hasDedicatedDetails || hasDedicatedKeyHits)))
 			dedicatedReady = commitScoreSave();
 
-		if (dedicatedReady && hasLegacy)
+		// 迁移完成后，尝试清除旧的遗留字段（不再检查安全保存状态）
+		if (hasLegacy && mainData != null)
 		{
-			if (decodedLegacy.complete && ClientPrefs.canSafelyCleanLegacyScoreFields())
-				removeLegacyFields(mainData);
-			else if (!ClientPrefs.canSafelyCleanLegacyScoreFields())
-				FlxG.log.warn('[Highscore] Kept legacy score fields because no verified independent settings snapshot exists yet.');
-			else
-				FlxG.log.warn('[Highscore] Kept legacy score fields because some entries could not be migrated safely.');
+			// 直接从主保存中移除旧的高分字段
+			if (Reflect.hasField(mainData, 'weekScores'))
+				Reflect.deleteField(mainData, 'weekScores');
+			if (Reflect.hasField(mainData, 'songDetails'))
+				Reflect.deleteField(mainData, 'songDetails');
+			if (Reflect.hasField(mainData, 'songKeyHit'))
+				Reflect.deleteField(mainData, 'songKeyHit');
+			try
+			{
+				FlxG.save.flush();
+			}
+			catch (error:Dynamic)
+			{
+				FlxG.log.warn('[Highscore] Could not flush main save after legacy cleanup: $error');
+			}
 		}
 	}
 
@@ -534,21 +544,6 @@ class Highscore
 				|| Reflect.hasField(mainData, 'songKeyHit'));
 	}
 
-	static function removeLegacyFields(mainData:Dynamic):Void
-	{
-		Reflect.deleteField(mainData, 'weekScores');
-		Reflect.deleteField(mainData, 'songDetails');
-		Reflect.deleteField(mainData, 'songKeyHit');
-		try
-		{
-			if (!FlxG.save.flush())
-				FlxG.log.error('[Highscore] Dedicated migration succeeded, but legacy main-save cleanup did not flush.');
-		}
-		catch (error:Dynamic)
-		{
-			FlxG.log.error('[Highscore] Dedicated migration succeeded, but legacy main-save cleanup threw: $error');
-		}
-	}
 
 	/**
 	 * Combines two copies of a song history without doubling entries that were

@@ -128,7 +128,6 @@ class MobileControlSelectSubState extends MusicBeatSubstate
 				if (virtualPadd.visible == true)
 					MobileControls.setExtraCustomMode(virtualPadd);
 
-				ClientPrefs.checkpointProtectedSettings();
 			}
 
 			FlxG.sound.play(Paths.sound('cancelMenu'));

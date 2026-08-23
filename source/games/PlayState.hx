@@ -297,6 +297,9 @@ class PlayState extends MusicBeatState
 	var timeTxt:FlxText;
 	var scoreTxtTween:FlxTween;
 
+	var scoreTxtColorTween:FlxTween;
+	var scoreTxtDefaultColor:FlxColor = 0xFFFFFFFF;
+
 	public var pauseButton_menu:TouchSpriteButton;
 
 	public static var campaignScore:Int = 0;
@@ -357,6 +360,10 @@ class PlayState extends MusicBeatState
 	var _hold:Array<Bool> = [];
 	var _press:Array<Bool> = [];
 	var _release:Array<Bool> = [];
+
+	//FE Features
+	var hitErrorBar:HitErrorBar;
+	var guideLine:StrumGuideLine;
 
 	public function new()
 	{
@@ -661,7 +668,12 @@ class PlayState extends MusicBeatState
 		timeBarBG.visible = false;
 		add(timeBarBG);
 
-		timeBar = new Bar(0, timeTxt.y + (timeTxt.height / 4), 'timeBar', function() return songPercent, 0, 1);
+		if(ClientPrefs.data.customColor && ClientPrefs.data.gradientTimeBar) {
+			timeBar = new GradientTimeBar(0, timeTxt.y + (timeTxt.height / 4), 'timeBar', function() return songPercent, 0, 1);
+		} else {
+			// 使用普通Bar
+			timeBar = new Bar(0, timeTxt.y + (timeTxt.height / 4), 'timeBar', function() return songPercent, 0, 1);
+		}
 		timeBar.scrollFactor.set();
 		timeBar.screenCenter(X);
 		timeBar.alpha = 0;
@@ -698,7 +710,7 @@ class PlayState extends MusicBeatState
 		add(iconP2);
 
 		scoreTxt = new FlxText(0, healthBar.y + 40, FlxG.width, "", 20);
-		scoreTxt.setFormat(Paths.font("vcr.ttf"), 16, FlxColor.WHITE, CENTER, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
+		scoreTxt.setFormat(Paths.font("vcr.ttf"), 20, FlxColor.WHITE, CENTER, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
 		scoreTxt.scrollFactor.set();
 		scoreTxt.borderSize = 1.25;
 		scoreTxt.visible = !ClientPrefs.data.hideHud;
@@ -799,6 +811,19 @@ class PlayState extends MusicBeatState
 		add(keyboardViewer);
 		keyboardViewer.cameras = [camHUD];
 
+		hitErrorBar = new HitErrorBar();
+		hitErrorBar.visible = ClientPrefs.data.hitErrorBarVisible;
+		hitErrorBar.screenCenter();
+		hitErrorBar.x -= 250 + ClientPrefs.data.hitErrorBarOffsetX;
+		hitErrorBar.y = FlxG.height * 0.3 + ClientPrefs.data.hitErrorBarOffsetY; // 顶部10%位置
+		if (ClientPrefs.data.downScroll)
+        hitErrorBar.y = FlxG.height - 100 + ClientPrefs.data.hitErrorBarOffsetY;
+		uiGroup.add(hitErrorBar);
+
+		guideLine = new StrumGuideLine();
+		guideLine.alpha = ClientPrefs.data.guideLineAlpha;
+		uiGroup.insert(0, guideLine);
+
 		camFollow = new FlxObject(0, 0, 1, 1);
 		camFollow.setPosition(camPos.x, camPos.y);
 		camPos.put();
@@ -892,6 +917,8 @@ class PlayState extends MusicBeatState
 
 		cacheCountdown();
 
+		reloadTimeBarAndTextColors();
+
 		super.create();
 
 		callOnScripts('onCreateFinal');
@@ -983,6 +1010,58 @@ class PlayState extends MusicBeatState
 	{
 		healthBar.setColors(FlxColor.fromRGB(dad.healthColorArray[0], dad.healthColorArray[1], dad.healthColorArray[2]),
 			FlxColor.fromRGB(boyfriend.healthColorArray[0], boyfriend.healthColorArray[1], boyfriend.healthColorArray[2]));
+	}
+
+	public function reloadTimeBarAndTextColors() 
+	{
+		if(ClientPrefs.data.customColor)
+		{
+			var opponentColor:FlxColor = FlxColor.fromRGB(dad.healthColorArray[0], dad.healthColorArray[1], dad.healthColorArray[2]);
+			var playerColor:FlxColor = FlxColor.fromRGB(boyfriend.healthColorArray[0], boyfriend.healthColorArray[1], boyfriend.healthColorArray[2]);
+			
+			// 更新TimeBar颜色
+			if (timeBar != null) {
+				if(Std.isOfType(timeBar, GradientTimeBar)) {
+					// 渐变TimeBar - 更新渐变颜色
+					var gradientBar:GradientTimeBar = cast timeBar;
+					gradientBar.updateGradientColors(opponentColor, playerColor);
+				} else if(Std.isOfType(timeBar, Bar)) {
+					// 普通Bar - 设置单色
+					var bar:Bar = cast timeBar;
+					bar.setColors(opponentColor);
+				}
+			}
+			
+			if (scoreTxt != null) {
+				scoreTxt.color = opponentColor;
+			}
+			
+			if (botplayTxt != null) {
+				botplayTxt.color = opponentColor;
+			}
+		} 
+		else 
+		{
+			if (timeBar != null) {
+				if(Std.isOfType(timeBar, GradientTimeBar)) {
+					var gradientBar:GradientTimeBar = cast timeBar;
+					gradientBar.updateGradientColors(0xFFFFFFFF, 0xFFFFFFFF);
+				} else if(Std.isOfType(timeBar, Bar)) {
+					var bar:Bar = cast timeBar;
+					bar.setColors(0xFFFFFFFF);
+				}
+			}
+		}
+	}
+
+		function getOpponentHealthColor():FlxColor {
+		if(dad != null && dad.healthColorArray != null) {
+			var colors:Array<Int> = dad.healthColorArray;
+			if(colors.length >= 3) {
+				return FlxColor.fromRGB(colors[0], colors[1], colors[2]);
+			}
+		}
+		return 0xFF149DFF;
 	}
 
 	public function addCharacterToList(newCharacter:String, type:Int)
@@ -2835,17 +2914,9 @@ class PlayState extends MusicBeatState
 
 		if (ClientPrefs.data.playOpponent ? !cpuControlled_opponent : !cpuControlled)
 		{
-			scoreTxt.text += " | " + "Score: " + songScore + " | Misses: " + songMisses + " | Accuracy: " + Math.ceil(ratingPercent * 10000) / 100 + '%'
-				+ " | ";
+			scoreTxt.text += " | " + "Score: " + songScore + " | Combo Breaks: " + songMisses + " | Accuracy: " + Math.ceil(ratingPercent * 10000) / 100 + '%'
+				+ "[" + ratingFC + "]";
 
-			if (ratingName == 'N/A')
-			{
-				scoreTxt.text += 'N/A';
-			}
-			else
-			{
-				scoreTxt.text += '(' + ratingFC + ') ' + ratingName;
-			}
 		}
 	}
 
@@ -3319,6 +3390,7 @@ class PlayState extends MusicBeatState
 						}
 				}
 				reloadHealthBarColors();
+				reloadTimeBarAndTextColors();
 
 			case 'Change Scroll Speed':
 				if (songSpeedType != "constant")
@@ -3704,9 +3776,12 @@ class PlayState extends MusicBeatState
 	var scoreComboGraphic:FlxGraphic;
 	var scoreNumberGraphics:Array<FlxGraphic> = [];
 
+	var msText:FlxText = null;
+
 	var rateTween:FlxTween;
 	var comboTween:FlxTween;
 	var comboNumTween:Array<FlxTween> = [];
+	var msTextTween:FlxTween;
 
 	var rateTweenScaleX:FlxTween;
 	var comboTweenScaleX:FlxTween;
@@ -3880,6 +3955,53 @@ class PlayState extends MusicBeatState
 		{
 			noteDiff = replayMode ? note.strumTime - @:privateAccess replayExam.time + ClientPrefs.data.ratingOffset :
 				note.strumTime - Conductor.songPosition + ClientPrefs.data.ratingOffset;
+		}
+
+        if (!ClientPrefs.data.hideHud && ClientPrefs.data.showMS)
+		{
+			var daRating:Rating = Conductor.judgeNote(ratingsData, noteDiff / playbackRate);
+			
+			// ===== 新增：清除旧的 msText =====
+			if (msText != null)
+			{
+				if (msTextTween != null)
+				{
+					msTextTween.cancel();
+					msTextTween = null;
+				}
+				msText.kill();          // 或者 remove(msText) 如果你用的 add()
+				msText.destroy();       // 彻底释放
+				msText = null;
+			}
+
+			msText = new FlxText(0, 0, 0, "", 16);	
+			msText.setFormat(Paths.font('pixel.otf'), 16, FlxColor.WHITE, CENTER, OUTLINE, FlxColor.BLACK);
+			
+			var msTiming:Float = Math.round(noteDiff * 100) / 100;
+			msText.text = (msTiming >= 0 ? "+" : "") + msTiming + 'ms';
+			switch(daRating.name)
+			{
+				case 'sick': msText.color = FlxColor.CYAN;
+				case 'good': msText.color = FlxColor.LIME;
+				case 'bad': msText.color = FlxColor.RED;
+				case 'shit': msText.color = FlxColor.RED;
+			}
+			msText.screenCenter();
+			msText.x = ClientPrefs.data.comboOffset[0] + 600;
+			msText.y -= ClientPrefs.data.comboOffset[1];
+
+			comboGroup.add(msText);
+
+			// 动画（现在用成员变量）
+			if (msTextTween != null)
+			{
+				msTextTween.cancel();
+				msTextTween = null;
+			}
+			msText.alpha = 1;
+			msTextTween = FlxTween.tween(msText, {alpha: 0}, 0.2 / playbackRate, {
+				startDelay: Conductor.crochet * 0.001 / playbackRate
+			});
 		}
 
 		if ((ClientPrefs.data.playOpponent && cpuControlled_opponent) || (!ClientPrefs.data.playOpponent && cpuControlled))
@@ -4558,6 +4680,32 @@ class PlayState extends MusicBeatState
 			NoteTime.push(note.strumTime);
 		}
 
+		if(scoreTxt != null) {
+			if(scoreTxtColorTween != null) {
+				scoreTxtColorTween.cancel();
+			}
+			
+			if(ClientPrefs.data.customColor){
+				scoreTxtColorTween = FlxTween.color(scoreTxt, 0.1, scoreTxt.color, 0xFFFF1512, {
+					onComplete: function(twn:FlxTween) {
+						new FlxTimer().start(0.4, function(tmr:FlxTimer) 
+						{
+							FlxTween.color(scoreTxt, 0.1, scoreTxt.color, getOpponentHealthColor());
+						});
+					}
+				});
+			}
+			else {
+				scoreTxtColorTween = FlxTween.color(scoreTxt, 0.1, scoreTxt.color, 0xFFFF1512, {
+					onComplete: function(twn:FlxTween) {
+						new FlxTimer().start(0.4, function(tmr:FlxTimer) 
+						{
+							FlxTween.color(scoreTxt, 0.1, scoreTxt.color, 0xFFFFFFFF);
+						});
+					}
+				});
+			}
+		}
 		health -= subtract * healthLoss;
 		songScore -= 10;
 		if (!endingSong)
@@ -4883,6 +5031,11 @@ class PlayState extends MusicBeatState
 				highestCombo = combo;
 			notesHitArray.unshift(Date.now());
 			popUpScore(note);
+
+			var rawNoteDiff:Float =  note.strumTime - Conductor.songPosition + ClientPrefs.data.ratingOffset;
+
+			var hitTime:Float = -rawNoteDiff;
+			hitErrorBar.registerHit(hitTime);
 		}
 		var gainHealth:Bool = true; // prevent health gain, *if* sustains are treated as a singular note
 		if (guitarHeroSustains && note.isSustainNote)

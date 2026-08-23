@@ -211,10 +211,12 @@ class GameplayChangersSubstate extends MusicBeatSubstate
 										case 'int':
 											holdValue = Math.round(holdValue);
 											curOption.setValue(holdValue);
+											trace('[DEBUG] GameplaySettings before save: ' + haxe.Json.stringify(ClientPrefs.data.gameplaySettings));
 
 										case 'float' | 'percent':
 											holdValue = FlxMath.roundDecimal(holdValue, curOption.decimals);
 											curOption.setValue(holdValue);
+											trace('[DEBUG] GameplaySettings before save: ' + haxe.Json.stringify(ClientPrefs.data.gameplaySettings));
 									}
 
 								case 'string':

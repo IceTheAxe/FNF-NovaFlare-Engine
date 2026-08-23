@@ -63,7 +63,7 @@ class OptionsState extends MusicBeatState
 		instance = this;
 
 		naviArray = [
-			new NaviData('NovaFlare Engine', ['Language','General','User Interface','GamePlay','Game UI','Skin','Input','Audio','Graphics','Maintenance'])
+			new NaviData('NovaFlare Engine', ['Language','General','User Interface','GamePlay','Game UI','Skin','Input','Audio','Graphics','Maintenance','FEFeatures'])
 		];
 		
 		var path = Paths.mods('stageScripts/options/');
@@ -311,6 +311,8 @@ class OptionsState extends MusicBeatState
 				obj = new GraphicsGroup(outputX, outputY, outputWidth, outputHeight);
 			case 'Maintenance':
 				obj = new MaintenanceGroup(outputX, outputY, outputWidth, outputHeight);
+			case 'FEFeatures':
+				obj = new FEFeaturesGroup(outputX, outputY, outputWidth, outputHeight);
 			default:
 				obj = new HScriptGroup(outputX, outputY, outputWidth, outputHeight, type, extraPath, type);
 		}
@@ -393,7 +395,7 @@ class OptionsState extends MusicBeatState
 		for (i in 0...naviGroup.length) {
 			if (naviGroup[i] == navi) continue;
 			else {
-				if (naviGroup[i].isOpened) moveHeight += naviGroup[i].parent.length * 50 + 15;
+				if (naviGroup[i].isOpened) moveHeight += naviGroup[i].parent.length * 50 + 175;
 			}
 		}
 		if (!isOpened) moveHeight += (navi.parent.length * 50 + 15);
