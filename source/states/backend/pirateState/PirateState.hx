@@ -39,7 +39,7 @@ class PirateState extends MusicBeatState
 	override function update(elapsed:Float)
 	{
 		if (controls.ACCEPT)
-			CoolUtil.browserLoad('https://github.com/NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine/releases');
+			CoolUtil.browserLoad('https://github.com/IceTheAxe/FNF-NovaFlare-Engine/releases');
 
 		super.update(elapsed);
 	}
