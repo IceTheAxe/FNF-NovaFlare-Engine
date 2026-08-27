@@ -1,0 +1,12 @@
+FEFeatures => Personalize recursos exclusivos e configurações visuais do FE.
+pauseType => Escolha qual estilo de menu de pausa usar durante o jogo.
+coolBackdrop => Ative um fundo animado dinâmico para o menu de pausa.
+showMS => Exiba o atraso de quadros em tempo real (milissegundos) na tela.
+gradientTimeBar => Aplique um efeito de cor gradiente suave à barra de progresso do tempo.
+customColor => Use cores personalizadas para elementos da UI em vez das cores padrão do tema.
+hitErrorBarVisible => Exiba uma barra visual mostrando os erros de temporização dos seus hits.
+hitBarLines => Número de linhas indicadoras mostradas na barra de erro de hit.
+hitBarLineTime => Duração em segundos para cada linha permanecer visível na barra de hit.
+hitErrorBarOffsetX => Ajuste a posição horizontal da barra de erro de hit.
+hitErrorBarOffsetY => Ajuste a posição vertical da barra de erro de hit.
+guideLineAlpha => Controle a opacidade (transparência) das linhas guia.

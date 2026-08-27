@@ -1,5 +1,8 @@
 package general.objects;
 
+import haxe.Json;
+import flixel.text.FlxText;
+
 enum Alignment
 {
 	LEFT;
@@ -27,6 +30,19 @@ class Alphabet extends FlxSpriteGroup
 	public var distancePerItem:FlxPoint = FlxPoint.get(20, 120);
 	public var startPosition:FlxPoint = FlxPoint.get(0, 0); // for the calculations
 
+	// ============================================
+	// 中文回退显示参数 (可随意修改调试)
+	// ============================================
+	public static var fallbackFontSize:Int = 56;
+	public static var fallbackYOffset:Float = 8;
+	public static var fallbackXOffset:Float = 0;
+	public static var fallbackBold:Bool = false;
+	public static var fallbackBorderSize:Int = 5;
+	// ============================================
+	
+	private var fallbackText:FlxText;
+	private var useFallback:Bool = false;
+
 	public function new(x:Float, y:Float, text:String = "", ?bold:Bool = true)
 	{
 		super(x, y);
@@ -41,6 +57,40 @@ class Alphabet extends FlxSpriteGroup
 
 		moves = false;
 		immovable = true;
+	}
+
+	/**
+	 * 检查文本是否需要使用回退系统（包含非拉丁字符）
+	 */
+	private static function needsFallback(text:String):Bool
+	{
+		if (text == null || text.length == 0) return false;
+		
+		for (i in 0...text.length)
+		{
+			var c = text.charAt(i);
+			if (c == '\n' || c == ' ' || c == '\t') continue;
+			
+			var code = c.charCodeAt(0);
+			var isLatin = (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
+			var isExtendedLatin = (code >= 192 && code <= 255);
+			var isNumber = (code >= 48 && code <= 57);
+			var isCommonPunctuation = (code >= 33 && code <= 47) || (code >= 58 && code <= 64) || 
+									   (code >= 91 && code <= 96) || (code >= 123 && code <= 126);
+			
+			var isInAlphabet = false;
+			if (AlphaCharacter.allLetters != null)
+			{
+				var lower = c.toLowerCase();
+				isInAlphabet = AlphaCharacter.allLetters.exists(lower);
+			}
+			
+			if (!isLatin && !isExtendedLatin && !isNumber && !isCommonPunctuation && !isInAlphabet)
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	public function setAlignmentFromString(align:String)
@@ -59,12 +109,17 @@ class Alphabet extends FlxSpriteGroup
 	private function set_alignment(align:Alignment)
 	{
 		alignment = align;
-		updateAlignment();
+		if (useFallback)
+			updateFallbackAlignment();
+		else
+			updateAlignment();
 		return align;
 	}
 
 	private function updateAlignment()
 	{
+		if (useFallback) return;
+		
 		for (letter in letters)
 		{
 			var newOffset:Float = 0;
@@ -83,15 +138,88 @@ class Alphabet extends FlxSpriteGroup
 			letter.offset.x += letter.alignOffset;
 		}
 	}
+	
+	private function updateFallbackAlignment()
+	{
+		if (fallbackText == null) return;
+		
+		switch(alignment)
+		{
+			case CENTERED:
+				fallbackText.alignment = CENTER;
+			case RIGHT:
+				fallbackText.alignment = RIGHT;
+			default:
+				fallbackText.alignment = LEFT;
+		}
+	}
 
 	private function set_text(newText:String)
 	{
 		newText = newText.replace('\\n', '\n');
-		clearLetters();
-		createLetters(newText);
-		updateAlignment();
+		
+		useFallback = needsFallback(newText);
+		
+		if (useFallback)
+		{
+			clearLetters();
+			createFallbackText(newText);
+		}
+		else
+		{
+			clearFallbackText();
+			clearLetters();
+			createLetters(newText);
+			updateAlignment();
+		}
+		
 		this.text = newText;
 		return newText;
+	}
+	
+	private function createFallbackText(newText:String)
+	{
+		if (fallbackText == null)
+		{
+			fallbackText = new FlxText(0, 0, 0, newText, fallbackFontSize);
+			
+			// 使用系统字体或中文字体，这里用 VCR 作为备选
+			fallbackText.setFormat(Paths.font("vcr.ttf"), fallbackFontSize, FlxColor.WHITE, LEFT);
+			
+			fallbackText.borderStyle = OUTLINE;
+			fallbackText.borderColor = FlxColor.BLACK;
+			fallbackText.borderSize = fallbackBorderSize;
+			fallbackText.borderQuality = 4;
+			
+			fallbackText.antialiasing = ClientPrefs.data.antialiasing;
+			add(fallbackText);
+		}
+		else
+		{
+			fallbackText.text = newText;
+		}
+		
+		fallbackText.scale.set(scaleX, scaleY);
+		fallbackText.updateHitbox();
+		
+		var finalX:Float = x + fallbackXOffset;
+		var finalY:Float = y + fallbackYOffset;
+		fallbackText.setPosition(finalX, finalY);
+		
+		if (isMenuItem)
+		{
+			snapToPosition();
+		}
+	}
+	
+	private function clearFallbackText()
+	{
+		if (fallbackText != null)
+		{
+			remove(fallbackText);
+			fallbackText.destroy();
+			fallbackText = null;
+		}
 	}
 
 	public function clearLetters()
@@ -125,7 +253,16 @@ class Alphabet extends FlxSpriteGroup
 
 		scale.x = newX;
 		scale.y = newY;
-		softReloadLetters(newX / lastX, newY / lastY);
+		
+		if (useFallback && fallbackText != null)
+		{
+			fallbackText.scale.set(newX, newY);
+			fallbackText.updateHitbox();
+		}
+		else
+		{
+			softReloadLetters(newX / lastX, newY / lastY);
+		}
 	}
 
 	private function set_scaleX(value:Float)
@@ -136,7 +273,16 @@ class Alphabet extends FlxSpriteGroup
 		var ratio:Float = value / scale.x;
 		scale.x = value;
 		scaleX = value;
-		softReloadLetters(ratio, 1);
+		
+		if (useFallback && fallbackText != null)
+		{
+			fallbackText.scale.x = value;
+			fallbackText.updateHitbox();
+		}
+		else
+		{
+			softReloadLetters(ratio, 1);
+		}
 		return value;
 	}
 
@@ -148,12 +294,22 @@ class Alphabet extends FlxSpriteGroup
 		var ratio:Float = value / scale.y;
 		scale.y = value;
 		scaleY = value;
-		softReloadLetters(1, ratio);
+		
+		if (useFallback && fallbackText != null)
+		{
+			fallbackText.scale.y = value;
+			fallbackText.updateHitbox();
+		}
+		else
+		{
+			softReloadLetters(1, ratio);
+		}
 		return value;
 	}
 
 	public function softReloadLetters(ratioX:Float = 1, ratioY:Null<Float> = null)
 	{
+		if (useFallback) return;
 		if (ratioY == null)
 			ratioY = ratioX;
 
@@ -175,8 +331,22 @@ class Alphabet extends FlxSpriteGroup
 				x = FlxMath.lerp((targetY * distancePerItem.x) + startPosition.x, x, lerpVal);
 			if (changeY)
 				y = FlxMath.lerp((targetY * 1.3 * distancePerItem.y) + startPosition.y, y, lerpVal);
+			
+			if (useFallback && fallbackText != null)
+			{
+				fallbackText.setPosition(x + fallbackXOffset, y + fallbackYOffset);
+			}
 		}
 		super.update(elapsed);
+	}
+	
+	override public function setPosition(X:Float = 0, Y:Float = 0):Void
+	{
+		super.setPosition(X, Y);
+		if (useFallback && fallbackText != null)
+		{
+			fallbackText.setPosition(X + fallbackXOffset, Y + fallbackYOffset);
+		}
 	}
 
 	public function snapToPosition()
@@ -188,6 +358,39 @@ class Alphabet extends FlxSpriteGroup
 			if (changeY)
 				y = (targetY * 1.3 * distancePerItem.y) + startPosition.y;
 		}
+		
+		if (useFallback && fallbackText != null)
+		{
+			fallbackText.setPosition(x + fallbackXOffset, y + fallbackYOffset);
+		}
+	}
+	
+	// 获取文本宽度
+	public function getTextWidth():Float
+	{
+		if (useFallback && fallbackText != null)
+			return fallbackText.width;
+		
+		if (letters.length > 0)
+		{
+			var maxRow:Float = 0;
+			for (letter in letters)
+			{
+				if (letter.rowWidth > maxRow)
+					maxRow = letter.rowWidth;
+			}
+			return maxRow;
+		}
+		return 0;
+	}
+	
+	// 获取文本高度
+	public function getTextHeight():Float
+	{
+		if (useFallback && fallbackText != null)
+			return fallbackText.height;
+		
+		return rows * Y_PER_ROW * scale.y;
 	}
 
 	private static var Y_PER_ROW:Float = 85;
@@ -259,6 +462,7 @@ class Alphabet extends FlxSpriteGroup
 
 	override function destroy()
 	{
+		clearFallbackText();
 		distancePerItem.put();
 		startPosition.put();
 		letters = FlxDestroyUtil.destroyArray(letters);
@@ -266,6 +470,8 @@ class Alphabet extends FlxSpriteGroup
 		super.destroy();
 	}
 }
+
+// AlphaCharacter 类保持不变，不需要修改
 
 ///////////////////////////////////////////
 // ALPHABET LETTERS, SYMBOLS AND NUMBERS //

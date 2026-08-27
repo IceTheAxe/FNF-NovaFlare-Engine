@@ -175,7 +175,8 @@ import general.shaders.MobileShaderConverter;
 	public var guideLineAlpha:Float = 0.0;
 	public var customColor:Bool = true;
 	public var gradientTimeBar:Bool = true;
-
+	public var pauseType:String = "NF";
+	public var coolBackdrop:Bool = true;
 	// Arrow RGB
 	public var arrowRGB:Array<Array<FlxColor>> = [
 		[0xFFC24B99, 0xFFFFFFFF, 0xFF3C1F56],

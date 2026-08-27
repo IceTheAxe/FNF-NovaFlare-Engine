@@ -1,12 +1,15 @@
 FEFeatures => FE Features
-
+pauseType => Pause Type
+coolBackdrop => Cool Backdrop
 showMS => Show MS
+gradientTimeBar => Gradient Time Bar
+customColor => Custom Color
 hitErrorBarVisible => Show Hit Error Bar
-hitBarLines	=> Hit Bar Lines
-hitBarLineTime => Hit Bar Line Time (s)
-hitErrorBarOffsetX => Hit Error Bar Offset X
-hitErrorBarOffsetY => Hit Error Bar Offset Y
+hitBarLines => Hit Bar Lines
+hitBarLineTime => Hit Bar Line Time
+hitErrorBarOffsetX => Hit Error Bar X Offset
+hitErrorBarOffsetY => Hit Error Bar Y Offset
 guideLineAlpha => Guide Line Alpha
-
-
-
+pauseType_NF => NF
+pauseType_FE => FE
+pauseType_Psych => Psych

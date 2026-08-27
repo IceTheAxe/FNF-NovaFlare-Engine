@@ -53,6 +53,16 @@ class MaintenanceGroup extends OptionCata
 		var option:Option = new Option(this, 'checkForUpdates', BOOL);
 		addOption(option);
 
+		var maxthread:Int = Std.int(Math.max(1, CoolUtil.getCPUThreadsCount() - #if DISCORD_ALLOWED 2 #else 1 #end));
+		#if mobile
+		maxthread = Std.int(Math.min(maxthread, 2));
+		#end
+		var option:Option = new Option(this, 'loadThreads', INT, [1, maxthread, ' Thread']);
+		addOption(option);
+
+		var option:Option = new Option(this, 'useFlixelCoords', BOOL);
+		addOption(option);
+
 		#if mobile
 		var option:Option = new Option(this, 'screensaver', BOOL);
 		addOption(option);

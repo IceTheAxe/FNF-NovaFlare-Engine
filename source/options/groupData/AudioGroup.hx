@@ -9,6 +9,12 @@ class AudioGroup extends OptionCata
 		var option:Option = new Option(this, 'Audio', TITLE);
 		addOption(option);
 
+		var option:Option = new Option(this, 'audioDisplayQuality', INT, [1, 4]);
+		addOption(option);
+
+		var option:Option = new Option(this, 'audioDisplayUpdate', INT, [0, 200, 'MS']);
+		addOption(option);
+
 		var MainMusicArray:Array<String> = ['None', 'freakyMenu'];
         for (folder in Mods.directoriesWithFile(Paths.getSharedPath(), 'music/Main Screen', true)) {
             for (file in FileSystem.readDirectory(folder)) {

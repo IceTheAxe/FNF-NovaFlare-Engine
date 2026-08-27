@@ -1,0 +1,15 @@
+FEFeatures => Recursos FE
+pauseType => Tipo de Pausa
+coolBackdrop => Fundo Legal
+showMS => Mostrar MS
+gradientTimeBar => Barra de Tempo Gradiente
+customColor => Cor Personalizada
+hitErrorBarVisible => Mostrar Barra de Erro de Hit
+hitBarLines => Linhas da Barra de Hit
+hitBarLineTime => Tempo da Linha de Hit
+hitErrorBarOffsetX => Deslocamento X da Barra de Erro
+hitErrorBarOffsetY => Deslocamento Y da Barra de Erro
+guideLineAlpha => Transparência da Linha Guia
+pauseType_NF => NF (Normal)
+pauseType_FE => FE (Aprimorado)
+pauseType_Psych => Psych (Psicológico)

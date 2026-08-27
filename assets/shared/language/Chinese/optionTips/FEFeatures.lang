@@ -1,0 +1,12 @@
+FEFeatures => 自定义 FE 专属功能和视觉设置。
+pauseType => 选择游戏暂停时使用的菜单样式。
+coolBackdrop => 为暂停菜单启用动态动画背景。
+showMS => 在屏幕上实时显示帧延迟（毫秒）。
+gradientTimeBar => 为时间进度条应用平滑渐变颜色效果。
+customColor => 使用自定义颜色替代默认主题颜色来渲染 UI 元素。
+hitErrorBarVisible => 显示一个视觉条，展示你的音符打击时机偏差。
+hitBarLines => 在打击误差条上显示的指示线条数量。
+hitBarLineTime => 每条线条在打击条上保持可见的时长（秒）。
+hitErrorBarOffsetX => 调整打击误差条的水平位置。
+hitErrorBarOffsetY => 调整打击误差条的垂直位置。
+guideLineAlpha => 控制引导线的不透明度（透明度）。

@@ -72,16 +72,16 @@ class GamePlayGroup extends OptionCata
 		var option:Option = new Option(this, 'safeFrames', FLOAT, [0, 10, 1]);
 		addOption(option);
 
-		var option:Option = new Option(this, 'marvelousWindow', INT, [0, 166, 'MS']);
+		var option:Option = new Option(this, 'marvelousWindow', FLOAT, [0, 22.5, 'MS']);
 		addOption(option);
 
-	    var option:Option = new Option(this, 'sickWindow', INT, [0, 166, 'MS']);
+	    var option:Option = new Option(this, 'sickWindow', INT, [0, 45, 'MS']);
 		addOption(option);
 
-	    var option:Option = new Option(this, 'goodWindow', INT, [0, 166, 'MS']);
+	    var option:Option = new Option(this, 'goodWindow', INT, [0, 90, 'MS']);
 		addOption(option);
 
-	    var option:Option = new Option(this, 'badWindow', INT, [0, 166, 'MS']);
+	    var option:Option = new Option(this, 'badWindow', INT, [0, 135, 'MS']);
 		addOption(option);
 		
 	    /////--Gameplaybackend--\\\\\

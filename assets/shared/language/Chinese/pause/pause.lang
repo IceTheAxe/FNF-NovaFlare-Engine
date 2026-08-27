@@ -1,8 +1,32 @@
-restart => 重开
-continues => 继续游戏
+// ============================================
+// Pause SubState 语言文件 - 中文
+// ============================================
+
+continues => 继续
+restart => 重新开始
 difficulty => 难度
-editor => 编铺器
-options => 设置
-exit => 退出游玩
+debug => 调试
+editor => 编辑器
+options => 选项
+exit => 退出
+
+resume => 继续
+restart_song => 重新开始歌曲
+change_difficulty => 更改难度
+exit_to_menu => 退出到菜单
+tool => 工具
+
+practice => 练习模式
+botplay => 机器人模式
+leave => 离开
 back => 返回
-debug => 测试
+skip_time => 跳转时间
+end_song => 结束歌曲
+debug_panel => 制图面板
+
+blueballed => 失误次数
+practice_mode => 练习模式
+charting_mode => 制图模式
+
+on => 开
+off => 关

@@ -37,6 +37,8 @@ import developer.editors.ChartingState;
 import developer.editors.CharacterEditorState;
 
 import substates.PauseSubState;
+import substates.LegacyPauseSubState;
+import substates.NewPauseSubState;
 import substates.GameOverSubstate;
 import substates.ResultsScreen;
 
@@ -906,6 +908,7 @@ class PlayState extends MusicBeatState
 			Paths.music(PauseSubState.songName);
 		else if (Paths.formatToSongPath(ClientPrefs.data.pauseMusic) != 'none')
 			Paths.music(Paths.formatToSongPath(ClientPrefs.data.pauseMusic));
+		
 
 		resetRPC();
 
@@ -2912,10 +2915,17 @@ class PlayState extends MusicBeatState
 	{
 		scoreTxt.text = "NPS: " + nps + " (Max: " + maxNPS + ")";
 
+		var impstr:String = ratingName ;
+		var percent:Float = CoolUtil.floorDecimal(ratingPercent * 100, 2);
+
+		if(totalPlayed != 0)
+		{
+			impstr = '${percent}%' + ' [${ratingFC}]';
+		}
+
 		if (ClientPrefs.data.playOpponent ? !cpuControlled_opponent : !cpuControlled)
 		{
-			scoreTxt.text += " | " + "Score: " + songScore + " | Combo Breaks: " + songMisses + " | Accuracy: " + Math.ceil(ratingPercent * 10000) / 100 + '%'
-				+ "[" + ratingFC + "]";
+			scoreTxt.text += " | " + "Score: " + songScore + " | Combo Breaks: " + songMisses + " | Accuracy: " + impstr;
 
 		}
 	}
@@ -3013,7 +3023,12 @@ class PlayState extends MusicBeatState
 		GameplayGC.pause();
 
 		if (replayMode) @:privateAccess replayExam.unblockKeys();
-		openSubState(new PauseSubState());
+		if(ClientPrefs.data.pauseType == "NF")
+			openSubState(new PauseSubState());
+		else if (ClientPrefs.data.pauseType == "Psych") 
+			openSubState(new LegacyPauseSubState());
+		else if (ClientPrefs.data.pauseType == "FE")
+			openSubState(new NewPauseSubState());
 
 		#if DISCORD_ALLOWED
 		if (autoUpdateRPC)

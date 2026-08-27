@@ -143,16 +143,16 @@ class OptionsState extends MusicBeatState
 		for (num in cataGroup) {
 			if (num != cataGroup[cataGroup.length - 1]) {
 				moveHeight -= num.bg.realHeight;
-				moveHeight -= FlxG.width * (0.8 / 40);
+				moveHeight -= FlxG.width * (0.8 / 20);
 			}
 		}
 		cataMove = new MouseMove(OptionsState, 'cataPosiData', 
-								[moveHeight, 100],
-								[ 
-									[FlxG.width * 0.2, FlxG.width], 
-									[0, FlxG.height - Std.int(FlxG.height * 0.1)]
-								],
-								cataMoveEvent);
+			[moveHeight - FlxG.height * 1.5, 100], // 增加底部缓冲
+			[ 
+				[FlxG.width * 0.2, FlxG.width], 
+				[0, FlxG.height - Std.int(FlxG.height * 0.1)]
+			],
+			cataMoveEvent);
 		add(cataMove);
 		cataMove.forceUpdateEvent = true;
 		cataMove.useLerp = false;
@@ -271,7 +271,7 @@ class OptionsState extends MusicBeatState
 
 		for (cata in 0...realSort) {
 			outputData -= cataGroup[cata].bg.realHeight;
-			outputData -= FlxG.width * (0.8 / 40);
+			outputData -= FlxG.width * (0.8 / 20);
 		}
 		outputData = Math.max(outputData, cataMove.moveLimit[0]);
 		cataMove.tweenData = outputData;
@@ -284,8 +284,8 @@ class OptionsState extends MusicBeatState
 	public function addCata(type:String, follow:NaviGroup, mem:NaviMember, extraPath:String = '') {
 		var obj:OptionCata = null;
 
-		var outputX:Float = naviBG.width + FlxG.width * (0.8 / 40); //已被初始化
-		var outputWidth:Float = FlxG.width * (0.8 - (0.8 / 40 * 2)); //已被初始化
+		var outputX:Float = naviBG.width + FlxG.width * (0.8 / 20); //已被初始化
+		var outputWidth:Float = FlxG.width * (0.8 - (0.8 / 20 * 2)); //已被初始化
 		var outputY:Float = 100; //等待被初始化
 		var outputHeight:Float = 200; //等待被初始化
 
@@ -330,7 +330,7 @@ class OptionsState extends MusicBeatState
 	public function cataMoveEvent(){
 		for (i in 0...cataGroup.length) {
 			if (i == 0) cataGroup[i].y = cataPosiData;
-			else cataGroup[i].y = cataGroup[i - 1].y + cataGroup[i - 1].bg.realHeight + FlxG.width * (0.8 / 40);
+			else cataGroup[i].y = cataGroup[i - 1].y + cataGroup[i - 1].bg.realHeight + FlxG.width * (0.8 / 20);
 		}
 		updateCataVisibility();
 		updateCurrentCategoryIndicator();
@@ -362,7 +362,7 @@ class OptionsState extends MusicBeatState
 		for (num in cataGroup) {
 			if (num != cataGroup[cataGroup.length - 1]) {
 				moveHeight -= num.bg.waitHeight;
-				moveHeight -= FlxG.width * (0.8 / 40);
+				moveHeight -= FlxG.width * (0.8 / 20);
 			}
 		}
 		cataMove.moveLimit[0] = moveHeight;
@@ -395,7 +395,7 @@ class OptionsState extends MusicBeatState
 		for (i in 0...naviGroup.length) {
 			if (naviGroup[i] == navi) continue;
 			else {
-				if (naviGroup[i].isOpened) moveHeight += naviGroup[i].parent.length * 50 + 175;
+				if (naviGroup[i].isOpened) moveHeight += naviGroup[i].parent.length * 50 + 475;
 			}
 		}
 		if (!isOpened) moveHeight += (navi.parent.length * 50 + 15);

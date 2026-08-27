@@ -1,8 +1,38 @@
+// ============================================
+// Pause SubState 语言文件
+// 适用于 PauseSubState, LegacyPauseSubState, NewPauseSubState
+// ============================================
+
+// ===== 主菜单 =====
+continues => Continues
 restart => Restart
-continues => Continue
 difficulty => Difficulty
+debug => Debug
 editor => Editor
 options => Options
 exit => Exit
+
+// ===== LegacyPauseSubState 专用（菜单项小写） =====
+resume => Resume
+restart_song => Restart Song
+change_difficulty => Change Difficulty
+exit_to_menu => Exit to menu
+tool => Tool
+
+// ===== 调试面板（Debug Panel） =====
+practice => Practice
+botplay => Botplay
+leave => Leave
 back => Back
-debug => Debug
+skip_time => Skip Time
+end_song => End Song
+debug_panel => CHARTING PANEL
+
+// ===== 信息面板 =====
+blueballed => Blueballed
+practice_mode => Practice Mode
+charting_mode => Charting Mode
+
+// ===== 功能切换状态 =====
+on => ON
+off => OFF

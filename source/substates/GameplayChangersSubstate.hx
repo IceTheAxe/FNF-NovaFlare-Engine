@@ -13,6 +13,11 @@ class GameplayChangersSubstate extends MusicBeatSubstate
 	private var checkboxGroup:FlxTypedGroup<CheckboxThingie>;
 	private var grpTexts:FlxTypedGroup<AttachedText>;
 
+	// 鼠标控制相关变量
+	var allowMouse:Bool = true;
+	var timeNotMoving:Float = 0;
+	var mouseOverItem:Int = -1;
+
 	function getOptions()
 	{
 		var goption:GameplayOption = new GameplayOption('Scroll Type', 'scrolltype', 'string', 'multiplicative', ["multiplicative", "constant"]);
@@ -148,6 +153,101 @@ class GameplayChangersSubstate extends MusicBeatSubstate
 
 	override function update(elapsed:Float)
 	{
+		// 鼠标控制逻辑
+		if (FlxG.mouse.deltaScreenX != 0 || FlxG.mouse.deltaScreenY != 0)
+		{
+			FlxG.mouse.visible = true;
+			timeNotMoving = 0;
+			
+			// 检查鼠标悬停
+			checkMouseOver();
+		}
+		
+		// 鼠标滚轮逻辑
+		if (FlxG.mouse.wheel != 0)
+		{
+			FlxG.mouse.visible = true;
+			timeNotMoving = 0;
+			
+			if (mouseOverItem != -1 && mouseOverItem == curSelected)
+			{
+				// 鼠标悬停在当前选中的选项上：调整数值
+				var usesCheckbox:Bool = (curOption.type == 'bool');
+				if (!usesCheckbox && nextAccept <= 0)
+				{
+					var wheelValue:Float = FlxG.mouse.wheel * (FlxG.keys.pressed.SHIFT ? 3 : 1);
+					
+					switch(curOption.type)
+					{
+						case 'int', 'float', 'percent':
+							var add:Dynamic = wheelValue * curOption.changeValue;
+							holdValue = curOption.getValue() + add;
+							if(holdValue < curOption.minValue) holdValue = curOption.minValue;
+							else if (holdValue > curOption.maxValue) holdValue = curOption.maxValue;
+
+							switch(curOption.type)
+							{
+								case 'int':
+									holdValue = Math.round(holdValue);
+									curOption.setValue(holdValue);
+
+								case 'float', 'percent':
+									holdValue = FlxMath.roundDecimal(holdValue, curOption.decimals);
+									curOption.setValue(holdValue);
+
+								default:
+							}
+							FlxG.sound.play(Paths.sound('scrollMenu'));
+
+						case 'string':
+							var num:Int = curOption.curOption;
+							if(wheelValue < 0) --num;
+							else num++;
+
+							if(num < 0)
+								num = curOption.options.length - 1;
+							else if(num >= curOption.options.length)
+								num = 0;
+
+							curOption.curOption = num;
+							curOption.setValue(curOption.options[num]);
+							
+							if (curOption.name == "Scroll Type")
+							{
+								var oOption:GameplayOption = getOptionByName("Scroll Speed");
+								if (oOption != null)
+								{
+									if (curOption.getValue() == "constant")
+									{
+										oOption.displayFormat = "%v";
+										oOption.maxValue = 6;
+									}
+									else
+									{
+										oOption.displayFormat = "%vX";
+										oOption.maxValue = 3;
+										if(oOption.getValue() > 3) oOption.setValue(3);
+									}
+									updateTextFrom(oOption);
+								}
+							}
+							FlxG.sound.play(Paths.sound('scrollMenu'));
+
+						default:
+					}
+					updateTextFrom(curOption);
+					curOption.change();
+				}
+			}
+			else
+			{
+				// 鼠标不在选项上或不在当前选中的选项上：上下滚动选择
+				var shiftMult:Int = FlxG.keys.pressed.SHIFT ? 3 : 1;
+				changeSelection(-shiftMult * FlxG.mouse.wheel);
+			}
+		}
+
+		// 键盘控制 - UP/DOWN
 		if (controls.UI_UP_P)
 		{
 			changeSelection(-1);
@@ -157,11 +257,85 @@ class GameplayChangersSubstate extends MusicBeatSubstate
 			changeSelection(1);
 		}
 
+		// 键盘控制 - 长按加速
+		if(controls.UI_DOWN || controls.UI_UP)
+		{
+			var checkLastHold:Int = Math.floor((holdTime - 0.5) * 10);
+			holdTime += elapsed;
+			var checkNewHold:Int = Math.floor((holdTime - 0.5) * 10);
+
+			if(holdTime > 0.5 && checkNewHold - checkLastHold > 0)
+			{
+				changeSelection((checkNewHold - checkLastHold) * (controls.UI_UP ? -1 : 1));
+			}
+		}
+
+		// 鼠标点击选择选项
+		if (FlxG.mouse.justPressed)
+		{
+			// 先检查鼠标悬停状态
+			checkMouseOver();
+			
+			if (mouseOverItem != -1)
+			{
+				if (curSelected != mouseOverItem)
+				{
+					// 左键点击未选中的选项：选择它
+					curSelected = mouseOverItem;
+					changeSelection();
+				}
+				else
+				{
+					// 左键点击已选中的选项：如果是复选框则切换
+					var usesCheckbox:Bool = (curOption.type == 'bool');
+					if (usesCheckbox && nextAccept <= 0)
+					{
+						FlxG.sound.play(Paths.sound('scrollMenu'));
+						curOption.setValue((curOption.getValue() == true) ? false : true);
+						curOption.change();
+						reloadCheckboxes();
+					}
+				}
+			}
+		}
+
 		if (controls.BACK)
 		{
 			ClientPrefs.saveSettings();
 			close();
 			FlxG.sound.play(Paths.sound('cancelMenu'));
+		}
+		
+		// 鼠标拖动调整数值（非布尔类型和非字符串类型）
+		if (FlxG.mouse.pressed && mouseOverItem != -1 && mouseOverItem == curSelected && 
+			!(curOption.type == 'bool') && curOption.type != 'string' && nextAccept <= 0)
+		{
+			var mouseDelta:Float = FlxG.mouse.deltaScreenX;
+			if (Math.abs(mouseDelta) > 2)
+			{
+				var add:Dynamic = mouseDelta * curOption.changeValue * 0.5;
+				holdValue = curOption.getValue() + add;
+				if(holdValue < curOption.minValue) holdValue = curOption.minValue;
+				else if (holdValue > curOption.maxValue) holdValue = curOption.maxValue;
+
+				switch(curOption.type)
+				{
+					case 'int':
+						holdValue = Math.round(holdValue);
+						curOption.setValue(holdValue);
+
+					case 'float', 'percent':
+						holdValue = FlxMath.roundDecimal(holdValue, curOption.decimals);
+						curOption.setValue(holdValue);
+
+					default:
+				}
+				
+				updateTextFrom(curOption);
+				curOption.change();
+				
+				timeNotMoving = 0;
+			}
 		}
 
 		if (nextAccept <= 0)
@@ -211,16 +385,14 @@ class GameplayChangersSubstate extends MusicBeatSubstate
 										case 'int':
 											holdValue = Math.round(holdValue);
 											curOption.setValue(holdValue);
-											trace('[DEBUG] GameplaySettings before save: ' + haxe.Json.stringify(ClientPrefs.data.gameplaySettings));
 
 										case 'float' | 'percent':
 											holdValue = FlxMath.roundDecimal(holdValue, curOption.decimals);
 											curOption.setValue(holdValue);
-											trace('[DEBUG] GameplaySettings before save: ' + haxe.Json.stringify(ClientPrefs.data.gameplaySettings));
 									}
 
 								case 'string':
-									var num:Int = curOption.curOption; // lol
+									var num:Int = curOption.curOption;
 									if (controls.UI_LEFT_P)
 										--num;
 									else
@@ -236,7 +408,7 @@ class GameplayChangersSubstate extends MusicBeatSubstate
 									}
 
 									curOption.curOption = num;
-									curOption.setValue(curOption.options[num]); // lol
+									curOption.setValue(curOption.options[num]);
 
 									if (curOption.name == "Scroll Type")
 									{
@@ -258,7 +430,6 @@ class GameplayChangersSubstate extends MusicBeatSubstate
 											updateTextFrom(oOption);
 										}
 									}
-									// trace(curOption.options[num]);
 							}
 							updateTextFrom(curOption);
 							curOption.change();
@@ -332,11 +503,87 @@ class GameplayChangersSubstate extends MusicBeatSubstate
 			nextAccept -= 1;
 		}
 		if (virtualPad == null)
-		{ // sometimes it dosent add the vpad, hopefully this fixes it
+		{
 			addVirtualPad(LEFT_FULL, A_B_C);
 			addVirtualPadCamera(false);
 		}
 		super.update(elapsed);
+	}
+
+	// 检查鼠标悬停
+	function checkMouseOver():Void
+	{
+		var newMouseOverItem:Int = -1;
+		
+		// 检查选项文本
+		for (i in 0...grpOptions.length)
+		{
+			var item:Alphabet = grpOptions.members[i];
+			if (item != null && FlxG.mouse.overlaps(item))
+			{
+				newMouseOverItem = i;
+				break;
+			}
+		}
+		
+		// 如果没找到，检查复选框
+		if (newMouseOverItem == -1)
+		{
+			for (checkbox in checkboxGroup)
+			{
+				if (checkbox != null && FlxG.mouse.overlaps(checkbox))
+				{
+					newMouseOverItem = checkbox.ID;
+					break;
+				}
+			}
+		}
+		
+		// 如果还没找到，检查值文本
+		if (newMouseOverItem == -1)
+		{
+			for (text in grpTexts)
+			{
+				if (text != null && FlxG.mouse.overlaps(text))
+				{
+					newMouseOverItem = text.ID;
+					break;
+				}
+			}
+		}
+		
+		if (newMouseOverItem != mouseOverItem)
+		{
+			mouseOverItem = newMouseOverItem;
+			updateMouseHover();
+			timeNotMoving = 0;
+		}
+	}
+	
+	function updateMouseHover()
+	{
+		for (num => item in grpOptions.members)
+		{
+			if (item != null)
+			{
+				item.alpha = 0.6;
+				if (item.targetY == 0)
+					item.alpha = 1;
+				else if (mouseOverItem == num)
+					item.alpha = 0.8;
+			}
+		}
+		for (text in grpTexts)
+		{
+			if (text != null)
+			{
+				text.alpha = 0.6;
+				if(text.ID == curSelected)
+					text.alpha = 1;
+				else if(mouseOverItem == text.ID)
+					text.alpha = 0.8;
+			}
+		}
 	}
 
 	function updateTextFrom(option:GameplayOption)
@@ -387,7 +634,12 @@ class GameplayChangersSubstate extends MusicBeatSubstate
 				text.alpha = 1;
 			}
 		}
-		curOption = optionsArray[curSelected]; // shorter lol
+		
+		// 重置鼠标悬停状态
+		mouseOverItem = -1;
+		updateMouseHover();
+		
+		curOption = optionsArray[curSelected];
 		FlxG.sound.play(Paths.sound('scrollMenu'));
 	}
 
@@ -405,27 +657,25 @@ class GameplayOption
 	private var child:Alphabet;
 
 	public var text(get, set):String;
-	public var onChange:Void->Void = null; // Pressed enter (on Bool type options) or pressed/held left/right (on other types)
+	public var onChange:Void->Void = null;
 
-	public var type(get, default):String = 'bool'; // bool, int (or integer), float (or fl), percent, string (or str)
+	public var type(get, default):String = 'bool';
 
-	// Bool will use checkboxes
-	// Everything else will use a text
 	public var showBoyfriend:Bool = false;
-	public var scrollSpeed:Float = 50; // Only works on int/float, defines how fast it scrolls per second while holding left/right
+	public var scrollSpeed:Float = 50;
 
-	private var variable:String = null; // Variable from ClientPrefs.hx's gameplaySettings
+	private var variable:String = null;
 
 	public var defaultValue:Dynamic = null;
 
-	public var curOption:Int = 0; // Don't change this
-	public var options:Array<String> = null; // Only used in string type
-	public var changeValue:Dynamic = 1; // Only used in int/float/percent type, how much is changed when you PRESS
-	public var minValue:Dynamic = null; // Only used in int/float/percent type
-	public var maxValue:Dynamic = null; // Only used in int/float/percent type
-	public var decimals:Int = 1; // Only used in float/percent type
+	public var curOption:Int = 0;
+	public var options:Array<String> = null;
+	public var changeValue:Dynamic = 1;
+	public var minValue:Dynamic = null;
+	public var maxValue:Dynamic = null;
+	public var decimals:Int = 1;
 
-	public var displayFormat:String = '%v'; // How String/Float/Percent/Int values are shown, %v = Current value, %d = Default value
+	public var displayFormat:String = '%v';
 	public var name:String = 'Unknown';
 
 	public function new(name:String, variable:String, type:String = 'bool', defaultValue:Dynamic = 'null variable value', ?options:Array<String> = null)
@@ -481,7 +731,6 @@ class GameplayOption
 
 	public function change()
 	{
-		// nothing lol
 		if (onChange != null)
 		{
 			onChange();

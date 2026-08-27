@@ -6,9 +6,16 @@ class FEFeaturesGroup extends OptionCata
 	{
 		super(X, Y, width, height);
 
+		var pauseArray:Array<String> = ['NF', 'FE', 'Psych'];
 		var option:Option = new Option(this, 'FEFeatures', TITLE);
 		addOption(option);
 
+		var option:Option = new Option(this, 'pauseType', STRING , pauseArray);
+		addOption(option);
+
+		var option:Option = new Option(this, 'coolBackdrop', BOOL);
+		addOption(option);
+		
 		var option:Option = new Option(this, 'showMS', BOOL);
 		addOption(option);
 

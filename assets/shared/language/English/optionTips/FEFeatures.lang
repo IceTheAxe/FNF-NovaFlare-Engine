@@ -1,0 +1,12 @@
+FEFeatures => Customize FE exclusive features and visual settings.
+pauseType => Choose which pause menu style to use during gameplay.
+coolBackdrop => Enable a dynamic animated background for the pause menu.
+showMS => Display real-time frame delay (milliseconds) on screen.
+gradientTimeBar => Apply a smooth gradient color effect to the time progress bar.
+customColor => Use custom colors for UI elements instead of default theme colors.
+hitErrorBarVisible => Display a visual bar showing your note hit timing errors.
+hitBarLines => Number of indicator lines shown on the hit error bar.
+hitBarLineTime => Duration in seconds for each line to stay visible on the hit bar.
+hitErrorBarOffsetX => Adjust the horizontal position of the hit error bar.
+hitErrorBarOffsetY => Adjust the vertical position of the hit error bar.
+guideLineAlpha => Control the opacity (transparency) of the guide lines.
