@@ -5,13 +5,7 @@ APIStuff.hx
 # Private analytics & secrets - DO NOT COMMIT
 # Only SAMPLE templates and README are visible to all repo members.
 # The actual credential/config files must be obtained from an admin.
-/private/*
-!/private/README.md
-!/private/.gitkeep
-!/private/gameanalytics/
-/private/gameanalytics/*
-!/private/gameanalytics/.gitkeep
-!/private/gameanalytics/*.SAMPLE.*
+
 art/build_x32-officialrelease.bat
 art/build_x64-officialrelease.bat
 art/test_x64-debug-officialrelease.bat
