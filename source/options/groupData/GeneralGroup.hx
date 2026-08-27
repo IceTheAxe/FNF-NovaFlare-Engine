@@ -2,6 +2,9 @@ package options.groupData;
 
 import general.shaders.ColorblindFilter;
 
+#if mobile
+import general.objects.screen.MouseEffect;
+#end
 class GeneralGroup extends OptionCata
 {
 	public function new(X:Float, Y:Float, width:Float, height:Float)

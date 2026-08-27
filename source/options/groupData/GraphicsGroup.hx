@@ -5,7 +5,6 @@ import openfl.Lib;
 import lime.system.Display;
 
 #if mobile
-import general.objects.screen.MouseEffect;
 import general.shaders.MobileShaderConverter;
 #end
 
@@ -197,7 +196,7 @@ class GraphicsGroup extends OptionCata
 
 		return [displayOutput, displayOutput];
 	}
-	
+
 	#if mobile
 	function onChangeAutoShaderConversion()
 	{
