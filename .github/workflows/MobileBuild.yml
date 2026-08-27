@@ -27,6 +27,8 @@ on:
 jobs: 
   Android:
     runs-on: macos-14
+    permissions:
+      actions: write
     environment: ${{ github.repository == 'NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine' && github.event_name != 'pull_request_target' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'private-build' || 'public-build' }}
     concurrency:
       group: ${{ github.workflow }}-Android-${{ github.ref }}
@@ -195,6 +197,8 @@ jobs:
           
   iOS:
     runs-on: macos-15
+    permissions:
+      actions: write
     environment: ${{ github.repository == 'NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine' && github.event_name != 'pull_request_target' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'private-build' || 'public-build' }}
     concurrency:
       group: ${{ github.workflow }}-iOS-${{ github.ref }}
