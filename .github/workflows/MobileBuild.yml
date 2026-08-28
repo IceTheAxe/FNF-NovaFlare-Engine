@@ -163,27 +163,7 @@ jobs:
           name: Haxelib
           path: /Users/runner/haxelib.zip
           if-no-files-found: error
-
-      - name: Clear old Android cache
-        uses: actions/github-script@v9
-        with:
-          script: |
-            const caches = await github.rest.actions.getActionsCacheList({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-            })
-            for (const cache of caches.data.actions_caches) {
-              if (cache.key == "cache-build-Android") {
-                console.log('Clearing ' + cache.key + '...')
-                await github.rest.actions.deleteActionsCacheById({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  cache_id: cache.id,
-                })
-                console.log("Cache cleared.")
-              }
-            }
-          
+  
       - name: Save Android cache
         uses: actions/cache/save@v4
         with:
@@ -300,27 +280,7 @@ jobs:
           name: iOSBuild
           path: export/legacy-gc/ios/build/Release-iphoneos/ios.zip
           if-no-files-found: error
-
-      - name: Clear old iOS cache
-        uses: actions/github-script@v9
-        with:
-          script: |
-            const caches = await github.rest.actions.getActionsCacheList({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-            })
-            for (const cache of caches.data.actions_caches) {
-              if (cache.key == "cache-build-iOS") {
-                console.log('Clearing ' + cache.key + '...')
-                await github.rest.actions.deleteActionsCacheById({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  cache_id: cache.id,
-                })
-                console.log("Cache cleared.")
-              }
-            }
-          
+     
       - name: Save iOS cache
         uses: actions/cache/save@v4
         with:
