@@ -169,14 +169,18 @@ import general.shaders.MobileShaderConverter;
 	public var showMS:Bool = true;
 	public var hitErrorBarVisible:Bool = false;
 	public var hitBarLines:Int = 5;
-	public var hitBarLineTime:Float = 2.0;
+	public var hitBarLineTime:Float = 2.5;
 	public var hitErrorBarOffsetX:Float = 0;
 	public var hitErrorBarOffsetY:Float = 0;
-	public var guideLineAlpha:Float = 0.0;
+	public var guideLineAlpha:Float = 0;
+	public var msInErrorBar:Bool = false;
+	public var pointerType:String = "triangle";
 	public var customColor:Bool = true;
 	public var gradientTimeBar:Bool = true;
 	public var pauseType:String = "NF";
 	public var coolBackdrop:Bool = true;
+	public var luaDebugPrint:Bool = true;
+	public var noteOffsetChangingAllowed:Bool = false;
 	// Arrow RGB
 	public var arrowRGB:Array<Array<FlxColor>> = [
 		[0xFFC24B99, 0xFFFFFFFF, 0xFF3C1F56],

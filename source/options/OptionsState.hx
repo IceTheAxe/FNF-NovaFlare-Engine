@@ -118,13 +118,29 @@ class OptionsState extends MusicBeatState
 		}
 		naviMoveEvent();
 
+		// 统一的 naviMove 初始化
+		var totalNaviHeight:Float = 0;
+		for (i in 0...naviGroup.length) {
+			totalNaviHeight += FlxG.height * 0.1;
+		}
+		// 加上所有 naviGroup 可能展开的高度（初始状态）
+		for (navi in naviGroup) {
+			if (navi.isOpened) {
+				totalNaviHeight += navi.parent.length * 50 + 15;
+			}
+		}
+		
+		var visibleNaviHeight:Float = FlxG.height - FlxG.height * 0.005 * 2;
+		var maxNaviScroll:Float = -(totalNaviHeight - visibleNaviHeight);
+		if (maxNaviScroll > 0) maxNaviScroll = 0;
+		
 		naviMove = new MouseMove(OptionsState, 'naviPosiData', 
-								[-1 * Math.max(0, (naviGroup.length - 9)) * FlxG.height * 0.1, FlxG.height * 0.005],
-								[	
-									[FlxG.width * 0.005, FlxG.width * 0.19], 
-									[0, FlxG.height]
-								],
-								naviMoveEvent);
+			[maxNaviScroll, FlxG.height * 0.005],
+			[	
+				[FlxG.width * 0.005, FlxG.width * 0.19], 
+				[0, FlxG.height]
+			],
+			naviMoveEvent);
 		add(naviMove);
 
 		naviGroup[0].moveParent(0.01);
@@ -139,15 +155,11 @@ class OptionsState extends MusicBeatState
 			}
 		}
 
-		var moveHeight:Float = 100;
-		for (num in cataGroup) {
-			if (num != cataGroup[cataGroup.length - 1]) {
-				moveHeight -= num.bg.realHeight;
-				moveHeight -= FlxG.width * (0.8 / 20);
-			}
-		}
+		// 统一的 cataMove 初始化
+		updateCataMoveLimits();
+		
 		cataMove = new MouseMove(OptionsState, 'cataPosiData', 
-			[moveHeight - FlxG.height * 1.5, 100], // 增加底部缓冲
+			[cataMoveMinLimit, 100],
 			[ 
 				[FlxG.width * 0.2, FlxG.width], 
 				[0, FlxG.height - Std.int(FlxG.height * 0.1)]
@@ -327,6 +339,31 @@ class OptionsState extends MusicBeatState
 	}
 
 	static public var cataPosiData:Float = 100;
+	public var cataMoveMinLimit:Float = 100;
+	
+	public function updateCataMoveLimits() {
+		var totalCataHeight:Float = 0;
+		for (cata in cataGroup) {
+			totalCataHeight += cata.bg.waitHeight;
+		}
+		// 加上间距
+		totalCataHeight += (cataGroup.length - 1) * FlxG.width * (0.8 / 20);
+		
+		// 可视区域高度（从100开始到屏幕底部减去底部栏高度）
+		var visibleHeight:Float = FlxG.height - 100 - Std.int(FlxG.height * 0.1);
+		
+		cataMoveMinLimit = 100 - (totalCataHeight - visibleHeight);
+		if (cataMoveMinLimit > 100) cataMoveMinLimit = 100; // 如果内容小于可视区域，不需要滚动
+		
+		if (cataMove != null) {
+			cataMove.moveLimit[0] = cataMoveMinLimit;
+			// 确保当前滚动位置不超出新限制
+			if (cataPosiData < cataMoveMinLimit) {
+				cataPosiData = cataMoveMinLimit;
+			}
+		}
+	}
+
 	public function cataMoveEvent(){
 		for (i in 0...cataGroup.length) {
 			if (i == 0) cataGroup[i].y = cataPosiData;
@@ -358,14 +395,7 @@ class OptionsState extends MusicBeatState
 
 	public function cataMoveChange()
 	{
-		var moveHeight:Float = 100;
-		for (num in cataGroup) {
-			if (num != cataGroup[cataGroup.length - 1]) {
-				moveHeight -= num.bg.waitHeight;
-				moveHeight -= FlxG.width * (0.8 / 20);
-			}
-		}
-		cataMove.moveLimit[0] = moveHeight;
+		updateCataMoveLimits();
 	}
 
 	static public var naviPosiData:Float = 0;
@@ -382,6 +412,34 @@ class OptionsState extends MusicBeatState
 			if (tween != null) tween.cancel();
 		}
 
+		// 计算所有 naviGroup 的总高度
+		var totalHeight:Float = 0;
+		for (i in 0...naviGroup.length) {
+			var groupHeight:Float = FlxG.height * 0.1; // 基础高度
+			if (naviGroup[i].isOpened) {
+				groupHeight += naviGroup[i].parent.length * 50 + 15; // 展开后的额外高度
+			}
+			totalHeight += groupHeight;
+		}
+		
+		// 计算可视区域高度（减去边距）
+		var visibleHeight:Float = FlxG.height - FlxG.height * 0.005 * 2;
+		
+		// 计算最大滚动偏移（负值表示向上滚动）
+		var maxScroll:Float = -(totalHeight - visibleHeight);
+		if (maxScroll > 0) maxScroll = 0; // 如果内容小于可视区域，不需要滚动
+		
+		// 更新 naviMove 的限制
+		naviMove.moveLimit[0] = maxScroll;
+		
+		// 确保当前滚动位置不超出新限制
+		if (naviPosiData < maxScroll) {
+			naviPosiData = maxScroll;
+		}
+		if (naviPosiData > FlxG.height * 0.005) {
+			naviPosiData = FlxG.height * 0.005;
+		}
+
 		for (i in 0...naviGroup.length) {
 			if (i <= navi.optionSort) continue;
 			else {
@@ -390,16 +448,6 @@ class OptionsState extends MusicBeatState
 				naviTween.push(tween);
 			}
 		}
-		
-		var moveHeight:Float = 0;
-		for (i in 0...naviGroup.length) {
-			if (naviGroup[i] == navi) continue;
-			else {
-				if (naviGroup[i].isOpened) moveHeight += naviGroup[i].parent.length * 50 + 475;
-			}
-		}
-		if (!isOpened) moveHeight += (navi.parent.length * 50 + 15);
-		naviMove.moveLimit[0] = -1 * Math.max(0, ((naviGroup.length - 9)) * FlxG.height * 0.1 + moveHeight);
 	}
 
 	var specOpen:Bool = false;
@@ -519,4 +567,3 @@ class OptionsState extends MusicBeatState
 		}
 	}
 }
-

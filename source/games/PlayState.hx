@@ -578,6 +578,7 @@ class PlayState extends MusicBeatState
 
 		#if (LUA_ALLOWED || HSCRIPT_ALLOWED)
 		luaDebugGroup = new FlxTypedGroup<DebugLuaText>();
+		luaDebugGroup.visible = ClientPrefs.data.luaDebugPrint;
 		luaDebugGroup.cameras = [camOther];
 		add(luaDebugGroup);
 		#end
@@ -816,10 +817,8 @@ class PlayState extends MusicBeatState
 		hitErrorBar = new HitErrorBar();
 		hitErrorBar.visible = ClientPrefs.data.hitErrorBarVisible;
 		hitErrorBar.screenCenter();
-		hitErrorBar.x -= 250 + ClientPrefs.data.hitErrorBarOffsetX;
+		hitErrorBar.x += ClientPrefs.data.hitErrorBarOffsetX;
 		hitErrorBar.y = FlxG.height * 0.3 + ClientPrefs.data.hitErrorBarOffsetY; // 顶部10%位置
-		if (ClientPrefs.data.downScroll)
-        hitErrorBar.y = FlxG.height - 100 + ClientPrefs.data.hitErrorBarOffsetY;
 		uiGroup.add(hitErrorBar);
 
 		guideLine = new StrumGuideLine();
@@ -3972,7 +3971,7 @@ class PlayState extends MusicBeatState
 				note.strumTime - Conductor.songPosition + ClientPrefs.data.ratingOffset;
 		}
 
-        if (!ClientPrefs.data.hideHud && ClientPrefs.data.showMS)
+        if (!ClientPrefs.data.hideHud && ClientPrefs.data.showMS && !ClientPrefs.data.msInErrorBar)
 		{
 			var daRating:Rating = Conductor.judgeNote(ratingsData, noteDiff / playbackRate);
 			
@@ -5129,6 +5128,10 @@ class PlayState extends MusicBeatState
 
 		if (!note.isSustainNote)
 			invalidateNote(note);
+
+		var rawNoteDiff:Float =  note.strumTime - Conductor.songPosition + ClientPrefs.data.ratingOffset;
+		var hitTime:Float = -rawNoteDiff;
+		hitErrorBar.registerHit(hitTime);
 	}
 
 	public function invalidateNote(note:Note):Void

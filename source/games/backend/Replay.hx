@@ -204,7 +204,7 @@ class Replay extends FlxBasic
 		if (settingsBackup.exists('playOpponent')) ClientPrefs.data.playOpponent = settingsBackup.get('playOpponent');
 		if (settingsBackup.exists('flipChart')) ClientPrefs.data.flipChart = settingsBackup.get('flipChart');
 		if (settingsBackup.exists('ratingOffset')) ClientPrefs.data.ratingOffset = settingsBackup.get('ratingOffset');
-		if (settingsBackup.exists('noteOffset')) ClientPrefs.data.noteOffset = settingsBackup.get('noteOffset');
+		if (settingsBackup.exists('noteOffset') && ClientPrefs.data.noteOffsetChangingAllowed) ClientPrefs.data.noteOffset = settingsBackup.get('noteOffset');
 		if (settingsBackup.exists('extraKey')) ClientPrefs.data.extraKey = settingsBackup.get('extraKey');
 		if (settingsBackup.exists('keyBinds')) {
 			var kb:Map<String, Array<FlxKey>> = cast settingsBackup.get('keyBinds');

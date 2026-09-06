@@ -25,22 +25,34 @@ class FEFeaturesGroup extends OptionCata
 		var option:Option = new Option(this, 'customColor', BOOL);
 		addOption(option);
 
+		var option:Option = new Option(this, 'luaDebugPrint', BOOL);
+		addOption(option);
+
 		var option:Option = new Option(this, 'hitErrorBarVisible', BOOL);
 		addOption(option);
 		
-		var option:Option = new Option(this, 'hitBarLines', INT, [0, 20, 1]);
+		var option:Option = new Option(this, 'hitBarLines', INT, [0, 30, 5]);
 		addOption(option);	
 
-		var option:Option = new Option(this, 'hitBarLineTime', FLOAT, [0.1, 5, 0.1]);
+		var option:Option = new Option(this, 'hitBarLineTime', FLOAT, [0, 10, 0]);
 		addOption(option);
 
-		var option:Option = new Option(this, 'hitErrorBarOffsetX', FLOAT, [-200, 200, 1]);
+		var option:Option = new Option(this, 'hitErrorBarOffsetX', FLOAT, [-200, 200, 0]);
 		addOption(option);
 
-		var option:Option = new Option(this, 'hitErrorBarOffsetY', FLOAT, [-200, 200, 1]);
+		var option:Option = new Option(this, 'hitErrorBarOffsetY', FLOAT, [-200, 200, 0]);
 		addOption(option);
 
-		var option:Option = new Option(this, 'guideLineAlpha', FLOAT, [0, 1, 0.1]);
+		var option:Option = new Option(this, 'msInErrorBar', BOOL);
+		addOption(option);
+
+		var option:Option = new Option(this, 'pointerType', STRING, ['triangle', 'inverted', 'thick_line']);
+		addOption(option);
+
+		var option:Option = new Option(this, 'guideLineAlpha', FLOAT, [0, 1, 0]);
+		addOption(option);
+
+		var option:Option = new Option(this, 'noteOffsetChangingAllowed', BOOL);
 		addOption(option);
 
 		changeHeight(0);

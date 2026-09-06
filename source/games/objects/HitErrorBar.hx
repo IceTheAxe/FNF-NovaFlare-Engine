@@ -1,19 +1,12 @@
 package games.objects;
 
-import flixel.FlxSprite;
-import flixel.group.FlxSpriteGroup;
 import flixel.math.FlxMath;
 import flixel.util.FlxColor;
 import flixel.graphics.FlxGraphic;
 import openfl.display.BitmapData;
 import flixel.util.FlxSpriteUtil;
-import flixel.tweens.FlxTween;
-//import backend.ClientPrefs;
-import flixel.FlxG;
 import flixel.text.FlxText;
 import flixel.tweens.FlxEase;
-//import backend.Paths;
-//import backend.Language;
 
 class HitErrorBar extends FlxSpriteGroup
 {
@@ -28,7 +21,7 @@ class HitErrorBar extends FlxSpriteGroup
     var maxHitNotes:Int = ClientPrefs.data.hitBarLines;
     var hitNoteDuration:Float = ClientPrefs.data.hitBarLineTime;
     
-    // 新增：ms显示文本（独立对象，每次生成新的，旧的立即销毁）
+    // ms显示文本
     var currentMsText:FlxText = null;
     
     var currentMS:Float = 0;
@@ -39,8 +32,12 @@ class HitErrorBar extends FlxSpriteGroup
     var shouldReturn:Bool = false;
     var returning:Bool = false;
     
-    var barWidth:Float = 300;
+    var barWidth:Float;
     var barHeight:Float = 5;
+    
+    // 组本身的原点就在中心，所有子对象相对于中心定位
+    var centerX:Float = 0;
+    var centerY:Float = 0;
     
     var ratingColors:Map<String, FlxColor> = [
         'marvelous' => FlxColor.fromRGB(255, 215, 0),
@@ -54,22 +51,24 @@ class HitErrorBar extends FlxSpriteGroup
     {
         super();
         
-        var marvWindow = ClientPrefs.data.marvelousWindow;
-        var sickWindow = ClientPrefs.data.sickWindow;
-        var goodWindow = ClientPrefs.data.goodWindow;
-        var badWindow = ClientPrefs.data.badWindow;
+        barWidth = FlxG.width * 0.25;
         maxTiming = 166;
         
-        createTimingBar(marvWindow, sickWindow, goodWindow, badWindow);
+        createTimingBar();
         createPointer();
         createMiddleLine();
         createHitBars();
         createHitNotes();
         
-        this.alpha = 0.7;
+        // 设置组的宽高
+        this.width = timingBar.width;
+        this.height = 50;
         
-        screenCenter();
-        y = FlxG.height * 0.6;
+        // 修正组的原点到左上角
+        this.x = 0;
+        this.y = 0;
+        
+        this.alpha = 0.7;
     }
     
     public function setHitNoteConfig(maxNotes:Int = 5, duration:Float = 2.0)
@@ -95,8 +94,13 @@ class HitErrorBar extends FlxSpriteGroup
         }
     }
     
-    function createTimingBar(marvWindow:Float, sickWindow:Float, goodWindow:Float, badWindow:Float)
+    function createTimingBar()
     {
+        var marvWindow = ClientPrefs.data.marvelousWindow;
+        var sickWindow = ClientPrefs.data.sickWindow;
+        var goodWindow = ClientPrefs.data.goodWindow;
+        var badWindow = ClientPrefs.data.badWindow;
+        
         var totalWidth = barWidth;
         var bitmapData = new BitmapData(Std.int(totalWidth), Std.int(barHeight), true);
         var centerX = totalWidth / 2;
@@ -135,29 +139,59 @@ class HitErrorBar extends FlxSpriteGroup
         
         timingBar = new FlxSprite().loadGraphic(FlxGraphic.fromBitmapData(bitmapData));
         timingBar.updateHitbox();
-        timingBar.x = FlxG.width / 2 - timingBar.width / 2;
+        timingBar.x = 0;
+        timingBar.y = 20; // 在组内向下偏移一点
         add(timingBar);
     }
     
     function createPointer()
     {
-        pointer = new FlxSprite().makeGraphic(12, 16, FlxColor.TRANSPARENT);
-        FlxSpriteUtil.drawPolygon(pointer, [
-            FlxPoint.get(0, 16),
-            FlxPoint.get(6, 0),
-            FlxPoint.get(12, 16)
-        ], FlxColor.WHITE);
+        var style = ClientPrefs.data.pointerType;
+        var pointerColor = FlxColor.WHITE;
+        
+        pointer = new FlxSprite().makeGraphic(16, 20, FlxColor.TRANSPARENT);
+        
+        switch(style)
+        {
+        case 'inverted': // 倒三角
+            FlxSpriteUtil.drawPolygon(pointer, [
+                FlxPoint.get(0, 0),
+                FlxPoint.get(8, 20),
+                FlxPoint.get(16, 0)
+            ], pointerColor);
+            // 倒三角向下移动更多
+            pointer.y = timingBar.y - pointer.height + 6; // 原来是 +2，改为 +6
+            
+        case 'thick_line': // 粗竖线 I形
+            var lineWidth = 6;
+            var lineHeight = 20;
+            var centerX = Std.int((pointer.width - lineWidth) / 2);
+            
+            FlxSpriteUtil.drawRect(pointer, centerX, 0, lineWidth, lineHeight, pointerColor);
+            FlxSpriteUtil.drawRect(pointer, 0, 0, pointer.width, 3, pointerColor);
+            FlxSpriteUtil.drawRect(pointer, 0, lineHeight - 3, pointer.width, 3, pointerColor);
+            // 粗竖线向下移动
+            pointer.y = timingBar.y - pointer.height + 10; // 原来是 +2，改为 +5
+                
+            default: // 原三角 (default)
+                FlxSpriteUtil.drawPolygon(pointer, [
+                    FlxPoint.get(0, 20),
+                    FlxPoint.get(8, 0),
+                    FlxPoint.get(16, 20)
+                ], pointerColor);
+                pointer.y = timingBar.y - pointer.height + 2;
+        }
+        
         pointer.updateHitbox();
-        pointer.x = timingBar.x + (timingBar.width / 2) - (pointer.width / 2);
-        pointer.y = timingBar.y - pointer.height + 2;
+        pointer.x = (timingBar.width / 2) - (pointer.width / 2);
         add(pointer);
     }
     
     function createMiddleLine()
     {
         middleLine = new FlxSprite().makeGraphic(2, 20, FlxColor.WHITE);
-        middleLine.x = timingBar.x + (timingBar.width / 2) - 1;
-        middleLine.y = timingBar.y - 10;
+        middleLine.x = (timingBar.width / 2) - 1;
+        middleLine.y = timingBar.y - 8;
         add(middleLine);
     }
     
@@ -180,6 +214,7 @@ class HitErrorBar extends FlxSpriteGroup
         for (i in 0...maxHitNotes)
         {
             var noteLine = new FlxSprite().makeGraphic(2, 24, FlxColor.WHITE);
+            noteLine.updateHitbox(); // <-- 添加这行确保宽高正确
             noteLine.visible = false;
             noteLine.active = false;
             noteLine.alpha = 0;
@@ -189,13 +224,10 @@ class HitErrorBar extends FlxSpriteGroup
         add(hitNotes);
     }
     
-    // 新增：显示ms文本（参考提供的代码风格）
     function showMsText(ms:Float, xPos:Float, ratingName:String)
     {
-        // 如果设置了隐藏HUD或不显示ms，则直接返回
-        return;
+        if (ClientPrefs.data.hideHud || !ClientPrefs.data.msInErrorBar) return;
         
-        // 立即销毁旧的msText（如果有）
         if (currentMsText != null)
         {
             FlxTween.cancelTweensOf(currentMsText);
@@ -207,21 +239,17 @@ class HitErrorBar extends FlxSpriteGroup
             currentMsText = null;
         }
         
-        // 创建新的msText
         currentMsText = new FlxText(0, 0, 0, "", 16);
-        
-        // 设置字体
-        currentMsText.setFormat(Paths.font('pixel-latin.ttf'), 16, FlxColor.WHITE, CENTER, OUTLINE, FlxColor.BLACK);
+        currentMsText.setFormat(Paths.font('pixel.otf'), 16, FlxColor.WHITE, CENTER, OUTLINE, FlxColor.BLACK);
 
         
-        // 设置文本内容
         var msTiming:Float = Math.round(Math.abs(ms) * 100) / 100;
         var sign:String = ms >= 0 ? "-" : "+";
         currentMsText.text = sign + msTiming + 'ms';
+        currentMsText.updateHitbox();
         
-        // 根据判定设置颜色
-        //if (ClientPrefs.data.customColor)
-        //{
+        if (ClientPrefs.data.customColor)
+        {
             switch(ratingName.toLowerCase())
             {
                 case 'sick': currentMsText.color = ratingColors['sick'];
@@ -230,16 +258,12 @@ class HitErrorBar extends FlxSpriteGroup
                 case 'shit': currentMsText.color = ratingColors['shit'];
                 default: currentMsText.color = FlxColor.WHITE;
             }
-        //}
-        
-        // 设置位置（在竖线上方）
-        currentMsText.screenCenter(X);
-        currentMsText.y += 5;
-        
-        // 添加到组
+        }
+        currentMsText.x = (timingBar.width / 2) - (currentMsText.width / 2);
+        currentMsText.y = 25;
+
         add(currentMsText);
         
-        // 淡出动画（0.5秒后完全透明并销毁）
         FlxTween.tween(currentMsText, {alpha: 0}, 0.2 / games.PlayState.instance.playbackRate, {
             ease: FlxEase.quadOut,
             onComplete: function(tween:FlxTween) {
@@ -254,7 +278,6 @@ class HitErrorBar extends FlxSpriteGroup
         });
     }
     
-    // 获取判定名称
     function getRatingName(ms:Float):String
     {
         var absMs = Math.abs(ms);
@@ -272,11 +295,11 @@ class HitErrorBar extends FlxSpriteGroup
     
     public function addHitNote(ms:Float, noteDirection:Int = 0)
     {
-        var centerX = timingBar.x + (timingBar.width / 2);
+        var centerX = timingBar.x + timingBar.width / 2;
         var halfBar = timingBar.width / 2;
         var percent = ms / maxTiming;
         percent = FlxMath.bound(percent, -1, 1);
-        var xPos = centerX + (percent * halfBar);
+        var xPos = centerX + percent * halfBar;
         
         var absMs = Math.abs(ms);
         var color:FlxColor;
@@ -316,7 +339,10 @@ class HitErrorBar extends FlxSpriteGroup
                 var noteLine = hitNotes.members[i];
                 if (noteLine != null)
                 {
-                    noteLine.setPosition(xPos - noteLine.width / 2, timingBar.y - 15);
+                    // 修正：xPos 已经是相对于 timingBar 左边缘的位置，直接使用
+                    // 但要确保竖线居中于 xPos
+                    noteLine.x = xPos - (noteLine.width / 2);
+                    noteLine.y = timingBar.y - 15;
                     noteLine.color = color;
                     noteLine.alpha = 0.9;
                     noteLine.visible = true;
@@ -343,7 +369,8 @@ class HitErrorBar extends FlxSpriteGroup
             var noteLine = hitNotes.members[oldestIndex];
             if (noteLine != null)
             {
-                noteLine.setPosition(xPos - noteLine.width / 2, timingBar.y - 15);
+                noteLine.x = xPos - (noteLine.width / 2);
+                noteLine.y = timingBar.y - 15;
                 noteLine.color = color;
                 noteLine.alpha = 0.9;
                 noteLine.visible = true;
@@ -352,9 +379,7 @@ class HitErrorBar extends FlxSpriteGroup
             }
         }
         
-        // 显示ms文本（新的会立即销毁旧的）
         showMsText(ms, xPos, ratingName);
-        
         this.alpha = 0.9;
     }
     
@@ -372,7 +397,6 @@ class HitErrorBar extends FlxSpriteGroup
             hitNoteTimers[i] = 0;
         }
         
-        // 清除ms文本
         if (currentMsText != null)
         {
             FlxTween.cancelTweensOf(currentMsText);
@@ -400,12 +424,12 @@ class HitErrorBar extends FlxSpriteGroup
     
     function calculatePointerX(ms:Float):Float
     {
-        var centerX = timingBar.x + (timingBar.width / 2);
-        if (ms == 0) return centerX - (pointer.width / 2);
+        var centerX = timingBar.x + timingBar.width / 2;   // 基于 timingBar 的实际左边缘
+        var halfBar = timingBar.width / 2;
+        if (ms == 0) return centerX - pointer.width / 2;
         var percent = ms / maxTiming;
         percent = FlxMath.bound(percent, -1, 1);
-        var halfBar = timingBar.width / 2;
-        return centerX + (percent * halfBar) - (pointer.width / 2);
+        return centerX + percent * halfBar - pointer.width / 2;
     }
     
     function updatePointerColor()
@@ -427,11 +451,11 @@ class HitErrorBar extends FlxSpriteGroup
     {
         var bar = hitBars.recycle();
         if (bar == null) return;
-        var centerX = timingBar.x + (timingBar.width / 2);
+        var centerX = timingBar.x + timingBar.width / 2;
         var halfBar = timingBar.width / 2;
         var percent = ms / maxTiming;
         percent = FlxMath.bound(percent, -1, 1);
-        var xPos = centerX + (percent * halfBar) - (bar.width / 2);
+        var xPos = centerX + percent * halfBar - bar.width / 2;
         bar.setPosition(xPos, timingBar.y - 12);
         var absMs = Math.abs(ms);
         var color:FlxColor;
@@ -460,7 +484,7 @@ class HitErrorBar extends FlxSpriteGroup
     {
         var bar = hitBars.recycle();
         if (bar == null) return;
-        var centerX = timingBar.x + (timingBar.width / 2);
+        var centerX = timingBar.width / 2;
         var halfBar = timingBar.width / 2;
         var xPos = centerX + halfBar - (bar.width / 2);
         bar.setPosition(xPos, timingBar.y - 12);
@@ -540,7 +564,7 @@ class HitErrorBar extends FlxSpriteGroup
         returnTimer = 0;
         shouldReturn = false;
         returning = false;
-        pointer.x = timingBar.x + (timingBar.width / 2) - (pointer.width / 2);
+        pointer.x = (timingBar.width / 2) - (pointer.width / 2);
         pointer.color = FlxColor.WHITE;
         for (bar in hitBars)
         {

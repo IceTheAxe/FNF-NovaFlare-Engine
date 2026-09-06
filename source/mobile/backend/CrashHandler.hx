@@ -24,15 +24,23 @@ class CrashHandler
 {
 	public static function init():Void
 	{
-		#if (cpp && (windows || android))
-		general.backend.NativeCrashHandler.init(
-			states.mainMenuState.MainMenuState.novaFlareEngineCommit);
-		#end
+		// 先注册 Haxe 层异常监听
 		openfl.Lib.current.loaderInfo.uncaughtErrorEvents.addEventListener(UncaughtErrorEvent.UNCAUGHT_ERROR, onUncaughtError);
+		
 		#if cpp
 		untyped __global__.__hxcpp_set_critical_error_handler(onError);
 		#elseif hl
 		hl.Api.setErrorHandler(onError);
+		#end
+		
+		// 延迟初始化原生崩溃处理器（等 Haxe 层处理完再启动）
+		#if (cpp && (windows || android))
+		// 使用延迟初始化，让 Haxe 层先处理异常
+		haxe.Timer.delay(function() {
+			general.backend.NativeCrashHandler.init(
+				states.mainMenuState.MainMenuState.novaFlareEngineCommit
+			);
+		}, 100); // 延迟 100ms 确保 Haxe 层已就绪
 		#end
 	}
 
