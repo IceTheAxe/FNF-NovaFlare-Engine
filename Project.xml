@@ -294,13 +294,17 @@
 		     already traps, so CrashHandler can write a Haxe report and the game keeps
 		     running. Keep it enabled for Release as well. -->
 		<haxedef name="HXCPP_CHECK_POINTER" />
-		<!-- The remaining checks add work to nearly every generated call and preserve
-		     large stacks/string tables, so they stay debug-only. -->
-		<!-- The project no longer requests per-line HXCPP stack maintenance. Normal
-		     Release builds keep it off; stock hxcpp may still enable it internally
-		     for an explicit -debug build. HScript/Lua hot contexts instead use
-		     immutable NativeCrashHandler slots for actionable source evidence. -->
-		<haxedef name="HXCPP_STACK_TRACE" if="debug" />
+		<!-- Haxe reports are only actionable when hxcpp maintains the Haxe call stack.
+		     Without HXCPP_STACK_TRACE, HX_STACKFRAME/HX_STACK_LINE expand to nothing
+		     (hx/StackContext.h), hx::Throw never records the frames it unwinds, and
+		     __hxcpp_get_exception_stack() returns an empty array (hx/Debug.cpp). That is
+		     why CrashHandler's [haxe_exception_stack] section and the in-game
+		     ErrorSubState body would carry only the message and no "where". Without
+		     HXCPP_STACK_LINE every frame formats as "clazz::func::file::0"
+		     (FormatStack in hx/Debug.cpp), so the line number is lost as well. Both
+		     stay enabled for Release; HXCPP_STACK_LINE implies HXCPP_STACK_TRACE. -->
+		<haxedef name="HXCPP_STACK_LINE" />
+		<haxedef name="HXCPP_STACK_TRACE" />
 		<!-- On POSIX targets hxcpp installs this process-wide on every Haxe
 		     thread attach, which can overwrite NovaFlare's Android crash logger.
 		     Keep the translator debug-only and leave Android signals to

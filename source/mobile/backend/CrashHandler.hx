@@ -139,8 +139,12 @@ class CrashHandler
 		var shown:Bool = false;
 		try shown = showInGameErrorReport(savedCrashPath, m, stackLabel) catch (_:Dynamic) {}
 
-		if (!shown)
+		// 兜底原生弹窗：只在游戏内报告完全没法展示、且本进程还没弹过时才出现。
+		// SUtil.showPopUp 在桌面端是 lime 的 SDL_ShowSimpleMessageBox —— 阻塞主线程的
+		// 原生模态框。错误每帧都在抛时逐帧调用，结果就是"关掉立刻再弹"，看起来像关不掉。
+		if (!shown && !nativePopupShown)
 		{
+			nativePopupShown = true;
 			try
 			{
 				var popupMessage:String = savedCrashPath != null
@@ -166,6 +170,9 @@ class CrashHandler
 	private static var lastReportTime:Float = 0;
 	private static var lastReportPath:String = null;
 	private static var inGameReportActive:Bool = false;
+	private static var inGameReportMessage:String = null;
+	private static var inGameReportStatus:String = "not-attempted";
+	private static var nativePopupShown:Bool = false;
 
 	/**
 	 * 把一份崩溃报告写到磁盘并返回报告绝对路径。
@@ -231,6 +238,9 @@ class CrashHandler
 				'commit=${states.mainMenuState.MainMenuState.novaFlareEngineCommit}\n' +
 				'timestamp=${Date.now()}\n' +
 				'message=$message\n' +
+				// 上一次游戏内展示的结果。写报告发生在展示之前，所以这里记的是上一轮，
+				// 错误每帧都在抛时下一份报告就能看到失败原因。
+				'in_game_report=$inGameReportStatus\n' +
 				'\n[haxe_exception_stack]\n$stackLabel\n' +
 				'\n[haxe_runtime_snapshot]\n$haxeSnapshot\n' +
 				'\n[haxe_exception_stack_raw]\n${haxe.CallStack.toString(stack)}\n' +
@@ -261,25 +271,36 @@ class CrashHandler
 	 */
 	private static function showInGameErrorReport(savedCrashPath:String, message:String, stackLabel:String):Bool
 	{
-		// 防重入：错误界面自身若再次触发异常，会重复进入本函数并不断 openSubState。
-		// 界面仍然在屏上时直接返回 true 抑制重复展示；界面已关闭则允许下一次错误再展示。
+		// 防重入。错误界面自身再触发异常时会重新进入本函数，必须抑制：
+		// 每帧重建一次界面会不断分配对象，而且会连带每帧弹一次原生框。
 		if (inGameReportActive)
 		{
+			// 界面还在屏上 → 直接抑制。
 			if (flixel.FlxG.state != null && flixel.FlxG.state.subState != null)
 				return true;
+
+			// 界面已被用户关掉。同一条错误不再重新展示（错误每帧都在抛，重展等于界面关不掉），
+			// 但照样返回 true 抑制原生弹窗。
+			if (message == inGameReportMessage)
+				return true;
+
 			inGameReportActive = false;
 		}
 
 		try
 		{
 			if (flixel.FlxG.game == null)
+			{
+				inGameReportStatus = "skipped: FlxG.game is null";
 				return false;
+			}
 
 			var current = flixel.FlxG.state;
 			if (current == null)
+			{
+				inGameReportStatus = "skipped: FlxG.state is null";
 				return false;
-			if (current.subState != null)
-				return false;
+			}
 
 			#if CODENAME_ENGINE_COMPAT
 			if (codenamechain.CodeNameMode.active)
@@ -290,6 +311,8 @@ class CrashHandler
 					message,
 					codename.funkin.backend.utils.NativeAPI.MessageBoxIcon.MSG_ERROR);
 				inGameReportActive = true;
+				inGameReportMessage = message;
+				inGameReportStatus = "shown: codename message box";
 				return true;
 			}
 			#end
@@ -299,6 +322,8 @@ class CrashHandler
 				originfunkin.OriginFunkinMode.reportRuntimeError(message);
 				flixel.FlxG.switchState(new originfunkin.OriginFunkinErrorState());
 				inGameReportActive = true;
+				inGameReportMessage = message;
+				inGameReportStatus = "shown: origin error state";
 				return true;
 			}
 
@@ -306,20 +331,35 @@ class CrashHandler
 				+ message
 				+ (stackLabel.length > 0 ? '\n\n$stackLabel' : '');
 
-			// 必须在 openSubState 之前停掉父 state 的 update：当崩坏的 update 每帧抛异常时，
-			// FlxState.tryUpdate 会在 update() 那一行就退出，resetSubState() 永远执行不到，
-			// 报告界面也就永远建不出来。persistentUpdate = false 之后 tryUpdate 会跳过
-			// update()，resetSubState() 才有机会运行。
-			var previousPersistentUpdate:Bool = false;
-			try previousPersistentUpdate = current.persistentUpdate catch (_:Dynamic) {}
-			try current.persistentUpdate = false catch (_:Dynamic) {}
+			var report = new substates.ErrorSubState(body);
 
-			current.openSubState(new substates.CrashReportSubState(body, previousPersistentUpdate));
+			// openSubState() 只是把请求排进队列，真正安装发生在 FlxState.tryUpdate() 里的
+			// resetSubState() —— 而它排在 update() 之后。父 state 的 update() 每帧抛异常时
+			// resetSubState() 永远执行不到，报错界面就永远建不出来（只剩原生弹窗兜底）。
+			// 所以这里同步补一次 resetSubState()，让下一帧 tryUpdate 直接走 subState 分支。
+			current.openSubState(report);
+			current.resetSubState();
+
+			// resetSubState() 会清掉 _requestedSubState，但 openSubState() 留下的
+			// _requestSubStateReset 还挂着。不清掉的话下一帧 tryUpdate 会再跑一次
+			// resetSubState()，此时 _requestedSubState 已是 null，subState 会被赋成 null，
+			// 报错界面只闪一帧就消失。flixel 没提供公开的清除方式，只能直接写这个私有字段。
+			untyped current._requestSubStateReset = false;
+
+			if (current.subState == null)
+			{
+				inGameReportStatus = "failed: subState not installed";
+				return false;
+			}
+
 			inGameReportActive = true;
+			inGameReportMessage = message;
+			inGameReportStatus = "shown: ErrorSubState";
 			return true;
 		}
-		catch (_:Dynamic)
+		catch (reportError:Dynamic)
 		{
+			try inGameReportStatus = 'failed: ${Std.string(reportError)}' catch (_:Dynamic) {}
 			return false;
 		}
 	}
