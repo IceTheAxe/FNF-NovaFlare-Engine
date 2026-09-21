@@ -51,22 +51,47 @@ class CrashHandler
 		#end
 	}
 
+	/**
+	 * Haxe 层未捕获异常的总入口。
+	 *
+	 * 本函数运行在 openfl.display.Stage.__handleError() 内部，而 __handleError 是从
+	 * Stage.__broadcastEvent() 的 catch 块里调用的、自身没有被 try 包住。所以这里抛出的
+	 * 任何异常都会穿过 Lime 的原生渲染回调逃到操作系统，最终被 NativeCrashHandler 当成
+	 * 原生崩溃处理（写 native-crash-*.txt 并杀掉进程）。因此必须是严格的 no-throw 区域。
+	 */
 	private static function onUncaughtError(e:UncaughtErrorEvent):Void
 	{
-		e.preventDefault();
-		e.stopPropagation();
-		e.stopImmediatePropagation();
-
-		var m:String = Std.string(e.error);
-		if (Std.isOfType(e.error, Error))
+		try
 		{
-			var err = cast(e.error, Error);
-			m = '${err.message}';
+			if (e != null)
+			{
+				// 必须在任何可能失败的操作之前调用：__handleError 只在 __preventDefault
+				// 为 false 时才 Log.println 并重新抛出异常，而这正是"游戏还能继续跑"的依据。
+				e.preventDefault();
+				e.stopPropagation();
+				e.stopImmediatePropagation();
+			}
+			reportUncaughtError(e);
 		}
-		else if (Std.isOfType(e.error, ErrorEvent))
+		catch (_:Dynamic)
 		{
-			var err = cast(e.error, ErrorEvent);
-			m = '${err.text}';
+			// 故意留空。Std.string / trace / Sys.println 自身都可能抛异常
+			// （TraceInterceptor、失效的 stdio），所以这里什么都不碰。
+		}
+	}
+
+	private static function reportUncaughtError(e:UncaughtErrorEvent):Void
+	{
+		var m:String = '<unknown error>';
+		try if (e != null) m = Std.string(e.error) catch (_:Dynamic) {}
+
+		if (e != null && Std.isOfType(e.error, Error))
+		{
+			try m = '${cast(e.error, Error).message}' catch (_:Dynamic) {}
+		}
+		else if (e != null && Std.isOfType(e.error, ErrorEvent))
+		{
+			try m = '${cast(e.error, ErrorEvent).text}' catch (_:Dynamic) {}
 		}
 
 		var stack:Array<haxe.CallStack.StackItem> = [];
@@ -75,42 +100,101 @@ class CrashHandler
 		try callStack = haxe.CallStack.callStack() catch (_:Dynamic) {}
 
 		var stackLabelArr:Array<String> = [];
-		for (item in stack)
+		try
 		{
-			switch (item)
+			for (item in stack)
 			{
-				case CFunction:
-					stackLabelArr.push("Non-Haxe (C) Function");
-				case Module(c):
-					stackLabelArr.push('Module ${c}');
-				case FilePos(parent, file, line, col):
-					switch (parent)
-					{
-						case Method(cla, func):
-							stackLabelArr.push('${file.replace('.hx', '')}.$func() [line $line]');
-						case _:
-							stackLabelArr.push('${file.replace('.hx', '')} [line $line]');
-					}
-				case LocalFunction(v):
-					stackLabelArr.push('Local Function ${v}');
-				case Method(cl, m):
-					stackLabelArr.push('${cl} - ${m}');
+				switch (item)
+				{
+					case CFunction:
+						stackLabelArr.push("Non-Haxe (C) Function");
+					case Module(c):
+						stackLabelArr.push('Module ${c}');
+					case FilePos(parent, file, line, col):
+						// 裁剪过的栈上 file 可能为 null，直接 replace 会抛 NullReference。
+						var where:String = (file != null) ? file.replace('.hx', '') : '<unknown>';
+						switch (parent)
+						{
+							case Method(owner, func):
+								stackLabelArr.push('$where.$func() [line $line]');
+							case _:
+								stackLabelArr.push('$where [line $line]');
+						}
+					case LocalFunction(v):
+						stackLabelArr.push('Local Function ${v}');
+					case Method(owner, methodName):
+						stackLabelArr.push('${owner} - ${methodName}');
+				}
 			}
 		}
-		var stackLabel:String = stackLabelArr.join('\r\n');
+		catch (_:Dynamic) {}
+
+		var stackLabel:String = "";
+		try stackLabel = stackLabelArr.join('\r\n') catch (_:Dynamic) {}
 
 		#if sys
-		var haxeSnapshot:String = "";
-		try
-			haxeSnapshot = captureHaxeStackSnapshot(stack)
-		catch (snapshotError:Dynamic)
-			haxeSnapshot = '[snapshot_capture_failed] ${Std.string(snapshotError)}';
+		var savedCrashPath:String = writeHaxeCrashReport("uncaught_error", m, stackLabel, stack, callStack);
 
-		general.backend.NativeCrashHandler.setHaxeRuntimeSnapshot(haxeSnapshot);
+		// 优先在游戏内展示，非阻塞。原生模态对话框会阻塞渲染线程，与"继续运行"的目标矛盾。
+		var shown:Bool = false;
+		try shown = showInGameErrorReport(savedCrashPath, m, stackLabel) catch (_:Dynamic) {}
+
+		if (!shown)
+		{
+			try
+			{
+				var popupMessage:String = savedCrashPath != null
+					? '程序发生致命错误。\n错误信息已保存至：\n$savedCrashPath\n\nA fatal error occurred.\nThe error report was saved to:\n$savedCrashPath'
+					: '程序发生致命错误，但错误报告保存失败。\n\nA fatal error occurred, but the report could not be saved.';
+				try mobile.backend.SUtil.showPopUp(popupMessage, "NovaFlare Engine - Error") catch (_:Dynamic) {}
+			}
+			catch (_:Dynamic) {}
+		}
+
+		try general.backend.NativeCrashHandler.setHaxeRuntimeSnapshot("") catch (_:Dynamic) {}
+		#end
+	}
+
+	#if sys
+	/**
+	 * 同一条消息在这个时间窗口内重复出现时复用已有的报告文件，
+	 * 避免"每帧一个崩溃文件"把 crash 目录塞爆。
+	 */
+	private static final REPORT_DEDUP_WINDOW_MS:Float = 2000;
+
+	private static var lastReportMessage:String = null;
+	private static var lastReportTime:Float = 0;
+	private static var lastReportPath:String = null;
+	private static var inGameReportActive:Bool = false;
+
+	/**
+	 * 把一份崩溃报告写到磁盘并返回报告绝对路径。
+	 *
+	 * 本函数永不抛异常：调用方都在异常处理路径上，从这里逃逸出去的异常会变成原生崩溃。
+	 * @param kind 报告类型标记，例如 "uncaught_error" / "hxcpp_critical_error"
+	 * @return 报告绝对路径；同消息去重时返回上一次的路径；完全写不出去时返回 null
+	 */
+	private static function writeHaxeCrashReport(kind:String, message:String, stackLabel:String,
+			stack:Array<haxe.CallStack.StackItem>, callStack:Array<haxe.CallStack.StackItem>):String
+	{
 		var savedCrashPath:String = null;
-		var saveFailure:String = null;
 		try
 		{
+			var now:Float = haxe.Timer.stamp() * 1000;
+			if (message == lastReportMessage && now - lastReportTime < REPORT_DEDUP_WINDOW_MS)
+				return lastReportPath;
+
+			lastReportMessage = message;
+			lastReportTime = now;
+
+			var haxeSnapshot:String = "";
+			try haxeSnapshot = captureHaxeStackSnapshot(stack)
+			catch (snapshotError:Dynamic)
+				haxeSnapshot = '[snapshot_capture_failed] ${Std.string(snapshotError)}';
+
+			// 让原生崩溃处理器也能读到这份 Haxe 上下文。
+			try general.backend.NativeCrashHandler.setHaxeRuntimeSnapshot(haxeSnapshot) catch (_:Dynamic) {}
+
 			var diagnosticRoot = Sys.getEnv("NOVAFLARE_DIAGNOSTIC_DIR");
 			var crashDirectory = diagnosticRoot != null && diagnosticRoot.length > 0
 				? Path.join([diagnosticRoot, "haxe-crash"])
@@ -120,9 +204,7 @@ class CrashHandler
 
 			var nativeExceptionStack = "";
 			#if cpp
-			try
-				nativeExceptionStack = Std.string(haxe.NativeStackTrace.exceptionStack())
-			catch (_:Dynamic) {}
+			try nativeExceptionStack = Std.string(haxe.NativeStackTrace.exceptionStack()) catch (_:Dynamic) {}
 			#end
 
 			var heapSnapshot = "unavailable";
@@ -145,9 +227,10 @@ class CrashHandler
 			#end
 
 			var saveError =
+				'kind=$kind\n' +
 				'commit=${states.mainMenuState.MainMenuState.novaFlareEngineCommit}\n' +
 				'timestamp=${Date.now()}\n' +
-				'message=$m\n' +
+				'message=$message\n' +
 				'\n[haxe_exception_stack]\n$stackLabel\n' +
 				'\n[haxe_runtime_snapshot]\n$haxeSnapshot\n' +
 				'\n[haxe_exception_stack_raw]\n${haxe.CallStack.toString(stack)}\n' +
@@ -160,26 +243,87 @@ class CrashHandler
 			var crashPath = FileSystem.absolutePath(Path.join([crashDirectory, fileName]));
 			File.saveContent(crashPath, saveError);
 			savedCrashPath = crashPath;
-			Sys.println('haxe:uncaught_error message=$m');
-			Sys.println(saveError);
+			lastReportPath = crashPath;
+			try Sys.println('haxe:$kind message=$message') catch (_:Dynamic) {}
+			try Sys.println(saveError) catch (_:Dynamic) {}
 		}
-		catch (saveErrorValue:Dynamic)
+		catch (_:Dynamic)
 		{
-			saveFailure = Std.string(saveErrorValue);
-			trace('Couldn\'t save error message. ($saveFailure)');
-			trace(Std.string(states.mainMenuState.MainMenuState.novaFlareEngineCommit + '\n' + '$m\n$stackLabel'));
+			// 报告写盘失败。吞掉：调用方不允许抛异常。
+		}
+		return savedCrashPath;
+	}
+
+	/**
+	 * 尝试在游戏内展示崩溃报告，返回 true 表示"已经处理，不要再弹原生对话框"。
+	 *
+	 * 本函数永不抛异常，任何一步失败都返回 false，让调用方退回原生弹窗兜底。
+	 */
+	private static function showInGameErrorReport(savedCrashPath:String, message:String, stackLabel:String):Bool
+	{
+		// 防重入：错误界面自身若再次触发异常，会重复进入本函数并不断 openSubState。
+		// 界面仍然在屏上时直接返回 true 抑制重复展示；界面已关闭则允许下一次错误再展示。
+		if (inGameReportActive)
+		{
+			if (flixel.FlxG.state != null && flixel.FlxG.state.subState != null)
+				return true;
+			inGameReportActive = false;
 		}
 
-		var popupMessage:String = savedCrashPath != null
-			? '程序发生致命错误。\n错误信息已保存至：\n$savedCrashPath\n\nA fatal error occurred.\nThe error report was saved to:\n$savedCrashPath'
-			: '程序发生致命错误，但错误报告保存失败。\n$saveFailure\n\nA fatal error occurred, but the report could not be saved.\n$saveFailure';
 		try
-			mobile.backend.SUtil.showPopUp(popupMessage, "NovaFlare Engine - Error")
-		catch (popupError:Dynamic)
-			Sys.println('Couldn\'t show the fatal error dialog: ${Std.string(popupError)}\n$popupMessage');
-		general.backend.NativeCrashHandler.setHaxeRuntimeSnapshot("");
-		#end
+		{
+			if (flixel.FlxG.game == null)
+				return false;
+
+			var current = flixel.FlxG.state;
+			if (current == null)
+				return false;
+			if (current.subState != null)
+				return false;
+
+			#if CODENAME_ENGINE_COMPAT
+			if (codenamechain.CodeNameMode.active)
+			{
+				// 不调用 Sys.exit：那会直接放弃"继续运行"。
+				codename.funkin.backend.utils.NativeAPI.showMessageBox(
+					"NovaFlare Engine - CodeName Error",
+					message,
+					codename.funkin.backend.utils.NativeAPI.MessageBoxIcon.MSG_ERROR);
+				inGameReportActive = true;
+				return true;
+			}
+			#end
+
+			if (originfunkin.OriginFunkinMode.active)
+			{
+				originfunkin.OriginFunkinMode.reportRuntimeError(message);
+				flixel.FlxG.switchState(new originfunkin.OriginFunkinErrorState());
+				inGameReportActive = true;
+				return true;
+			}
+
+			var body:String = (savedCrashPath != null ? 'Error report saved to:\n$savedCrashPath\n\n' : '')
+				+ message
+				+ (stackLabel.length > 0 ? '\n\n$stackLabel' : '');
+
+			// 必须在 openSubState 之前停掉父 state 的 update：当崩坏的 update 每帧抛异常时，
+			// FlxState.tryUpdate 会在 update() 那一行就退出，resetSubState() 永远执行不到，
+			// 报告界面也就永远建不出来。persistentUpdate = false 之后 tryUpdate 会跳过
+			// update()，resetSubState() 才有机会运行。
+			var previousPersistentUpdate:Bool = false;
+			try previousPersistentUpdate = current.persistentUpdate catch (_:Dynamic) {}
+			try current.persistentUpdate = false catch (_:Dynamic) {}
+
+			current.openSubState(new substates.CrashReportSubState(body, previousPersistentUpdate));
+			inGameReportActive = true;
+			return true;
+		}
+		catch (_:Dynamic)
+		{
+			return false;
+		}
 	}
+	#end
 
 	#if sys
 	private static final HAXE_RUNTIME_SNAPSHOT_LIMIT:Int = 24;
@@ -281,9 +425,25 @@ class CrashHandler
 	#end
 
 	#if (cpp || hl)
+	/**
+	 * hxcpp 临界错误回调，由 init() 里的 __hxcpp_set_critical_error_handler 注册。
+	 *
+	 * hxcpp 的 CriticalErrorHandler 调用本回调时没有 try 包住，回调正常返回后一定会走到
+	 * MessageBoxA + __builtin_trap() + exit(1)。所以"返回"等于必然终止进程，唯一能跳过
+	 * 默认动作的办法是抛出异常来解绑那一帧。因此这里先落盘一份 Haxe 报告（该步骤不允许
+	 * 抛），再抛出可捕获的值，交给最近的 catch(Dynamic) 接住，让游戏继续跑。
+	 */
 	private static function onError(message:Dynamic):Void
 	{
-		throw Std.string(message);
+		var text:String = "unknown critical error";
+		try text = Std.string(message) catch (_:Dynamic) {}
+
+		#if sys
+		try writeHaxeCrashReport("hxcpp_critical_error", text, "", [], []) catch (_:Dynamic) {}
+		try Sys.println('hxcpp:critical_error $text') catch (_:Dynamic) {}
+		#end
+
+		throw text;
 	}
 	#end
 }

@@ -285,8 +285,17 @@
 	<haxedef name='no-inline' if="html5"/>
 
 	<section if="cpp">
-		<!-- These checks add work to nearly every generated call and preserve
-		     large stacks/string tables. Keep them in debug builds only. -->
+		<!-- Null object/array dereferences must stay catchable from Haxe. Without this
+		     define, obj.field / arr[i] compile to a bare C++ dereference and fault as
+		     EXCEPTION_ACCESS_VIOLATION, which bypasses the Haxe layer entirely and lands
+		     in NativeCrashHandler (native-crash-*.txt + process kill). With it,
+		     ObjectPtr::operator-> (hx/Object.h:341) and Array::CheckGetPtr (hx/Array.h:900)
+		     raise a Haxe "Null Object Reference" that openfl.display.Stage.__broadcastEvent
+		     already traps, so CrashHandler can write a Haxe report and the game keeps
+		     running. Keep it enabled for Release as well. -->
+		<haxedef name="HXCPP_CHECK_POINTER" />
+		<!-- The remaining checks add work to nearly every generated call and preserve
+		     large stacks/string tables, so they stay debug-only. -->
 		<!-- The project no longer requests per-line HXCPP stack maintenance. Normal
 		     Release builds keep it off; stock hxcpp may still enable it internally
 		     for an explicit -debug build. HScript/Lua hot contexts instead use
@@ -306,7 +315,7 @@
 		<!--Enable Handle Error-->
 		<haxedef name="openfl_enable_handle_error" if="${openfl >= 9.4.0}" />
 		<!--Undefinitions-->
-		<undefine name="openfl-disable-handle-error" if="debug" unless="${openfl >= 9.4.0}" />
+		<undefine name="openfl_disable_handle_error" if="debug" unless="${openfl >= 9.4.0}" />
 	</section>
 	
 	<!-- Do whatever you want I'm tired uninstall and install everytime -->
