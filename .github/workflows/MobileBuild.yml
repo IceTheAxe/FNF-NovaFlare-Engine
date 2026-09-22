@@ -40,6 +40,37 @@ jobs:
         id: setup-ndk
         with:
           ndk-version: r28c
+          # 不让 action 往 PATH 里塞工具链：NDK 路径统一由下面的 Export/Configure
+          # 显式传给 hxcpp 和 lime，避免 runner 预装的 r27d 混进来。
+          add-to-path: false
+
+      # hxcpp 从**进程环境**读 ANDROID_NDK_ROOT：BuildTool.hx:1522 把整个 env 灌进
+      # defines，Setup.hx:417 见它已存在就直接用、不再探测。而 runner 镜像预置了
+      # ANDROID_NDK_ROOT=.../ndk/27.3.13750724（r27d），r27 及以下默认链接出 4 KB
+      # 对齐的 .so，在 16 KB 页大小的 Android 15+ 设备上 dlopen 会失败。
+      # 这里把它覆盖成 setup-ndk 装的 r28c（16 KB 对齐是 r28 起的默认值）。
+      - name: Export Android NDK
+        run: |
+          echo "ANDROID_NDK_ROOT=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
+          echo "ANDROID_NDK_HOME=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
+          echo "ANDROID_NDK=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
+
+      # 光靠 r28 的默认还不够。实测 NDK r28c 只默认设了 max-page-size（决定 LOAD 段的
+      # p_align），没有设 common-page-size（决定 GNU_RELRO 段末端是否落在 16 KB 边界）。
+      # 官方对 RELRO 的规则是 (VirtAddr + MemSiz) % 0x4000 == 0，不满足会在运行时
+      # 段错误。hxcpp 没有传链接参数的命令行入口，唯一的注入点是 $HOME/.hxcpp_config.xml。
+      - name: Force 16 KB linker flags for hxcpp
+        run: |
+          printf '%s\n' \
+            '<xml>' \
+            '  <section id="exes">' \
+            '    <linker id="dll" if="android">' \
+            '      <flag value="-Wl,-z,max-page-size=16384"/>' \
+            '      <flag value="-Wl,-z,common-page-size=16384"/>' \
+            '    </linker>' \
+            '  </section>' \
+            '</xml>' > "$HOME/.hxcpp_config.xml"
+          cat "$HOME/.hxcpp_config.xml"
 
       - name: Setup Java JDK
         uses: actions/setup-java@main
@@ -119,7 +150,11 @@ jobs:
       - name: Configure Android
         run: |
           haxelib run lime config ANDROID_SDK $ANDROID_HOME
-          haxelib run lime config ANDROID_NDK_ROOT $ANDROID_NDK_HOME
+          # 必须写 setup-ndk 的输出，不能写 $ANDROID_NDK_HOME —— 镜像预置的那个是 r27d。
+          # lime 会把这个值经 project.environment 回灌进进程环境（HXProject.hx:501），
+          # 而 hxcpp 正是从进程环境取 ANDROID_NDK_ROOT 的；写错这里等于用 r27d 链接，
+          # 编出来的 libApplicationMain.so 只有 4 KB 段对齐。
+          haxelib run lime config ANDROID_NDK_ROOT ${{ steps.setup-ndk.outputs.ndk-path }}
           haxelib run lime config JAVA_HOME $JAVA_HOME
           haxelib run lime config ANDROID_SETUP true
             
@@ -140,6 +175,63 @@ jobs:
           else
             haxelib run lime build android -Dlegacy_gc_compare -Dcommit_sha=$COMMIT_SHA -Dbuild_number=$CURRENT_VERSION
           fi
+
+      # 16 KB 页大小的 Android 15+ 设备要求每个 .so 的 ELF LOAD 段按 16384 对齐，
+      # 否则装载时直接报 "program alignment (4096) cannot be smaller than system
+      # page size (16384)"。链接用的 NDK 一旦回退到 r27 及以下就会复现，所以在这里
+      # 拦住，不要留到装真机的时候才发现。
+      - name: Verify 16 KB page alignment
+        run: |
+          set -e
+          shopt -s nullglob
+
+          APK=$(ls export/legacy-gc/android/bin/app/build/outputs/apk/release/*.apk | head -1)
+          READELF=$(ls "$ANDROID_NDK_ROOT"/toolchains/llvm/prebuilt/*/bin/llvm-readelf | head -1)
+          echo "APK: $APK"
+          echo "NDK: $ANDROID_NDK_ROOT"
+
+          rm -rf /tmp/so-check && mkdir -p /tmp/so-check
+          unzip -o -q "$APK" 'lib/arm64-v8a/*.so' -d /tmp/so-check
+
+          files=(/tmp/so-check/lib/arm64-v8a/*.so)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::APK 里没有 lib/arm64-v8a/*.so"
+            exit 1
+          fi
+
+          status=0
+          for so in "${files[@]}"; do
+            name=$(basename "$so")
+            dump=$("$READELF" -Wl "$so")
+
+            # LOAD 段的 p_align 必须 >= 2**14，否则 16 KB 设备上 dlopen 直接失败。
+            # 四个 .so 里只有 libApplicationMain.so 是这次构建自己链出来的，其余三个
+            # （liblime / libvlc / libc++_shared）都是随 haxelib 和 NDK 发下来的预编译
+            # 产物；一起查是为了别人换了预编译包时也能发现。
+            loads=$(echo "$dump" | awk '/^  LOAD/{print $NF}' | sort -u)
+            echo "$name  LOAD align: $(echo $loads)"
+            for a in $loads; do
+              if [ "$((a))" -lt 16384 ]; then
+                echo "::error::$name 的 LOAD 段对齐 $a < 16384，16 KB 设备上会 dlopen 失败"
+                status=1
+              fi
+            done
+
+            # GNU_RELRO 的官方要求是 (VirtAddr + MemSiz) % 0x4000 == 0，不满足会在运行时
+            # 段错误。这里只告警不拦截：同门的 Frozen Engine Mobile 产出的
+            # libApplicationMain.so 余数是 12288，实测能跑，说明这条在实机上不总是致命，
+            # 不该因为它挡住发布。上面 .hxcpp_config.xml 里的 common-page-size 就是冲它
+            # 去的，正常情况下这里不该有输出。
+            relro=$(echo "$dump" | awk '/GNU_RELRO/{print $3, $6}')
+            if [ -n "$relro" ]; then
+              set -- $relro
+              rem=$(( ($(( $1 )) + $(( $2 ))) % 16384 ))
+              if [ "$rem" -ne 0 ]; then
+                echo "::warning::$name 的 RELRO 末端未落在 16 KB 边界（余 $rem）"
+              fi
+            fi
+          done
+          exit $status
 
       - name: Create Android zip package
         run: |
