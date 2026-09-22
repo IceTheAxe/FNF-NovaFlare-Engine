@@ -301,10 +301,15 @@
 		     why CrashHandler's [haxe_exception_stack] section and the in-game
 		     ErrorSubState body would carry only the message and no "where". Without
 		     HXCPP_STACK_LINE every frame formats as "clazz::func::file::0"
-		     (FormatStack in hx/Debug.cpp), so the line number is lost as well. Both
-		     stay enabled for Release; HXCPP_STACK_LINE implies HXCPP_STACK_TRACE. -->
-		<haxedef name="HXCPP_STACK_LINE" />
-		<haxedef name="HXCPP_STACK_TRACE" />
+		     (FormatStack in hx/Debug.cpp), so the line number is lost as well.
+		     Toggling these requires clearing obj/ first: hxcpp names objects after the
+		     target and source path, not the compiler flags (Compiler.hx getObjName), so
+		     the previous objects stay "up to date" and the link fails on undefined
+		     _hx_pos_* and hx::ExceptionStackFrame symbols.
+		     Android stays off: it reports through NativeCrashHandler and would pay the
+		     per-call frame cost for stacks it does not read back. -->
+		<haxedef name="HXCPP_STACK_LINE" unless="android" />
+		<haxedef name="HXCPP_STACK_TRACE" unless="android" />
 		<!-- On POSIX targets hxcpp installs this process-wide on every Haxe
 		     thread attach, which can overwrite NovaFlare's Android crash logger.
 		     Keep the translator debug-only and leave Android signals to
