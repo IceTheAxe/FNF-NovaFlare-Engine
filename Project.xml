@@ -308,8 +308,8 @@
 		     _hx_pos_* and hx::ExceptionStackFrame symbols.
 		     Android stays off: it reports through NativeCrashHandler and would pay the
 		     per-call frame cost for stacks it does not read back. -->
-		<haxedef name="HXCPP_STACK_LINE" unless="android" />
-		<haxedef name="HXCPP_STACK_TRACE" unless="android" />
+		<haxedef name="HXCPP_STACK_LINE" />
+		<haxedef name="HXCPP_STACK_TRACE" />
 		<!-- On POSIX targets hxcpp installs this process-wide on every Haxe
 		     thread attach, which can overwrite NovaFlare's Android crash logger.
 		     Keep the translator debug-only and leave Android signals to
