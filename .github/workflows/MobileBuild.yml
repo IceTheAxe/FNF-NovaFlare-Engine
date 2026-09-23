@@ -31,6 +31,12 @@ jobs:
     concurrency:
       group: ${{ github.workflow }}-Android-${{ github.ref }}
 
+    env:
+      # hxcpp 编译缓存。设了它 hxcpp 才会用内容 hash 给 .obj 命名（跨机器命中就跳过编译）；
+      # 不设的话对象名只跟路径/组有关，靠 mtime 判过期 —— CI 上 checkout 完源文件 mtime
+      # 全是"刚刚"，缓存里的 .obj 怎么比都是旧的，等于没缓存。机制见 hxcpp-cache.yml 顶部。
+      HXCPP_COMPILE_CACHE: ${{ github.workspace }}/.hxcpp_cache
+
     steps:
       - name: Checkout
         uses: actions/checkout@main
@@ -111,17 +117,32 @@ jobs:
             echo "update_libs=false" >> $GITHUB_OUTPUT
           fi
 
+      # 依赖（hmm 装的库）落在 ~/haxelib —— Install 那步是 `haxelib setup ~/haxelib`。
+      # 以前这里缓存的是工作区里的 .haxelib/，那个目录根本没人往里写，等于存了个空壳。
+      # key 取 hmm.json 的内容 hash：依赖没变就精确命中、也不会重复上传；变了自然换 key
+      # （固定 key 存不进第二遍，缓存会永远冻在第一份）。
       - name: Restore Android cache
         if: steps.android_cache.outputs.skip_cache == 'false'
         uses: actions/cache/restore@v4
         with:
-          key: cache-build-Android
+          key: nf-deps-${{ runner.os }}-android-${{ hashFiles('hmm.json') }}
           restore-keys: |
-            cache-build-Android
+            nf-deps-${{ runner.os }}-android-
           path: |
-            .haxelib/
-            export/legacy-gc/android/
+            ~/haxelib
             ~/.gradle
+
+      # hxcpp 编译缓存（内容寻址）。key 是滚动的：restore 靠前缀匹配拿最近一份，
+      # save 用 run_id 开新的一份 —— 固定 key 一次之后就再也长不大了，新编的 .obj 进不去。
+      # 必须带 android 段：Android / iOS 都跑在 macOS runner 上，光靠 os+arch 区分不开，
+      # 两个 job 会抢同一个 key。堆积的旧份由 hxcpp-cache.yml 的 prune 收敛。
+      - name: Restore hxcpp cache
+        uses: actions/cache/restore@v4
+        with:
+          key: nf-hxcpp-${{ runner.os }}-${{ runner.arch }}-android-${{ github.run_id }}
+          restore-keys: |
+            nf-hxcpp-${{ runner.os }}-${{ runner.arch }}-android-
+          path: .hxcpp_cache
             
       - name: Install Android Libraries
         run: |
@@ -169,12 +190,27 @@ jobs:
           COMMIT_SHA=$(git rev-parse --short HEAD)
           CURRENT_VERSION="${{ steps.get_version.outputs.current_version }}"
     
+          # 缓存目录只从环境变量来（job 级 env 里那个）：hxcpp 的 BuildTool.runMain() 开头就把
+          # Sys.environment() 灌进 defines，够用。不要再加 -D HXCPP_COMPILE_CACHE —— 那条
+          # 通道在 Windows 上会被上游把值拼坏（值成了 "<路径>=<路径>"），见 hxcpp-cache.yml。
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             NEW_VERSION="${CURRENT_VERSION/-dev/-$COMMIT_SHA}"
             haxelib run lime build android -Dlegacy_gc_compare -Dcommit_sha=$COMMIT_SHA -Dbuild_number=$NEW_VERSION
           else
             haxelib run lime build android -Dlegacy_gc_compare -Dcommit_sha=$COMMIT_SHA -Dbuild_number=$CURRENT_VERSION
           fi
+
+      # 编译失败也存：hxcpp 是并行编的，报错时大部分 .obj 已经编完了，下次照样命中。
+      # 失败那个文件不会留在缓存里（Compiler.compile() 在编译器返回非 0 时会删掉自己产出的 obj）。
+      # key 必须和上面 restore 的**同形**，只差末尾的 run_id：restore 命中靠 restore-keys
+      # 前缀匹配，save 这边少一段就永远匹配不上 —— 缓存存了，但没人读得到。
+      - name: Save hxcpp cache
+        if: always()
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          key: nf-hxcpp-${{ runner.os }}-${{ runner.arch }}-android-${{ github.run_id }}
+          path: .hxcpp_cache
 
       # 16 KB 页大小的 Android 15+ 设备要求每个 .so 的 ELF LOAD 段按 16384 对齐，
       # 否则装载时直接报 "program alignment (4096) cannot be smaller than system
@@ -239,7 +275,11 @@ jobs:
           zip -r android.zip *.apk
 
       - name: Create Haxelib zip package
+        # zip 一个不存在的目录会以 12 退出、把 job 搞红。CI 上 .haxelib/ 里本来就是空的
+        # （库装在 ~/haxelib），这个产物一直是空壳，所以补个空目录保住它、不改语义。
+        # 真想要一份能用的依赖包，该 zip 的是 ~/haxelib —— 但那有几百 MB，别塞进每次构建。
         run: |
+          mkdir -p .haxelib
           zip -r /Users/runner/haxelib.zip .haxelib/
 
       - name: Upload Android Artifact
@@ -256,13 +296,15 @@ jobs:
           path: /Users/runner/haxelib.zip
           if-no-files-found: error
   
+      # 依赖没变时 key 和上面 restore 一样、缓存已存在，save 会报"已存在"——
+      # 那属于正常情况（该缓存的正是那份），continue-on-error 兜住。
       - name: Save Android cache
+        continue-on-error: true
         uses: actions/cache/save@v4
         with:
-          key: cache-build-Android
+          key: nf-deps-${{ runner.os }}-android-${{ hashFiles('hmm.json') }}
           path: |
-            .haxelib/
-            export/legacy-gc/android/
+            ~/haxelib
             ~/.gradle
           
   iOS:
@@ -270,6 +312,10 @@ jobs:
     environment: ${{ github.repository == 'IceTheAxe/FNF-NovaFlare-Engine' && github.event_name != 'pull_request_target' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'private-build' || 'public-build' }}
     concurrency:
       group: ${{ github.workflow }}-iOS-${{ github.ref }}
+
+    env:
+      # 同 Android job：设了 HXCPP_COMPILE_CACHE 才会走内容寻址的 .obj 命名。
+      HXCPP_COMPILE_CACHE: ${{ github.workspace }}/.hxcpp_cache
 
     steps:
       - name: Checkout
@@ -313,17 +359,27 @@ jobs:
             echo "update_libs=false" >> $GITHUB_OUTPUT
           fi
                 
+      # 同 Android：库在 ~/haxelib（Install 那步是 `haxelib setup ~/haxelib`），
+      # 不是工作区里的 .haxelib/。key 取 hmm.json 的内容 hash。
       - name: Restore iOS cache
         if: steps.ios_cache.outputs.skip_cache == 'false'
         uses: actions/cache/restore@v4
         with:
           enableCrossOsArchive: true
-          key: cache-build-iOS
+          key: nf-deps-${{ runner.os }}-ios-${{ hashFiles('hmm.json') }}
           restore-keys: |
-            cache-build-iOS
+            nf-deps-${{ runner.os }}-ios-
           path: |
-            .haxelib/
-            export/legacy-gc/ios/
+            ~/haxelib
+
+      # hxcpp 编译缓存（内容寻址），同 Android job 那套。
+      - name: Restore hxcpp cache
+        uses: actions/cache/restore@v4
+        with:
+          key: nf-hxcpp-${{ runner.os }}-${{ runner.arch }}-ios-${{ github.run_id }}
+          restore-keys: |
+            nf-hxcpp-${{ runner.os }}-${{ runner.arch }}-ios-
+          path: .hxcpp_cache
           
       - name: Install iOS Libraries
         run: |
@@ -347,11 +403,22 @@ jobs:
             echo "使用缓存，无需安装依赖"
           fi
 
-          echo "lime revision: $(git -C .haxelib/lime/git rev-parse HEAD)"
-          echo "openfl revision: $(git -C .haxelib/openfl/git rev-parse HEAD)"
+          # 库在 ~/haxelib，不是工作区里的 .haxelib/ —— 写错这两行只会打印 git 的报错，
+          # 步骤照样绿（最后一条命令是 echo），等于这两个诊断一直是空的。
+          echo "lime revision: $(git -C ~/haxelib/lime/git rev-parse HEAD)"
+          echo "openfl revision: $(git -C ~/haxelib/openfl/git rev-parse HEAD)"
 
       - name: Compile iOS
         run: haxelib run lime build ios -arm64 -nosign -Dlegacy_gc_compare -Dcommit_sha=$(git rev-parse --short HEAD)
+
+      # 同 Android job：编译失败也存，key 与上面 restore 同形（只差 run_id）。
+      - name: Save hxcpp cache
+        if: always()
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          key: nf-hxcpp-${{ runner.os }}-${{ runner.arch }}-ios-${{ github.run_id }}
+          path: .hxcpp_cache
         
       - name: Make IPA And iOS Zip
         run: |
@@ -373,10 +440,12 @@ jobs:
           path: export/legacy-gc/ios/build/Release-iphoneos/ios.zip
           if-no-files-found: error
      
+      # 依赖没变时 key 与上面 restore 相同、缓存已存在，save 会报"已存在"——
+      # 那属于正常情况，continue-on-error 兜住。
       - name: Save iOS cache
+        continue-on-error: true
         uses: actions/cache/save@v4
         with:
-          key: cache-build-iOS
+          key: nf-deps-${{ runner.os }}-ios-${{ hashFiles('hmm.json') }}
           path: |
-            .haxelib/
-            export/legacy-gc/ios/
+            ~/haxelib

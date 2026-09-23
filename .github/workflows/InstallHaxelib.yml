@@ -121,5 +121,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           key: cache-build-haxelib
+          # 上面是 `haxelib setup ~/haxelib`，库落在 ~/haxelib —— 缓存工作区里的 .haxelib/
+          # 存的是个空目录（那个目录只有本机开发时才用）。
           path: |
-            .haxelib/
+            ~/haxelib
