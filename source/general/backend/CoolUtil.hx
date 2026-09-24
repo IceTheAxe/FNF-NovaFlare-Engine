@@ -330,52 +330,36 @@ class CoolUtil
 		}
 	}
 
-	public static function getArrowRGB(path:String = 'arrowRGB.json', defaultArrowRGB:Array<EKNoteColor>):ArrowRGBSavedData
+	/**
+	 * 读旧的独立 note 颜色文件。只用于把老存档迁移进 FlxSave，文件不存在时返回 null（不再自动创建）。
+	 */
+	public static function getArrowRGB(path:String = 'arrowRGB.json'):Null<ArrowRGBSavedData>
 	{
-		var result:ArrowRGBSavedData;
 		var content:String = '';
 		#if sys
-		if (FileSystem.exists(path))
-			content = File.getContent(path);
-		else
+		if (!FileSystem.exists(path))
+			return null;
+		try
 		{
-			// create a default ArrowRGBSavedData
-			var colorsToUse = [];
-			for (color in defaultArrowRGB)
-			{
-				colorsToUse.push(color);
-			}
-
-			var defaultSaveARGB:ArrowRGBSavedData = new ArrowRGBSavedData(colorsToUse);
-
-			// write it
-			var writer = new json2object.JsonWriter<ArrowRGBSavedData>();
-			content = writer.write(defaultSaveARGB, '    ');
-			File.saveContent(path, content);
-
-			trace(path + ' (Color save) didn\'t exist. Written.');
+			content = File.getContent(path);
+		}
+		catch (error:Dynamic)
+		{
+			return null;
 		}
 		#else
-		if (Assets.exists(path))
-			content = Assets.getText(path);
+		if (!Assets.exists(path))
+			return null;
+		content = Assets.getText(path);
 		#end
 
 		var parser = new json2object.JsonParser<ArrowRGBSavedData>();
 		parser.fromJson(content);
-		result = parser.value;
+		final result:ArrowRGBSavedData = parser.value;
 
-		// automatically (?) sets colors of notes that have no colors
-		for (i in 0...ExtraKeysHandler.instance.data.maxKeys + 1)
-		{
-			// colors dont exist
-
-			// cannot take the previous approach since
-			// this is indexed and not per mania
-			if (result.colors[i] == null)
-			{
-				result.colors[i] = defaultArrowRGB[i];
-			}
-		}
+		// 缺的 note 交给调用方用默认色补齐，这里只保证结构可用
+		if (result == null || result.colors == null)
+			return null;
 
 		return result;
 	}

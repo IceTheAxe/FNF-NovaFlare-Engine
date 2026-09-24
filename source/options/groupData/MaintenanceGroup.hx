@@ -41,7 +41,8 @@ class MaintenanceGroup extends OptionCata
 		addOption(option);
 
 		#if android
-		var storageFolderArray:Array<String> = ['NovaFlare Engine', 'NovaFlare Engine-1.2'];
+		// 数组元素不带点号：SUtil.getStorageDirectory 会自己拼 '/.' + folderName。
+		var storageFolderArray:Array<String> = ['NovaFlare Engine', 'NovaFlare Engine-1.2', 'NovaFrozen', 'FrozenEngine'];
 		var option:Option = new Option(this, 'storageFolder', STRING, storageFolderArray);
 		option.onChange = onChangeStorageFolder;
 		addOption(option);

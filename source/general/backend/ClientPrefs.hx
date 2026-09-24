@@ -346,6 +346,10 @@ class ClientPrefs
 			if (flashingWarningAcknowledged)
 				FlxG.save.data.openedFlash = true;
 
+			// note 颜色一并进主存档，不再单独落 .json
+			Reflect.setField(FlxG.save.data, 'arrowRGB', data.arrowRGB);
+			Reflect.setField(FlxG.save.data, 'arrowRGBPixel', data.arrowRGBPixel);
+
 			#if ACHIEVEMENTS_ALLOWED Achievements.save(); #end
 			FlxG.save.flush();
 		}
@@ -364,19 +368,6 @@ class ClientPrefs
 		{
 			FlxG.log.error('[ClientPrefs] Controls save threw: $error');
 		}
-
-		// 保存箭头颜色（独立文件）
-		#if sys
-		try
-		{
-			saveArrowRGBData('arrowRGB.json', data.arrowRGB);
-			saveArrowRGBData('arrowRGBPixel.json', data.arrowRGBPixel);
-		}
-		catch (error:Dynamic)
-		{
-			FlxG.log.error('[ClientPrefs] Failed to save note colors: $error');
-		}
-		#end
 
 		FlxG.log.add('[ClientPrefs] Settings saved.');
 		return true;
@@ -458,9 +449,9 @@ class ClientPrefs
 		if (mainData != null && Reflect.field(mainData, 'openedFlash') == true)
 			flashingWarningAcknowledged = true;
 
-		// 加载箭头颜色
-		loadArrowRGBData('arrowRGB.json', false, ExtraKeysHandler.instance.data.colors);
-		loadArrowRGBData('arrowRGBPixel.json', true, ExtraKeysHandler.instance.data.pixelNoteColors);
+		// 加载箭头颜色（主存档；旧的独立 .json 只在迁移时读一次）
+		loadArrowRGBData(false, ExtraKeysHandler.instance.data.colors);
+		loadArrowRGBData(true, ExtraKeysHandler.instance.data.pixelNoteColors);
 
 		reloadVolumeKeys();
 
@@ -598,65 +589,102 @@ class ClientPrefs
 		}
 	}
 
-	// ========== 箭头颜色保存（独立文件） ==========
-	#if sys
-	public static function saveArrowRGBData(path:String, rgbArray:Array<Array<FlxColor>>)
+	// ========== 箭头颜色（存在主存档里，不再单独落 .json） ==========
+
+	/**
+	 * 从主存档读 note 颜色。首启或老存档里没有这份数据时返回 null。
+	 */
+	static function readArrowRGBFromSave(fieldName:String):Array<Array<FlxColor>>
 	{
-		var colors:Array<EKNoteColor> = [];
-		for (color in rgbArray)
+		if (FlxG.save == null || FlxG.save.data == null || !Reflect.hasField(FlxG.save.data, fieldName))
+			return null;
+
+		final raw:Dynamic = Reflect.field(FlxG.save.data, fieldName);
+		if (raw == null || !Std.isOfType(raw, Array))
+			return null;
+
+		final result:Array<Array<FlxColor>> = [];
+		for (note in cast(raw, Array<Dynamic>))
 		{
-			var resultColor = new EKNoteColor();
-			resultColor.inner = color[0].toHexString(false, false);
-			resultColor.border = color[1].toHexString(false, false);
-			resultColor.outline = color[2].toHexString(false, false);
-			colors.push(resultColor);
+			if (note == null || !Std.isOfType(note, Array))
+				continue;
+
+			final noteColors:Array<FlxColor> = [];
+			for (value in cast(note, Array<Dynamic>))
+				noteColors.push(value == null ? FlxColor.WHITE : Std.int(value));
+			result.push(noteColors);
 		}
-		var saveArrowRGB = new ArrowRGBSavedData(colors);
-		var writer = new json2object.JsonWriter<ArrowRGBSavedData>();
-		var content = writer.write(saveArrowRGB, '    ');
-		File.saveContent(path, content);
-		trace('Wrote to $path');
+
+		return result.length > 0 ? result : null;
 	}
-	#end
 
-	public static function loadArrowRGBData(path:String, pixel:Bool = false, defaultColors:Array<EKNoteColor>)
+	static function writeArrowRGBToSave(fieldName:String, value:Array<Array<FlxColor>>):Void
 	{
-		var savedColors:CoolUtil.ArrowRGBSavedData = CoolUtil.getArrowRGB(path, defaultColors);
+		if (FlxG.save == null || FlxG.save.data == null)
+			return;
 
-		if (pixel)
-			ClientPrefs.defaultData.arrowRGBPixel = [];
-		else
-			ClientPrefs.defaultData.arrowRGB = [];
+		try
+		{
+			Reflect.setField(FlxG.save.data, fieldName, value);
+			FlxG.save.flush();
+		}
+		catch (error:Dynamic)
+		{
+			FlxG.log.error('[ClientPrefs] Failed to write note colors: $error');
+		}
+	}
 
+	public static function loadArrowRGBData(pixel:Bool = false, defaultColors:Array<EKNoteColor>)
+	{
+		final fieldName:String = pixel ? 'arrowRGBPixel' : 'arrowRGB';
+		var saved:Array<Array<FlxColor>> = readArrowRGBFromSave(fieldName);
+
+		// 老存档里没有这份数据：从以前的独立 .json 读一次，读到的立刻迁进主存档
+		if (saved == null)
+		{
+			final legacy = CoolUtil.getArrowRGB(pixel ? 'arrowRGBPixel.json' : 'arrowRGB.json');
+			if (legacy != null)
+			{
+				saved = [];
+				for (color in legacy.colors)
+					saved.push([
+						CoolUtil.colorFromString(color.inner),
+						CoolUtil.colorFromString(color.border),
+						CoolUtil.colorFromString(color.outline)
+					]);
+				writeArrowRGBToSave(fieldName, saved);
+			}
+		}
+
+		final defaultNotes:Array<Array<FlxColor>> = [];
 		for (defaultColor in defaultColors)
 		{
-			var thisNote = [
+			defaultNotes.push([
 				CoolUtil.colorFromString(defaultColor.inner),
 				CoolUtil.colorFromString(defaultColor.border),
 				CoolUtil.colorFromString(defaultColor.outline)
-			];
-			if (pixel)
-				ClientPrefs.defaultData.arrowRGBPixel.push(thisNote);
+			]);
+		}
+
+		// 存档里缺的 note 用默认色补齐，长度始终跟 defaultNotes 一致
+		final result:Array<Array<FlxColor>> = [];
+		for (i in 0...defaultNotes.length)
+		{
+			if (saved != null && i < saved.length && saved[i] != null && saved[i].length >= 3)
+				result.push(saved[i].copy());
 			else
-				ClientPrefs.defaultData.arrowRGB.push(thisNote);
+				result.push(defaultNotes[i].copy());
 		}
 
 		if (pixel)
-			ClientPrefs.data.arrowRGBPixel = [];
-		else
-			ClientPrefs.data.arrowRGB = [];
-
-		for (color in savedColors.colors)
 		{
-			var thisNote = [
-				CoolUtil.colorFromString(color.inner),
-				CoolUtil.colorFromString(color.border),
-				CoolUtil.colorFromString(color.outline)
-			];
-			if (pixel)
-				ClientPrefs.data.arrowRGBPixel.push(thisNote);
-			else
-				ClientPrefs.data.arrowRGB.push(thisNote);
+			ClientPrefs.defaultData.arrowRGBPixel = defaultNotes;
+			ClientPrefs.data.arrowRGBPixel = result;
+		}
+		else
+		{
+			ClientPrefs.defaultData.arrowRGB = defaultNotes;
+			ClientPrefs.data.arrowRGB = result;
 		}
 	}
 }
