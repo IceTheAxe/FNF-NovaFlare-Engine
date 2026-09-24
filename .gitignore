@@ -23,6 +23,7 @@ artifacts/
 /PerfViewData*.log*
 /toolchains/*
 !/toolchains/haxe-novagc/
+.workbuddy-ai/*
 .vscode/*
 .haxelib/
 # .github/
