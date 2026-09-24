@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<projectColdfix
+<project>
 	<!-- _________________________ Application Settings _________________________ -->
 
 	<app title="NovaFlare-Engine" file="NovaFlare-Engine" packageName="com.novaFrozen" package="com.novaFrozen" main="Main" version="1.2.1-Coldfix" build-number="35260811" company="NF-crew" />
