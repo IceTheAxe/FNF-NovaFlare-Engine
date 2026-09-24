@@ -137,7 +137,13 @@ class Panel extends MusicBeatSubstate
 
 		// 面板画在"最后一个相机"上 —— 菜单状态里那台相机不滚动不缩放，
 		// 面板的命中判定（Input）与坐标才能跟 FlxG.mouse 对上，也才能盖在所有图层之上。
-		if (cameras == null || cameras.length == 0)
+		//
+		// 判断"子类有没有显式指定相机"只能看私有字段 _cameras：FlxBasic.cameras 的 getter
+		// 在 _cameras 为 null 时返回的是 FlxCamera._defaultCameras（默认绘制目标，非 null），
+		// 用 `cameras == null` 判断恒为假 —— 面板会留在默认相机上，
+		// 在 Freeplay 这种额外叠了 camSongs / camAfter 图层相机的状态里就会被这些图层盖住。
+		var ownCameras:Array<FlxCamera> = @:privateAccess this._cameras;
+		if (ownCameras == null || ownCameras.length == 0)
 			cameras = [FlxG.cameras.list[FlxG.cameras.list.length - 1]];
 
 		// 声明本界面画在哪台相机上：控件 / 行悬停 / 点空白 / 拖拽滚动全靠它统一到同一台相机，
