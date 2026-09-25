@@ -2,7 +2,7 @@
 <project>
 	<!-- _________________________ Application Settings _________________________ -->
 
-	<app title="NovaFlare-Engine" file="NovaFlare-Engine" packageName="com.novaFrozen" package="com.novaFrozen" main="Main" version="1.2.1-Coldfix" build-number="35260811" company="NF-crew" />
+	<app title="NovaFlare-Engine" file="NovaFlare-Engine" packageName="com.novaFrozen" package="com.novaFrozen" main="Main" version="1.2.1" build-number="35260811" company="NF-crew" />
 	<!--Switch Export with Unique ApplicationID and Icon-->
 	<set name="APP_ID" value="0x0100f6c013bbc000" />
 	
@@ -200,6 +200,11 @@
 	<config:android extension="funkin.extensions.CallbackUtil" if="android" />
 	<config:android extension="funkin.extensions.FNFCExtension" if="android" />
 	<config:android extension="funkin.extensions.AudioSession" if="android" />
+	<!-- 本机 gradle 缓存里只有 8.14.4 + AGP 8.7.3 这套，指过去就不用联网下分发包 -->
+	<config:android gradle-version="8.14.4" gradle-plugin="8.7.3" if="android" />
+	<config:android if="android">
+		<gradle-properties org.gradle.jvmargs='-Xmx8192m "-XX:MaxMetaspaceSize=384m"' />
+	</config:android>
 
 	<!-- ModChart Specific-->
 	<haxedef name="FM_ENGINE" value="PSYCH"/>

@@ -137,9 +137,10 @@ class MobileControlSelectSubState extends MusicBeatSubstate
 			}
 			else
 			{
-				FlxTransitionableState.skipNextTransIn = true;
-				FlxTransitionableState.skipNextTransOut = true;
-				MusicBeatState.switchState(new options.OptionsState());
+				// 本次会话在 options 里的改动只存在于 ClientPrefs.data（内存）；loadPrefs() 是
+				// 单向读、不回写 FlxG.save.data，所以退出前必须显式落盘
+				ClientPrefs.saveSettings();
+				close();
 			}
 		});
 		exit.color = FlxColor.LIME;

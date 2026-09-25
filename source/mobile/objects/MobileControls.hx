@@ -74,23 +74,23 @@ class MobileControls extends FlxTypedSpriteGroup<FlxMobileInputManager>
 
 	public static function setCustomMode(virtualPad:FlxVirtualPad):Void
 	{
+		// 存 [x, y] 而不是 FlxPoint：FlxPoint.get() 返回的是池化实例，序列化进 .sol 后
+		// 反序列化会失败，整个存档被判为损坏
 		if (FlxG.save.data.buttons == null)
 		{
 			FlxG.save.data.buttons = new Array();
 			for (buttons in virtualPad)
-				FlxG.save.data.buttons.push(FlxPoint.get(buttons.x, buttons.y));
+				FlxG.save.data.buttons.push([buttons.x, buttons.y]);
 		}
 		else
 		{
 			var tempCount:Int = 0;
 			for (buttons in virtualPad)
 			{
-				FlxG.save.data.buttons[tempCount] = FlxPoint.get(buttons.x, buttons.y);
+				FlxG.save.data.buttons[tempCount] = [buttons.x, buttons.y];
 				tempCount++;
 			}
 		}
-
-		FlxG.save.flush();
 	}
 
 	public static function getCustomMode(virtualPad:FlxVirtualPad):FlxVirtualPad
@@ -102,10 +102,20 @@ class MobileControls extends FlxTypedSpriteGroup<FlxMobileInputManager>
 
 		for (buttons in virtualPad)
 		{
-			if (FlxG.save.data.buttons[tempCount] != null)
+			final saved:Dynamic = FlxG.save.data.buttons[tempCount];
+			if (saved != null)
 			{
-				buttons.x = FlxG.save.data.buttons[tempCount].x;
-				buttons.y = FlxG.save.data.buttons[tempCount].y;
+				if (Std.isOfType(saved, Array))
+				{
+					buttons.x = saved[0];
+					buttons.y = saved[1];
+				}
+				else
+				{
+					// 早期存档这个位置存的是序列化的 FlxPoint 实例，没有 [0]/[1]
+					buttons.x = Reflect.field(saved, 'x');
+					buttons.y = Reflect.field(saved, 'y');
+				}
 			}
 			tempCount++;
 		}
@@ -119,19 +129,17 @@ class MobileControls extends FlxTypedSpriteGroup<FlxMobileInputManager>
 		{
 			FlxG.save.data.extraButtons = new Array();
 			for (btn in virtualPad.extraKeys)
-				FlxG.save.data.extraButtons.push(FlxPoint.get(btn.x, btn.y));
+				FlxG.save.data.extraButtons.push([btn.x, btn.y]);
 		}
 		else
 		{
 			var tempCount:Int = 0;
 			for (btn in virtualPad.extraKeys)
 			{
-				FlxG.save.data.extraButtons[tempCount] = FlxPoint.get(btn.x, btn.y);
+				FlxG.save.data.extraButtons[tempCount] = [btn.x, btn.y];
 				tempCount++;
 			}
 		}
-
-		FlxG.save.flush();
 	}
 
 	public static function getExtraCustomMode(virtualPad:FlxVirtualPad):FlxVirtualPad
@@ -143,10 +151,20 @@ class MobileControls extends FlxTypedSpriteGroup<FlxMobileInputManager>
 
 		for (btn in virtualPad.extraKeys)
 		{
-			if (FlxG.save.data.extraButtons[tempCount] != null)
+			final saved:Dynamic = FlxG.save.data.extraButtons[tempCount];
+			if (saved != null)
 			{
-				btn.x = FlxG.save.data.extraButtons[tempCount].x;
-				btn.y = FlxG.save.data.extraButtons[tempCount].y;
+				if (Std.isOfType(saved, Array))
+				{
+					btn.x = saved[0];
+					btn.y = saved[1];
+				}
+				else
+				{
+					// 早期存档这个位置存的是序列化的 FlxPoint 实例，没有 [0]/[1]
+					btn.x = Reflect.field(saved, 'x');
+					btn.y = Reflect.field(saved, 'y');
+				}
 			}
 			tempCount++;
 		}
@@ -171,20 +189,18 @@ class MobileControls extends FlxTypedSpriteGroup<FlxMobileInputManager>
 		}
 	}
 
+	// 这里不 flush：ClientPrefs.data 与 FlxG.save.data 是两份数据，裸 flush 落下去的是上次
+	// saveSettings() 的旧快照，会把本次会话的改动冲掉。统一由退出时的 ClientPrefs.saveSettings() 落盘
 	public static function set_mode(mode:Int = 0)
 	{
 		FlxG.save.data.mobileControlsMode = mode;
-		FlxG.save.flush();
 		return mode;
 	}
 
 	public static function get_mode():Int
 	{
 		if (FlxG.save.data.mobileControlsMode == null)
-		{
 			FlxG.save.data.mobileControlsMode = 0;
-			FlxG.save.flush();
-		}
 
 		return FlxG.save.data.mobileControlsMode;
 	}

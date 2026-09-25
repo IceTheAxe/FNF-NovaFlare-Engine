@@ -74,11 +74,23 @@ class InitState extends MusicBeatState
 
 		FlxG.save.bind('funkin', CoolUtil.getSavePath(), function(rawData:String, error:haxe.Exception):Dynamic
 		{
-			FlxG.log.error('[InitState] Main save could not be parsed; starting from an empty legacy save and recovering protected preferences: $error');
+			// FlxG.log.* 在 Release 下整块被 #if FLX_DEBUG 掉，只有 trace / Sys.println 能进 logcat
+			trace('[InitState] Main save could not be parsed (${rawData.length} bytes): $error');
+			#if sys
+			try
+			{
+				// FlxSave 会把返回值写回 SharedObject 并落盘，返回 {} 等于把存档洗掉 —— 先留一份原件
+				sys.io.File.saveContent('funkin.sol.corrupt', rawData);
+			}
+			catch (e:Dynamic) {}
+			#end
 			return {};
 		});
 
 		ClientPrefs.loadPrefs();
+
+		// 存档体检。Release 下 FlxG.log.* 整块被 #if FLX_DEBUG 掉，只有 trace 能进 logcat
+		trace('[InitState] save bound=${FlxG.save.isBound} fields=${FlxG.save.data != null ? Reflect.fields(FlxG.save.data).length : -1}');
 
 		#if ACHIEVEMENTS_ALLOWED Achievements.load(); #end
 		GABridge.init();

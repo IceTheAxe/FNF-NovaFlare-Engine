@@ -320,16 +320,15 @@ class MusicBeatState extends FlxUIState
 
 	public static function switchState(nextState:FlxState = null)
 	{
+		// 只补缺失的那一个键。整份 clear 再刷默认会把用户自己改过的其它键位一起抹掉
 		var basicKeys = ['ui_up', 'ui_down', 'ui_left', 'ui_right', 'accept', 'back'];
-		var needReset = false;
+		if (ClientPrefs.defaultKeys == null) ClientPrefs.loadDefaultKeys();
 		for (k in basicKeys) {
 			var arr = ClientPrefs.keyBinds.get(k);
-			if (arr == null || arr.length == 0 || (arr.length == 1 && arr[0] == NONE)) { needReset = true; break; }
-		}
-		if (needReset) {
-			if (ClientPrefs.defaultKeys == null) ClientPrefs.loadDefaultKeys();
-			ClientPrefs.keyBinds.clear();
-			for (k => v in ClientPrefs.defaultKeys) ClientPrefs.keyBinds.set(k, v.copy());
+			if (arr == null || arr.length == 0 || (arr.length == 1 && arr[0] == NONE)) {
+				var fallback = ClientPrefs.defaultKeys.get(k);
+				if (fallback != null) ClientPrefs.keyBinds.set(k, fallback.copy());
+			}
 		}
 
 		if (nextState == null)
