@@ -83,6 +83,8 @@ class NumButton extends FlxSpriteGroup {
 
     public function initData() {
         var percent = (follow.defaultValue - min) / (max - min);
+        // 值可能刚被外部改过（例如 Option.resetData），去重缓存要跟着失效
+        lastSentValue = Math.NaN;
         rectUpdate(percent);
     }
 
@@ -104,10 +106,14 @@ class NumButton extends FlxSpriteGroup {
 
         var mouse = FlxG.mouse;
 
-		if (mouse.y > rod.y && mouse.y < (rod.y + rod.height) && mouse.x > (rod.x - rod.width * 4) && mouse.x < (rod.x + rod.width * 4) && mouse.justPressed)
+		// 点在轨道上就生效：落在滑块附近是"接着拖"，点在轨道别处是"直接跳到指针位置"。
+		// 纵向判定带取滑块的高度而不是轨道本身的 —— 轨道只有几像素高，按不准。
+		if (mouse.justPressed && isOnTrack(mouse.x, mouse.y))
 		{
 			onFocus = true;
-            lastMouseX = mouse.x;
+			jumpToPointer(mouse.x);
+			// 本帧后面紧跟的 onHold() 会按"指针 - lastMouseX"再跳一次，先对齐掉
+			lastMouseX = mouse.x;
 		}
 
         var inputAllow:Bool = true;
@@ -185,6 +191,33 @@ class NumButton extends FlxSpriteGroup {
 	}
 
     var lastMouseX = 0;
+
+    /**
+     * 上一次真正写出去的值。
+     * 拖动时 rectUpdate 每帧都会跑，但按 decimals 取整后大部分帧算出的值是同一个，
+     * 不去重的话 setValue / onChange 会以帧率被重复触发（有的 onChange 是重活）。
+     * 用 NaN 当"还没有写过"的哨兵 —— NaN 与任何值（包括自己）比较都不相等。
+     */
+    var lastSentValue:Float = Math.NaN;
+
+    /** 把值直接跳到指针所在的轨道位置（点击跳转）。 */
+    function jumpToPointer(pointerX:Float):Void
+    {
+        var usable:Float = moveBG.width - rod.width;
+        if (usable <= 0) return;
+
+        var percent:Float = FlxMath.bound((pointerX - moveBG.x) / usable, 0, 1);
+        var outputData:Float = FlxMath.roundDecimal(min + (max - min) * percent, follow.decimals);
+        rectUpdate(percent, outputData);
+    }
+
+    /** 指针是否落在轨道上。纵向用滑块的高度当判定带。 */
+    function isOnTrack(pointerX:Float, pointerY:Float):Bool
+    {
+        if (pointerY < rod.y || pointerY > rod.y + rod.height) return false;
+        return pointerX >= moveBG.x && pointerX <= moveBG.x + moveBG.width;
+    }
+
     function onHold()
 	{
         OptionsState.instance.cataMove.inputAllow = false;
@@ -232,6 +265,11 @@ class NumButton extends FlxSpriteGroup {
 		rod.x = follow.followX + follow.innerX + innerX + deleteButton.width * 1.2 + (moveBG.width - rod.width) * percent;
 
         if (outputData == null) return;
+
+        var value:Float = cast outputData;
+        if (value == lastSentValue) return;
+        lastSentValue = value;
+
         follow.setValue(outputData);
 		follow.change();
         follow.updateDisText();

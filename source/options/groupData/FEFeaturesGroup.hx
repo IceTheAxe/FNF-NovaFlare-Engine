@@ -49,7 +49,9 @@ class FEFeaturesGroup extends OptionCata
 		var option:Option = new Option(this, 'pointerType', STRING, ['triangle', 'inverted', 'thick_line']);
 		addOption(option);
 
-		var option:Option = new Option(this, 'guideLineAlpha', FLOAT, [0, 1, 0]);
+		// FLOAT 的 data 是 [min, max, decimals]：decimals 同时决定步进（0.1^decimals）
+		// 和写入前的取整位数（backend/NumButton.hx）。给 0 的话只能 0 / 1 两档。
+		var option:Option = new Option(this, 'guideLineAlpha', FLOAT, [0, 1, 1]);
 		addOption(option);
 
 		var option:Option = new Option(this, 'noteOffsetChangingAllowed', BOOL);
