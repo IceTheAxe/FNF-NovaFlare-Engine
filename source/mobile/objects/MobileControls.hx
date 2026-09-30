@@ -74,21 +74,11 @@ class MobileControls extends FlxTypedSpriteGroup<FlxMobileInputManager>
 
 	public static function setCustomMode(virtualPad:FlxVirtualPad):Void
 	{
-		if (FlxG.save.data.buttons == null)
-		{
-			FlxG.save.data.buttons = new Array();
-			for (buttons in virtualPad)
-				FlxG.save.data.buttons.push(FlxPoint.get(buttons.x, buttons.y));
-		}
-		else
-		{
-			var tempCount:Int = 0;
-			for (buttons in virtualPad)
-			{
-				FlxG.save.data.buttons[tempCount] = FlxPoint.get(buttons.x, buttons.y);
-				tempCount++;
-			}
-		}
+		var buttonPositions:Array<Array<Float>> = [];
+		for (buttons in virtualPad)
+			buttonPositions.push([buttons.x, buttons.y]);
+
+		FlxG.save.data.buttons = buttonPositions;
 
 		FlxG.save.flush();
 	}
@@ -102,10 +92,11 @@ class MobileControls extends FlxTypedSpriteGroup<FlxMobileInputManager>
 
 		for (buttons in virtualPad)
 		{
-			if (FlxG.save.data.buttons[tempCount] != null)
+			var position:Null<Array<Float>> = readSavedPosition(FlxG.save.data.buttons[tempCount]);
+			if (position != null)
 			{
-				buttons.x = FlxG.save.data.buttons[tempCount].x;
-				buttons.y = FlxG.save.data.buttons[tempCount].y;
+				buttons.x = position[0];
+				buttons.y = position[1];
 			}
 			tempCount++;
 		}
@@ -115,21 +106,11 @@ class MobileControls extends FlxTypedSpriteGroup<FlxMobileInputManager>
 
 	public static function setExtraCustomMode(virtualPad:FlxVirtualPad):Void
 	{
-		if (FlxG.save.data.extraButtons == null)
-		{
-			FlxG.save.data.extraButtons = new Array();
-			for (btn in virtualPad.extraKeys)
-				FlxG.save.data.extraButtons.push(FlxPoint.get(btn.x, btn.y));
-		}
-		else
-		{
-			var tempCount:Int = 0;
-			for (btn in virtualPad.extraKeys)
-			{
-				FlxG.save.data.extraButtons[tempCount] = FlxPoint.get(btn.x, btn.y);
-				tempCount++;
-			}
-		}
+		var buttonPositions:Array<Array<Float>> = [];
+		for (btn in virtualPad.extraKeys)
+			buttonPositions.push([btn.x, btn.y]);
+
+		FlxG.save.data.extraButtons = buttonPositions;
 
 		FlxG.save.flush();
 	}
@@ -143,15 +124,35 @@ class MobileControls extends FlxTypedSpriteGroup<FlxMobileInputManager>
 
 		for (btn in virtualPad.extraKeys)
 		{
-			if (FlxG.save.data.extraButtons[tempCount] != null)
+			var position:Null<Array<Float>> = readSavedPosition(FlxG.save.data.extraButtons[tempCount]);
+			if (position != null)
 			{
-				btn.x = FlxG.save.data.extraButtons[tempCount].x;
-				btn.y = FlxG.save.data.extraButtons[tempCount].y;
+				btn.x = position[0];
+				btn.y = position[1];
 			}
 			tempCount++;
 		}
 
 		return virtualPad;
+	}
+
+	private static function readSavedPosition(savedPosition:Dynamic):Null<Array<Float>>
+	{
+		if (savedPosition == null)
+			return null;
+
+		if (Std.isOfType(savedPosition, Array))
+		{
+			var positionArray:Array<Dynamic> = cast savedPosition;
+			if (positionArray.length >= 2)
+				return [positionArray[0], positionArray[1]];
+		}
+		else if (Reflect.hasField(savedPosition, 'x') && Reflect.hasField(savedPosition, 'y'))
+		{
+			return [Reflect.field(savedPosition, 'x'), Reflect.field(savedPosition, 'y')];
+		}
+
+		return null;
 	}
 
 	override public function destroy():Void

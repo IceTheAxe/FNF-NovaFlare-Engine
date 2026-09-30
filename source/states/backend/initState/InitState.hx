@@ -72,11 +72,7 @@ class InitState extends MusicBeatState
 
 		super.create();
 
-		FlxG.save.bind('funkin', CoolUtil.getSavePath(), function(rawData:String, error:haxe.Exception):Dynamic
-		{
-			FlxG.log.error('[InitState] Main save could not be parsed; starting from an empty legacy save and recovering protected preferences: $error');
-			return {};
-		});
+		FlxG.save.bind('funkin', CoolUtil.getSavePath());
 
 		ClientPrefs.loadPrefs();
 
@@ -276,8 +272,10 @@ class InitState extends MusicBeatState
 		#elseif CHARTING
 		MusicBeatState.switchState(new ChartingState());
 		#else
-		if (!ClientPrefs.flashingWarningAcknowledged)
+		if (FlxG.save.data.openedFlash == null)
 		{
+			FlxG.save.data.openedFlash = true;
+			//ClientPrefs.saveSettings();
 			FlxTransitionableState.skipNextTransIn = true;
 			FlxTransitionableState.skipNextTransOut = true;
 			MusicBeatState.switchState(new FlashingState());
