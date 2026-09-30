@@ -28,6 +28,31 @@
 
 I really don't recommend using AI to write interfaces, and don't belittle Haxe just because you haven't mastered it yourself ----MaoPou
 
+---
+
+# ⚠️ About This Fork / 关于本分支
+
+> **请注意：这不是官方 NovaFlare Engine 版本。**  
+> **This is NOT an official NovaFlare Engine release.**
+
+本仓库是 **基于 NovaFlare Engine 1.2.1-HOTFIX（NF 1.2.1HF）的分支**
+
+- **This repository is a fork based on NovaFlare Engine 1.2.1-HOTFIX (NF 1.2.1HF).**
+- **This is NOT an official NovaFlare Engine version.**
+- **You may continue to modify this derivative work, but you must follow the Code of Conduct of both NovaFlare (NF) and Codename Engine (CNE).**
+- **This fork also aims to fix bugs left in the 1.2.1HF branch and add new interesting components/features.**
+- **The final right of interpretation belongs to the original NovaFlare creators/team.**
+
+### 中文说明
+
+1. 这是基于 **NF 1.2.1HF** 的分支。
+2. 这 **不是** 一个官方版本的 NF。
+3. 你仍可以继续修改这个衍生版，但你要遵循 **NF** 和 **CNE** 的行为准则。
+4. 本分支亦在修复 **1.2.1HF** 分支遗留的 bug，并添加新的有趣的组件/功能。
+5. 最终解释权归 **NF 主创团队** 所有。
+
+---
+
 
 # Introduction
 The FNF-NovaFlare-Engine was originally created to be compatible with the Camellia mod, and it has continuously evolved into an independent engine, developed by Chinese developers. 
