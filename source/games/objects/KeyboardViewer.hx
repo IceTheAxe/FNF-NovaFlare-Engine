@@ -18,12 +18,13 @@ class KeyboardViewer extends FlxSpriteGroup
 {
 	public var previewMode(default, set):Bool = false;
 	var autoPressLoop:Bool = false;
-	var autoPressTimer:Float = 0;
 	var autoPressIndex:Int = 0;
-	var autoPressHoldTime:Float = 0.64;
+	var autoPressHoldTime:Float = 0.32;
 	var autoPressStopTime:Float = 0.05;
-	var autoPressHold:Bool = false;
+	var autoPressRunning:Bool = false;
 	var previewClock:Float = 0;
+
+	public var currentTextColor:FlxColor = FlxColor.BLACK;
 
 	public var noteArrays:Array<Array<TimeDis>> = []; // 存储所有键位的数组
 	public var keyAlphas:Array<KeyButtonAlpha> = []; // 存储键位透明度对象
@@ -231,6 +232,7 @@ class KeyboardViewer extends FlxSpriteGroup
 
 	public function setTextColor(color:FlxColor):Void
 	{
+		currentTextColor = color;
 		var i:Int = members.length - 1;
 		while (i >= 0)
 		{
@@ -239,6 +241,23 @@ class KeyboardViewer extends FlxSpriteGroup
 				(cast obj:FlxText).color = color;
 			i--;
 		}
+	}
+
+	function loopAutoPress():Void
+	{
+		autoPressRunning = true;
+
+		FlxTimer.wait(autoPressStopTime, () ->
+		{
+			pressed(autoPressIndex);
+
+			FlxTimer.wait(autoPressHoldTime, () ->
+			{
+				released(autoPressIndex);
+				autoPressIndex = (autoPressIndex + 1) % keyAlphas.length;
+				autoPressRunning = false;
+			});
+		});
 	}
 
 	public function pressed(key:Int)
@@ -280,7 +299,7 @@ class KeyboardViewer extends FlxSpriteGroup
 	{
 		if(key < keyAlphas.length) {
 			keyAlphas[key].alpha = 0;
-			keyTexts[key].color = OptionsHelpers.colorArray(ClientPrefs.data.keyboardTextColor);
+			keyTexts[key].color = currentTextColor;
 		}
 
 		if(key < noteArrays.length) {
@@ -347,24 +366,8 @@ class KeyboardViewer extends FlxSpriteGroup
 			super.update(elapsed);
 			previewClock += elapsed * 1000;
 
-			if (autoPressLoop && keyAlphas.length > 0)
-			{
-				autoPressTimer += elapsed;
-
-				if (!autoPressHold && autoPressTimer >= autoPressStopTime)
-				{
-					autoPressTimer = 0;
-					autoPressHold = true;
-					pressed(autoPressIndex);
-				}
-				else if (autoPressHold && autoPressTimer >= autoPressHoldTime)
-				{
-					autoPressTimer = 0;
-					autoPressHold = false;
-					released(autoPressIndex);
-					autoPressIndex = (autoPressIndex + 1) % keyAlphas.length;
-				}
-			}
+			if (autoPressLoop && !autoPressRunning && keyAlphas.length > 0)
+				loopAutoPress();
 
 			return;
 		}
