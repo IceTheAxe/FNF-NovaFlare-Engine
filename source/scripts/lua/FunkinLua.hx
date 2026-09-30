@@ -981,6 +981,7 @@ class FunkinLua
 			FlxG.sound.playMusic(Paths.music('freakyMenu'));
 			PlayState.changedDifficulty = false;
 			PlayState.chartingMode = false;
+			PlayState.seenCutscene = false;
 			game.transitioning = true;
 			FlxG.camera.followLerp = 0;
 			Mods.loadTopMod();
