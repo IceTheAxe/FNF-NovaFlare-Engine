@@ -16,13 +16,15 @@ import games.backend.Song;
 
 class KeyboardViewer extends FlxSpriteGroup
 {
-	public var previewMode(default, set):Bool = false;
+	public var isPreview:Bool = false;
 	var autoPressLoop:Bool = false;
 	var autoPressIndex:Int = 0;
 	var autoPressHoldTime:Float = 0.32;
 	var autoPressStopTime:Float = 0.05;
 	var autoPressRunning:Bool = false;
 	var previewClock:Float = 0;
+
+	var destroyed:Bool = false;
 
 	public var currentTextColor:FlxColor = FlxColor.BLACK;
 
@@ -43,25 +45,26 @@ class KeyboardViewer extends FlxSpriteGroup
 
 	public static var instance:KeyboardViewer;
 
-	function set_previewMode(value:Bool):Bool
-	{
-		previewMode = value;
-		if (value)
-			autoPressLoop = true;
-		return value;
-	}
-
-	public function new(X:Float, Y:Float)
+	public function new(X:Float, Y:Float, preview:Bool = false)
 	{
 		super();
 		instance = this;
 		moves = false;
+
+		isPreview = preview;
 
 		_x = X;
 		_y = Y;
 
 		var mania:Int = 3;
 		if(PlayState.SONG != null) mania = PlayState.SONG.mania;
+
+		if (preview)
+		{
+			mania = 3;
+			autoPressLoop = true;
+		}
+
 		keys = mania + 1;
 
 		for(i in 0...keys) noteArrays.push([]);
@@ -262,12 +265,16 @@ class KeyboardViewer extends FlxSpriteGroup
 
 	public function pressed(key:Int)
 	{
-		if(key < keyAlphas.length) {
+		if (destroyed) return;
+
+		if(key < keyAlphas.length && keyAlphas[key] != null) {
 			keyAlphas[key].alpha = 1 * ClientPrefs.data.keyboardAlpha;
+		}
+		if(key < keyTexts.length && keyTexts[key] != null) {
 			keyTexts[key].color = FlxColor.BLACK;
 		}
 
-		if (!previewMode)
+		if (!isPreview)
 		{
 			if (!PlayState.replayMode)
 				total++;
@@ -278,9 +285,9 @@ class KeyboardViewer extends FlxSpriteGroup
 		if (!ClientPrefs.data.keyboardTimeDisplay)
 			return;
 
-		var startT:Float = previewMode ? previewClock : Conductor.songPosition;
+		var startT:Float = isPreview ? previewClock : Conductor.songPosition;
 		var obj:TimeDis = new TimeDis(key, startT, _x, _y);
-		if (previewMode)
+		if (isPreview)
 		{
 			obj.previewMode = true;
 			obj.previewTime = startT;
@@ -297,15 +304,17 @@ class KeyboardViewer extends FlxSpriteGroup
 
 	public function released(key:Int)
 	{
-		if(key < keyAlphas.length) {
+		if (destroyed) return;
+
+		if(key < keyAlphas.length && keyAlphas[key] != null)
 			keyAlphas[key].alpha = 0;
+		if(key < keyTexts.length && keyTexts[key] != null)
 			keyTexts[key].color = currentTextColor;
-		}
 
 		if(key < noteArrays.length) {
 			var arr = noteArrays[key];
 			if(arr.length > 0 && arr[arr.length - 1].endTime == -999999)
-				arr[arr.length - 1].endTime = previewMode ? previewClock : Conductor.songPosition;
+				arr[arr.length - 1].endTime = isPreview ? previewClock : Conductor.songPosition;
 		}
 	}
 
@@ -361,7 +370,7 @@ class KeyboardViewer extends FlxSpriteGroup
 
 	override function update(elapsed:Float)
 	{
-		if (previewMode)
+		if (isPreview)
 		{
 			super.update(elapsed);
 			previewClock += elapsed * 1000;
@@ -390,6 +399,14 @@ class KeyboardViewer extends FlxSpriteGroup
 			kpsCheck = kps;
 			kpsText.text = Std.string(kps);
 		}
+	}
+
+	override function destroy()
+	{
+		destroyed = true;
+		autoPressLoop = false;
+		autoPressRunning = false;
+		super.destroy();
 	}
 }
 

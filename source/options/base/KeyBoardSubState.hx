@@ -75,8 +75,8 @@ class KeyBoardSubState extends MusicBeatSubstate
 		camKey.bgColor = FlxColor.TRANSPARENT;
 		FlxG.cameras.add(camKey, false);
 
-		previewKeyboard = new KeyboardViewer(50, 300);
-		previewKeyboard.previewMode = true;
+		previewKeyboard = new KeyboardViewer(50, 300, true);
+
 		previewKeyboard.cameras = [camKey];
 		add(previewKeyboard);
 		previewKeyboard.x += 300;

@@ -18,6 +18,15 @@ import games.objects.Note;
 
 class NotesSubState extends MusicBeatSubstate
 {
+	//不是哥们 直接改SONG不就直接把PlayState的覆盖了
+	var saveSong:Dynamic;
+
+	override function destroy()
+	{
+		PlayState.SONG = saveSong;
+		super.destroy();
+	}
+
 	var onModeColumn:Bool = true;
 	var curSelectedMode:Int = 0;
 	var curSelectedNote:Int = 0;
@@ -57,6 +66,7 @@ class NotesSubState extends MusicBeatSubstate
 
 	public function new()
 	{
+		saveSong = PlayState.SONG;
 		PlayState.SONG = {
 			song: 'Test',
 			notes: [],

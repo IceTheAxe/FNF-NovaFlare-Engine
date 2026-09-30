@@ -929,11 +929,11 @@ class FunkinLua
 		{
 			Paths.image(name, null, allowGPU, disposeOnUpload);
 		});
-		set("precacheSound", function(name:String) {
-			return Paths.sound(name);
+		set("precacheSound", function(name:String):Void {
+			Paths.sound(name);
 		});
-		set("precacheMusic", function(name:String) {
-			return Paths.music(name);
+		set("precacheMusic", function(name:String):Void {
+			Paths.music(name);
 		});
 
 		// others
