@@ -55,6 +55,7 @@ class FunkinLua
 	#end
 
 	public var callbacks:Map<String, Dynamic> = new Map<String, Dynamic>();
+	private var reportedRuntimeErrors:Map<String, Bool> = new Map<String, Bool>();
 
 	public static var customFunctions:Map<String, Dynamic> = new Map<String, Dynamic>();
 
@@ -928,14 +929,11 @@ class FunkinLua
 		{
 			Paths.image(name, null, allowGPU, disposeOnUpload);
 		});
-		// Precache callbacks are commands. Returning the loaded OpenFL Sound to
-		// Lua makes linc_luajit try to serialize a native Sound object and emits
-		// "Couldn't convert TClass(openfl.media.Sound)" once per asset.
-		set("precacheSound", function(name:String):Void {
-			Paths.sound(name);
+		set("precacheSound", function(name:String) {
+			return Paths.sound(name);
 		});
-		set("precacheMusic", function(name:String):Void {
-			Paths.music(name);
+		set("precacheMusic", function(name:String) {
+			return Paths.music(name);
 		});
 
 		// others
@@ -1185,7 +1183,22 @@ class FunkinLua
 				var leSprite:ModchartSprite = new ModchartSprite(x, y);
 				if (image != null && image.length > 0)
 				{
-					leSprite.loadGraphic(Paths.image(image, null, null, disposeOnUpload));
+					if (ClientPrefs.data.moreLuaErrors)
+					{
+						var graphic = Paths.image(image, null, null, disposeOnUpload);
+						if (graphic == null)
+						{
+							reportRuntimeErrorOnce('makeLuaSprite:missing:$image',
+								'makeLuaSprite("$tag"): image "$image" could not be loaded.');
+							leSprite.destroy();
+							return;
+						}
+						leSprite.loadGraphic(graphic);
+					}
+					else
+					{
+						leSprite.loadGraphic(Paths.image(image, null, null, disposeOnUpload));
+					}
 				}
 				leSprite.imageName = image;
 				game.modchartSprites.set(tag, leSprite);
@@ -1201,7 +1214,40 @@ class FunkinLua
 				LuaUtils.resetSpriteTag(tag);
 				var leSprite:ModchartSprite = new ModchartSprite(x, y);
 
-				LuaUtils.loadFrames(leSprite, image, spriteType);
+				if (ClientPrefs.data.moreLuaErrors)
+				{
+					if (image == null || image.length == 0 || Paths.image(image) == null)
+					{
+						reportRuntimeErrorOnce('makeAnimatedLuaSprite:missing:$image',
+							'makeAnimatedLuaSprite("$tag"): image "$image" could not be loaded.');
+						leSprite.destroy();
+						return;
+					}
+
+					try
+					{
+						LuaUtils.loadFrames(leSprite, image, spriteType);
+					}
+					catch (error:Dynamic)
+					{
+						reportRuntimeErrorOnce('makeAnimatedLuaSprite:atlas:$image',
+							'makeAnimatedLuaSprite("$tag"): atlas "$image" could not be loaded (${Std.string(error)}).');
+						leSprite.destroy();
+						return;
+					}
+
+					if (leSprite.frames == null || leSprite.numFrames <= 0)
+					{
+						reportRuntimeErrorOnce('makeAnimatedLuaSprite:frames:$image',
+							'makeAnimatedLuaSprite("$tag"): atlas "$image" contains no usable frames.');
+						leSprite.destroy();
+						return;
+					}
+				}
+				else
+				{
+					LuaUtils.loadFrames(leSprite, image, spriteType);
+				}
 				leSprite.imageName = image;
 				game.modchartSprites.set(tag, leSprite);
 			} /*else {
@@ -1217,6 +1263,16 @@ class FunkinLua
 		});
 		set("addAnimationByPrefix", function(obj:String, name:String, prefix:String, framerate:Int = 24, loop:Bool = true)
 		{
+			if (ClientPrefs.data.moreLuaErrors)
+			{
+				if (prefix == null)
+				{
+					reportRuntimeErrorOnce('addAnimationByPrefix:null:$obj:$name',
+						'addAnimationByPrefix("$obj", "$name"): prefix is nil because the source sprite has no current frame.');
+					return;
+				}
+			}
+
 			if (PlayState.instance.getLuaObject(obj, false) != null)
 			{
 				var cock:FlxSprite = PlayState.instance.getLuaObject(obj, false);
@@ -1884,52 +1940,79 @@ class FunkinLua
 		if (closed)
 			return LuaUtils.Function_Continue;
 
+		var result:Dynamic = LuaUtils.Function_Continue;
 		lastCalledFunction = func;
 		lastCalledScript = this;
 		try
 		{
 			if (lua == null)
-				return LuaUtils.Function_Continue;
-
-			Lua.getglobal(lua, func);
-			var type:Int = Lua.type(lua, -1);
-
-			if (type != Lua.LUA_TFUNCTION)
-			{
-				if (type > Lua.LUA_TNIL)
-					luaTrace("ERROR (" + func + "): attempt to call a " + LuaUtils.typeToString(type) + " value", false, false, FlxColor.RED);
-
-				Lua.pop(lua, 1);
-				return LuaUtils.Function_Continue;
-			}
-
-			for (arg in args)
-				Convert.toLua(lua, arg);
-			var status:Int = Lua.pcall(lua, args.length, 1, 0);
-
-			// Checks if it's not successful, then show a error.
-			if (status != Lua.LUA_OK)
-			{
-				var error:String = getErrorMessage(status);
-				luaTrace("ERROR (" + func + "): " + error, false, false, FlxColor.RED);
-				return LuaUtils.Function_Continue;
-			}
-
-			// If successful, pass and then return the result.
-			var result:Dynamic = cast Convert.fromLua(lua, -1);
-			if (result == null)
 				result = LuaUtils.Function_Continue;
 
-			Lua.pop(lua, 1);
-			if (closed)
-				stop();
-			return result;
+			else
+			{
+				Lua.getglobal(lua, func);
+				var type:Int = Lua.type(lua, -1);
+
+				if (type != Lua.LUA_TFUNCTION)
+				{
+					if (type > Lua.LUA_TNIL)
+					{
+						if (ClientPrefs.data.moreLuaErrors)
+							reportRuntimeErrorOnce('lua-call-type:$func:$type',
+								'attempt to call a ${LuaUtils.typeToString(type)} value.');
+						else
+							luaTrace("ERROR (" + func + "): attempt to call a " + LuaUtils.typeToString(type) + " value", false, false, FlxColor.RED);
+					}
+
+					Lua.pop(lua, 1);
+					result = LuaUtils.Function_Continue;
+				}
+				else
+				{
+					for (arg in args)
+						Convert.toLua(lua, arg);
+					var status:Int = Lua.pcall(lua, args.length, 1, 0);
+
+					// Checks if it's not successful, then show a error.
+					if (status != Lua.LUA_OK)
+					{
+						var error:String = getErrorMessage(status);
+						if (ClientPrefs.data.moreLuaErrors)
+							reportRuntimeErrorOnce('lua-runtime:$func:$error', error);
+						else
+							luaTrace("ERROR (" + func + "): " + error, false, false, FlxColor.RED);
+						result = LuaUtils.Function_Continue;
+					}
+					else
+					{
+						// If successful, pass and then return the result.
+						var luaResult:Dynamic = cast Convert.fromLua(lua, -1);
+						if (luaResult == null)
+							luaResult = LuaUtils.Function_Continue;
+
+						Lua.pop(lua, 1);
+						if (closed)
+						{
+							stop();
+							result = LuaUtils.Function_Continue;
+						}
+						else
+						{
+							result = luaResult;
+						}
+					}
+				}
+			}
 		}
 		catch (e:Dynamic)
 		{
 			trace(e);
+			if (ClientPrefs.data.moreLuaErrors)
+				reportRuntimeErrorOnce('callback:$func:${Std.string(e)}', Std.string(e));
+			result = LuaUtils.Function_Continue;
 		}
-		return LuaUtils.Function_Continue;
+
+		return result;
 	}
 
 	public function set(variable:String, data:Dynamic)
@@ -1954,6 +2037,8 @@ class FunkinLua
 			lastCalledScript = null;
 		if (callbacks != null)
 			callbacks.clear();
+		if (reportedRuntimeErrors != null)
+			reportedRuntimeErrors.clear();
 
 		if (lua == null)
 		{
@@ -1987,6 +2072,27 @@ class FunkinLua
 		{
 			luaTrace('$funcName: Couldnt find object: $vars', false, false, FlxColor.RED);
 		}
+	}
+
+	public function reportRuntimeErrorOnce(key:String, message:String):Void
+	{
+		if (ClientPrefs.data.moreLuaErrors)
+		{
+			if (key == null || key.length == 0)
+				key = message;
+			if (reportedRuntimeErrors.exists(key))
+				return;
+
+			reportedRuntimeErrors.set(key, true);
+		}
+
+		var callbackName:String = lastCalledFunction != null && lastCalledFunction.length > 0 ? lastCalledFunction : 'unknown callback';
+		var sourceName:String = scriptName != null && scriptName.length > 0 ? scriptName : 'unknown Lua script';
+		var errorText:String = 'ERROR ($callbackName) [$sourceName]: $message';
+		if (PlayState.instance != null)
+			PlayState.instance.addTextToDebug(errorText, FlxColor.RED);
+		else
+			trace(errorText);
 	}
 
 	public static function luaTrace(text:String, ignoreCheck:Bool = false, deprecated:Bool = false, color:FlxColor = FlxColor.WHITE)

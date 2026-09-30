@@ -177,6 +177,7 @@ import general.shaders.MobileShaderConverter;
 	public var developerMode:Bool = false;
 	public var devConScale:Float = #if mobile 1.8 #else 1.5 #end;
 	public var deepDebug:Bool = false;
+	public var moreLuaErrors:Bool = false;
 
 	//For Extra Keys (maybe)
 	public var showKeybinds:Bool = false;

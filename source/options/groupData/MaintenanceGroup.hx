@@ -30,6 +30,10 @@ class MaintenanceGroup extends OptionCata
 		option.experMode = true;
 		addOption(option);
 		#end
+
+		var option:Option = new Option(this, 'moreLuaErrors', BOOL);
+		option.experMode = true;
+		addOption(option);
         
         var option:Option = new Option(this, 'devConScale', FLOAT, [0.5, 3, 1]);
 		addOption(option);
