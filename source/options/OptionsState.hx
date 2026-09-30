@@ -235,7 +235,7 @@ class OptionsState extends MusicBeatState
 			if (PsychUIInputText.focusOn != null)
 			{
 				//PsychUIInputText.focusOn = null;
-				FlxG.sound.play(Paths.sound('cancelMenu'));
+				//FlxG.sound.play(Paths.sound('cancelMenu'));
 			}
 			else
 				backMenu();
@@ -507,6 +507,9 @@ class OptionsState extends MusicBeatState
 			case 8:
 				persistentUpdate = false;
 				openSubState(new SelectGameSubState());
+			case 9: // KeyBoardSubState
+				persistentUpdate = false;
+				openSubState(new KeyBoardSubState());
 		}
 	}
 

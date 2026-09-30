@@ -31,8 +31,7 @@ KeyBoard => Teclado
 keyboardAlpha => Transparência
 keyboardTime => Tempo de exibição do pressionamento sustentado
 keyboardTimeDisplay => Suporte à exibição de detalhes de pressionamento
-keyboardBGColor => Cor de fundo do teclado
-keyboardTextColor => Cor do texto do teclado
+KeyBoardSubState => Paleta de cores do teclado
 
 
 Camera => Câmera

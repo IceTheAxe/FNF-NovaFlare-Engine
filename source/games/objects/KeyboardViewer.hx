@@ -16,6 +16,18 @@ import games.backend.Song;
 
 class KeyboardViewer extends FlxSpriteGroup
 {
+	public var isPreview:Bool = false;
+	var autoPressLoop:Bool = false;
+	var autoPressIndex:Int = 0;
+	var autoPressHoldTime:Float = 0.32;
+	var autoPressStopTime:Float = 0.05;
+	var autoPressRunning:Bool = false;
+	var previewClock:Float = 0;
+
+	var destroyed:Bool = false;
+
+	public var currentTextColor:FlxColor = FlxColor.BLACK;
+
 	public var noteArrays:Array<Array<TimeDis>> = []; // 存储所有键位的数组
 	public var keyAlphas:Array<KeyButtonAlpha> = []; // 存储键位透明度对象
 	public var keyTexts:Array<FlxText> = []; // 存储键位文本对象
@@ -33,17 +45,26 @@ class KeyboardViewer extends FlxSpriteGroup
 
 	public static var instance:KeyboardViewer;
 
-	public function new(X:Float, Y:Float)
+	public function new(X:Float, Y:Float, preview:Bool = false)
 	{
 		super();
 		instance = this;
 		moves = false;
+
+		isPreview = preview;
 
 		_x = X;
 		_y = Y;
 
 		var mania:Int = 3;
 		if(PlayState.SONG != null) mania = PlayState.SONG.mania;
+
+		if (preview)
+		{
+			mania = 3;
+			autoPressLoop = true;
+		}
+
 		keys = mania + 1;
 
 		for(i in 0...keys) noteArrays.push([]);
@@ -195,43 +216,105 @@ class KeyboardViewer extends FlxSpriteGroup
 
 	}
 
+	public function setBGColor(color:FlxColor):Void
+	{
+		var i:Int = members.length - 1;
+		while (i >= 0)
+		{
+			var obj = members[i];
+			if (obj != null)
+			{
+				if (Std.isOfType(obj, KeyButton))
+					(cast obj:KeyButton).color = color;
+				else if (Std.isOfType(obj, TimeDis))
+					(cast obj:TimeDis).color = color;
+			}
+			i--;
+		}
+	}
+
+	public function setTextColor(color:FlxColor):Void
+	{
+		currentTextColor = color;
+		var i:Int = members.length - 1;
+		while (i >= 0)
+		{
+			var obj = members[i];
+			if (obj != null && Std.isOfType(obj, FlxText))
+				(cast obj:FlxText).color = color;
+			i--;
+		}
+	}
+
+	function loopAutoPress():Void
+	{
+		autoPressRunning = true;
+
+		FlxTimer.wait(autoPressStopTime, () ->
+		{
+			pressed(autoPressIndex);
+
+			FlxTimer.wait(autoPressHoldTime, () ->
+			{
+				released(autoPressIndex);
+				autoPressIndex = (autoPressIndex + 1) % keyAlphas.length;
+				autoPressRunning = false;
+			});
+		});
+	}
+
 	public function pressed(key:Int)
 	{
-		if(key < keyAlphas.length) {
+		if (destroyed) return;
+
+		if(key < keyAlphas.length && keyAlphas[key] != null) {
 			keyAlphas[key].alpha = 1 * ClientPrefs.data.keyboardAlpha;
+		}
+		if(key < keyTexts.length && keyTexts[key] != null) {
 			keyTexts[key].color = FlxColor.BLACK;
 		}
 
-		if (!PlayState.replayMode)
-			total++;
-		totalText.text = Std.string(total);
-		hitArray.unshift(Date.now());
+		if (!isPreview)
+		{
+			if (!PlayState.replayMode)
+				total++;
+			totalText.text = Std.string(total);
+			hitArray.unshift(Date.now());
+		}
 
 		if (!ClientPrefs.data.keyboardTimeDisplay)
 			return;
 
-		var obj:TimeDis = new TimeDis(key, Conductor.songPosition, _x, _y);
+		var startT:Float = isPreview ? previewClock : Conductor.songPosition;
+		var obj:TimeDis = new TimeDis(key, startT, _x, _y);
+		if (isPreview)
+		{
+			obj.previewMode = true;
+			obj.previewTime = startT;
+		}
 		add(obj);
 
 		if(key < noteArrays.length) {
 			var arr = noteArrays[key];
 			if(arr.length > 0 && arr[arr.length - 1].endTime == -999999)
-				arr[arr.length - 1].endTime = Conductor.songPosition;
+				arr[arr.length - 1].endTime = startT;
 			arr.push(obj);
 		}
 	}
 
 	public function released(key:Int)
 	{
-		if(key < keyAlphas.length) {
+		if (destroyed) return;
+
+		if(key < keyAlphas.length && keyAlphas[key] != null)
 			keyAlphas[key].alpha = 0;
-			keyTexts[key].color = OptionsHelpers.colorArray(ClientPrefs.data.keyboardTextColor);
-		}
+		if(key < keyTexts.length && keyTexts[key] != null)
+			keyTexts[key].color = currentTextColor;
 
 		if(key < noteArrays.length) {
 			var arr = noteArrays[key];
 			if(arr.length > 0 && arr[arr.length - 1].endTime == -999999)
-				arr[arr.length - 1].endTime = Conductor.songPosition;
+				arr[arr.length - 1].endTime = isPreview ? previewClock : Conductor.songPosition;
 		}
 	}
 
@@ -287,6 +370,17 @@ class KeyboardViewer extends FlxSpriteGroup
 
 	override function update(elapsed:Float)
 	{
+		if (isPreview)
+		{
+			super.update(elapsed);
+			previewClock += elapsed * 1000;
+
+			if (autoPressLoop && !autoPressRunning && keyAlphas.length > 0)
+				loopAutoPress();
+
+			return;
+		}
+
 		super.update(elapsed);
 		var i = hitArray.length - 1;
 		while (i >= 0)
@@ -295,7 +389,7 @@ class KeyboardViewer extends FlxSpriteGroup
 			if (time != null && time.getTime() + 1000 < Date.now().getTime())
 				hitArray.remove(time);
 			else
-				i = -1; // 跳出循环
+				i = -1;
 			i--;
 		}
 		kps = hitArray.length;
@@ -305,6 +399,14 @@ class KeyboardViewer extends FlxSpriteGroup
 			kpsCheck = kps;
 			kpsText.text = Std.string(kps);
 		}
+	}
+
+	override function destroy()
+	{
+		destroyed = true;
+		autoPressLoop = false;
+		autoPressRunning = false;
+		super.destroy();
 	}
 }
 
@@ -367,6 +469,8 @@ class TimeDis extends FlxSprite
 	public var startTime:Float;
 	public var endTime:Float = -999999;
 	public var line:Int;
+	public var previewMode:Bool = false;
+	public var previewTime:Float = 0;
 
 	var durationTime:Float = ClientPrefs.data.keyboardTime;
 
@@ -386,32 +490,37 @@ class TimeDis extends FlxSprite
 
 	override function update(elapsed:Float)
 	{
+		var songPos:Float = previewMode ? previewTime : Conductor.songPosition;
+
 		if (endTime == -999999)
 		{
-			_frame.frame.y = (1 - ((Conductor.songPosition - startTime) / durationTime)) * DisBitmap.Height;
-			_frame.frame.height = ((Conductor.songPosition - startTime) / durationTime) * DisBitmap.Height;
-			offset.y = -(1 - ((Conductor.songPosition - startTime) / durationTime)) * DisBitmap.Height;
+			_frame.frame.y = (1 - ((songPos - startTime) / durationTime)) * DisBitmap.Height;
+			_frame.frame.height = ((songPos - startTime) / durationTime) * DisBitmap.Height;
+			offset.y = -(1 - ((songPos - startTime) / durationTime)) * DisBitmap.Height;
 			if (_frame.frame.y < 0)
 				_frame.frame.y = 0;
-			if (Conductor.songPosition - startTime > durationTime)
+			if (songPos - startTime > durationTime)
 				offset.y = 0;
-			saveTime = Conductor.songPosition;
+			saveTime = songPos;
 		}
 		else
 		{
 			if (endTime - startTime < durationTime)
-				_frame.frame.y = (1 - ((Conductor.songPosition - startTime) / durationTime)) * DisBitmap.Height;
+				_frame.frame.y = (1 - ((songPos - startTime) / durationTime)) * DisBitmap.Height;
 			else
-				_frame.frame.y = (1 - ((Conductor.songPosition - (endTime - durationTime)) / durationTime)) * DisBitmap.Height;
-			offset.y -= -((Conductor.songPosition - saveTime) / durationTime) * DisBitmap.Height;
-			saveTime = Conductor.songPosition;
+				_frame.frame.y = (1 - ((songPos - (endTime - durationTime)) / durationTime)) * DisBitmap.Height;
+			offset.y -= -((songPos - saveTime) / durationTime) * DisBitmap.Height;
+			saveTime = songPos;
 		}
 		if (_frame.frame.height > DisBitmap.Height)
 			_frame.frame.height = DisBitmap.Height;
 		if (_frame.frame.height <= 0)
 			_frame.frame.height = 1; // fix bug
 
-		if (endTime != -999999 && Conductor.songPosition - endTime > durationTime)
+		if (previewMode)
+			previewTime += elapsed * 1000;
+
+		if (endTime != -999999 && songPos - endTime > durationTime)
 			KeyboardViewer.instance.removeObj(this);
 	}
 }
@@ -445,4 +554,3 @@ class DisBitmap extends Bitmap
 		Cache.setFrame('keyboardViewer', {graphic:null, frame:spr.frames});
 	}
 }
-

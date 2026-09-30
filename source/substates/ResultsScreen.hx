@@ -115,7 +115,6 @@ class ResultsScreen extends MusicBeatSubstate
 	public function new(x:Float, y:Float)
 	{
 		var buildStarted:Float = haxe.Timer.stamp();
-		trace('perf:ResultsScreen.new start replay=' + PlayState.replayMode);
 		super();
 
 		if (isFromFreeplay && freeplayRecord != null)

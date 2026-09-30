@@ -77,14 +77,8 @@ class UIGroup extends OptionCata
 		var option:Option = new Option(this, 'keyboardTime', INT, [0, 1000, 'MS']);
 		addOption(option);
 
-		var colorStingArray = [
-			'BLACK', 'WHITE', 'GRAY', 'RED', 'GREEN', 'BLUE', 'YELLOW', 'PINK', 'ORANGE', 'PURPLE', 'BROWN', 'CYAN'
-		];
-
-		var option:Option = new Option(this, 'keyboardBGColor', STRING, colorStingArray);
-		addOption(option);
-
-		var option:Option = new Option(this, 'keyboardTextColor', STRING, colorStingArray);
+		var option:Option = new Option(this, 'KeyBoardSubState', STATE);
+		option.onChange = function() { changeState(9); };
 		addOption(option);
 		
 		/////--Camera--\\\\\
@@ -110,5 +104,9 @@ class UIGroup extends OptionCata
 		addOption(option);
 
 		changeHeight(0); //初始化真正的height
+	}
+
+	function changeState(type:Int) {
+		OptionsState.instance.moveState(type);
 	}
 }

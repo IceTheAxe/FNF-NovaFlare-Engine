@@ -31,8 +31,7 @@ KeyBoard => 键盘反馈
 keyboardTimeDisplay => 显示摁压的时间细节
 keyboardAlpha => 透明度
 keyboardTime => 滞留时长
-keyboardBGColor => 背景颜色
-keyboardTextColor => 文字颜色
+KeyBoardSubState => 小键盘配色盘
 
 
 Camera => 摄像机
