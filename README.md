@@ -1,7 +1,7 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/NovaFlare-Engine-Concentration/NovaFlare-Engine.github.io/refs/heads/main/images/logo2.png" width="380" alt="NovaFlare Icon"></img>
+  <img src="https://raw.githubusercontent.com/IceTheAxe/NovaFlare-Engine.github.io/refs/heads/main/images/logo2.png" width="380" alt="NovaFlare Icon"></img>
   <br/>
-  <h1 align="center">Friday Night Funkin' - NovaFlare Engine</h1>
+  <h1 align="center">Friday Night Funkin' - NovaFlare Engine (Unofficial Fork)</h1>
   <p align="center">Engine based on Psych originally used on VS Camellia fanmade and focused on optimisation and perfomance to give players best possible experience. It was later moved to support modules.</p>
   
   <div style="max-width: 500px; margin: 0 auto;">
@@ -14,6 +14,33 @@
   </div>
 </div>
 <br />
+
+---
+
+# ⚠️ About This Fork / 关于本分支
+
+> **请注意：这不是官方 NovaFlare Engine 版本。**  
+> **This is NOT an official NovaFlare Engine release.**
+
+本仓库是 **基于 NovaFlare Engine 1.2.1-HOTFIX（NF 1.2.1HF）的分支**，由第三方维护，并非 NovaFlare 官方团队发布。
+
+- **This repository is a fork based on NovaFlare Engine 1.2.1-HOTFIX (NF 1.2.1HF).**
+- **This is NOT an official NovaFlare Engine version.**
+- **You may continue to modify this derivative work, but you must follow the Code of Conduct of both NovaFlare (NF) and Codename Engine (CNE).**
+- **This fork also aims to fix bugs left in the 1.2.1HF branch and add new interesting components/features.**
+- **This fork has no affiliation with the current NovaFlare branch, and will not submit PRs or perform merges with it.**
+- **The final right of interpretation belongs to the original NovaFlare creators/team.**
+
+### 中文说明
+
+1. 这是基于 **NF 1.2.1HF** 的分支。
+2. 这 **不是** 一个官方版本的 NF。
+3. 你仍可以继续修改这个衍生版，但你要遵循 **NF** 和 **CNE** 的行为准则。
+4. 本分支亦在修复 **1.2.1HF** 分支遗留的 bug，并添加新的有趣的组件/功能。
+5. 本分支与当前 NF 分支 **无任何关联**，也不会进行 **PR** 和 **Merge**。
+6. 最终解释权归 **NF 主创团队** 所有。
+
+---
 
 # Introduction
 The FNF-NovaFlare-Engine was originally created to be compatible with the Camellia mod, and it has continuously evolved into an independent engine, developed by Chinese developers. 
@@ -50,7 +77,7 @@ Starting from NovaFlare 1.2.0, Hscript has been upgraded to Hscript--iris-improv
 
 **You'll need to explore more features on your own.**
 
-**[For more info, check out the release](https://github.com/NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine/releases)**
+**[For more info, check out the release](https://github.com/IceTheAxe/FNF-NovaFlare-Engine/releases)**
 
 # Notes!!!!
 ## Open Source Usage
@@ -65,7 +92,7 @@ The `private` directory in this repository is used for integrating NovaFlare wit
 
 ## How To Use Other Engines Mods
 > [!NOTE]
-> [How to use?](https://github.com/NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine/blob/main/NovaSetup/FunkinMods-EN.md)
+> [How to use?](https://github.com/IceTheAxe/FNF-NovaFlare-Engine/blob/main/NovaSetup/FunkinMods-EN.md)
 
 > [!WARNING]
 > **Not** guaranteed to support all mods, so **PLEASE** support their official channels.**They really did an amazing job!!**
@@ -73,7 +100,7 @@ The `private` directory in this repository is used for integrating NovaFlare wit
 
 ## CNE And V-Slice Mod Support
 > [!CAUTION]
-> Our support for the CNE mod has **been officially approved by the CNE development team**. For detailed information, please refer to the "Usage Info" section in the CNE repository's [README](https://github.com/CodenameCrew/CodenameEngine/blob/main/README.md) . [Click here for more information](https://github.com/NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine/releases/tag/V1.2.1).
+> Our support for the CNE mod has **been officially approved by the CNE development team**. For detailed information, please refer to the "Usage Info" section in the CNE repository's [README](https://github.com/CodenameCrew/CodenameEngine/blob/main/README.md) . [Click here for more information](https://github.com/IceTheAxe/FNF-NovaFlare-Engine/releases/tag/V1.2.1-Coldfix).
 <img width="1087" height="521" alt="image" src="https://github.com/user-attachments/assets/fcc41210-ae20-4177-9ee5-92a564ec13f8" />
 
 ## Ah Man
@@ -81,20 +108,19 @@ The `private` directory in this repository is used for integrating NovaFlare wit
 > We **REALLY, REALLY, REALLY, REALLY** don’t want anyone to confuse the NF engine with these perfect engines.
 > If the confusion goes beyond what we expect, **we’ll pull back the update and remove the feature that supports mods for other engines.**
 
-
 # NovaFlare crew credits:
 | Avatar | Username | Involvement |
 | ------ | -------- | ----------- | 
 | ![](https://avatars.githubusercontent.com/u/105789304?v=4) | [NF Beihu](https://youtube.com/@beihu235) | Creator and programmer for NF (NovaFlare) Engine.
 | ![](https://avatars.githubusercontent.com/u/166735337?s=400&u=90192fb223fa071ae4cfcfec0853ea7593f9d13d&v=4) |[MaoPou](https://github.com/MaoPou) | Helper and programmer for NF (NovaFlare) Engine.
-| ![](https://raw.githubusercontent.com/NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine/refs/heads/main/assets/shared/images/credits/bigIcon/chiny.png) |[Chiny](https://space.bilibili.com/3493288327777064) | Programmer for NF (NovaFlare) Engine and Touhou player.
-| ![](https://raw.githubusercontent.com/NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine/refs/heads/main/assets/shared/images/credits/bigIcon/tieguo.png) |[TieGuo](https://b23.tv/7OVWzAO) | Pause menu redesigner for NF (NovaFlare) Engine.
-| ![](https://raw.githubusercontent.com/NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine/refs/heads/main/assets/shared/images/credits/bigIcon/Careful_Scarf_487.png) |[Careful_Scarf_487](https://b23.tv/DQ1a0jO) | Main artist for NF (NovaFlare) Engine.
-| ![](https://raw.githubusercontent.com/NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine/refs/heads/main/assets/shared/images/credits/bigIcon/mengqi.png) |[MengQi](https://space.bilibili.com/2130239542) | Artist for NF's pause menu.
-| ![](https://raw.githubusercontent.com/NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine/refs/heads/main/assets/shared/images/credits/bigIcon/AZjessica.png) |[AZjessica](https://www.youtube.com/@azjessica) | Freeplay menu artist for NF (NovaFlare) Engine.
-| ![](https://raw.githubusercontent.com/NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine/refs/heads/main/assets/shared/images/credits/bigIcon/beneyre.png) |[Ben Eyre](https://x.com/hngstngxng83905?t=GDKWYMRZsCMUMXYs0cmYrw&s=09) | Credits menu artist for NF (NovaFlare) Engine.
-| ![](https://raw.githubusercontent.com/NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine/refs/heads/main/assets/shared/images/credits/als.png) |[Als](https://b23.tv/mNNX8R8) | Init intro artist for NF (NovaFlare) Engine.
-| ![](https://raw.githubusercontent.com/NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine/refs/heads/main/assets/shared/images/credits/bigIcon/ddd.png) |[blockDDDdark](https://space.bilibili.com/401733211) | Engine sound effort helper for NF (NovaFlare) Engine.
+| ![](https://raw.githubusercontent.com/IceTheAxe/FNF-NovaFlare-Engine/refs/heads/main/assets/shared/images/credits/bigIcon/chiny.png) |[Chiny](https://space.bilibili.com/3493288327777064) | Programmer for NF (NovaFlare) Engine and Touhou player.
+| ![](https://raw.githubusercontent.com/IceTheAxe/FNF-NovaFlare-Engine/refs/heads/main/assets/shared/images/credits/bigIcon/tieguo.png) |[TieGuo](https://b23.tv/7OVWzAO) | Pause menu redesigner for NF (NovaFlare) Engine.
+| ![](https://raw.githubusercontent.com/IceTheAxe/FNF-NovaFlare-Engine/refs/heads/main/assets/shared/images/credits/bigIcon/Careful_Scarf_487.png) |[Careful_Scarf_487](https://b23.tv/DQ1a0jO) | Main artist for NF (NovaFlare) Engine.
+| ![](https://raw.githubusercontent.com/IceTheAxe/FNF-NovaFlare-Engine/refs/heads/main/assets/shared/images/credits/bigIcon/mengqi.png) |[MengQi](https://space.bilibili.com/2130239542) | Artist for NF's pause menu.
+| ![](https://raw.githubusercontent.com/IceTheAxe/FNF-NovaFlare-Engine/refs/heads/main/assets/shared/images/credits/bigIcon/AZjessica.png) |[AZjessica](https://www.youtube.com/@azjessica) | Freeplay menu artist for NF (NovaFlare) Engine.
+| ![](https://raw.githubusercontent.com/IceTheAxe/FNF-NovaFlare-Engine/refs/heads/main/assets/shared/images/credits/bigIcon/beneyre.png) |[Ben Eyre](https://x.com/hngstngxng83905?t=GDKWYMRZsCMUMXYs0cmYrw&s=09) | Credits menu artist for NF (NovaFlare) Engine.
+| ![](https://raw.githubusercontent.com/IceTheAxe/FNF-NovaFlare-Engine/refs/heads/main/assets/shared/images/credits/als.png) |[Als](https://b23.tv/mNNX8R8) | Init intro artist for NF (NovaFlare) Engine.
+| ![](https://raw.githubusercontent.com/IceTheAxe/FNF-NovaFlare-Engine/refs/heads/main/assets/shared/images/credits/bigIcon/ddd.png) |[blockDDDdark](https://space.bilibili.com/401733211) | Engine sound effort helper for NF (NovaFlare) Engine.
 
 # Psych Engine credits
 | Avatar | Username | Involvement |

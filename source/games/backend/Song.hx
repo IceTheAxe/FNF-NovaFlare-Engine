@@ -203,7 +203,16 @@ class Song
 
 	static var _lastPath:String;
 
-	public static function getChart(jsonInput:String, ?folder:String):SwagSong
+	/**
+	 * 读取并解析一份谱面 JSON。
+	 *
+	 * `isSidecar` 用于附属文件（events.json / picospeaker.json）：
+	 * 附属文件与主谱面共用 parseJSON，而 parseJSON 会写全局 chartEngineVersion；
+	 * 运行期 events 的加载时机早于音符解析（PlayState.generateSong），
+	 * 一旦它把版本冲掉，104 谱就会被按 073 规则解释，note 归属侧系统性反转。
+	 * 所以附属文件走 writeGlobalVersion=false 的旁路，版本一律以主谱面为准。
+	 */
+	public static function getChart(jsonInput:String, ?folder:String, ?isSidecar:Bool = false):SwagSong
 	{
 		if (folder == null)
 			folder = jsonInput;
@@ -220,7 +229,7 @@ class Song
 		#end
 		rawData = Assets.getText(_lastPath);
 
-		return rawData != null ? parseJSON(rawData, jsonInput) : null;
+		return rawData != null ? parseJSON(rawData, jsonInput, 'psych_v1', !isSidecar) : null;
 	}
 
 	/**
@@ -231,7 +240,8 @@ class Song
 	 *   - Old format (0.7.x): { "song": {...} } without format field → auto-converted
 	 *   - Already converted: format "psych_v1_convert" → skip conversion
 	 */
-	public static function parseJSON(rawData:String, ?nameForError:String = null, ?convertTo:String = 'psych_v1'):SwagSong
+	public static function parseJSON(rawData:String, ?nameForError:String = null, ?convertTo:String = 'psych_v1',
+			?writeGlobalVersion:Bool = true):SwagSong
 	{
 		var parsedJson:Dynamic = Json.parse(rawData);
 		var hasWrapper:Bool = Reflect.hasField(parsedJson, 'song');
@@ -256,13 +266,20 @@ class Song
 
 		// Auto-detect engine version from chart format, or use forced override
 		// Both engines are supported natively at runtime (PlayState interprets notes accordingly)
-		if (forceEngineVersion != null && forceEngineVersion.length > 0)
+		var localVersion:String = (forceEngineVersion != null && forceEngineVersion.length > 0)
+			? forceEngineVersion
+			: ((detectedFormat == 'Pe-1.0.x') ? 'Pe-1.0.4' : 'Pe-0.7.3');
+
+		// 附属文件（events / picospeaker）只贡献内容，不参与版本判定，也不覆盖主谱面的版本。
+		if (writeGlobalVersion)
 		{
-			chartEngineVersion = forceEngineVersion;
+			chartEngineVersion = localVersion;
 		}
-		else
+		else if (chartEngineVersion != null && localVersion != chartEngineVersion)
 		{
-			chartEngineVersion = (detectedFormat == 'Pe-1.0.x') ? 'Pe-1.0.4' : 'Pe-0.7.3';
+			// 开发期辅助：Release 下 trace 走隐藏 Console，看不见，仅供排查。
+			// 玩家可见的告警在暂停菜单（PauseSubState 的 Event Format 行）。
+			trace('NovaFlare: chart/sidecar version mismatch -> chart=$chartEngineVersion file=$localVersion');
 		}
 
 		// Always normalize (events, gfVersion, note types) but never convert note lanes
