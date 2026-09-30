@@ -19,9 +19,14 @@
 
 > [!WARNING]
 > The NovaFlare-1.2.2 version was withdrawn at 13:20:21 Beijing time on September 30, 2026.
+
+> [!WARNING]
 > Reason: It was overly customized, relied too much on AI modifications, was too flashy, didn't meet general user needs, and went against NF's development trend.
+
+> [!WARNING]
 > If you still want to use it, please go to [https://github.com/D-C-LushiFu/NovaFlare-Engine-LushiFuFixedsss](https://github.com/D-C-LushiFu/NovaFlare-Engine-LushiFuFixedsss)
-> I really don't recommend using AI to write interfaces, and don't belittle Haxe just because you haven't mastered it yourself ----MaoPou
+
+I really don't recommend using AI to write interfaces, and don't belittle Haxe just because you haven't mastered it yourself ----MaoPou
 
 
 # Introduction
