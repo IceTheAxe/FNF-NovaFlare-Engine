@@ -231,9 +231,10 @@ class OptionsState extends MusicBeatState
 
 		if (controls.BACK)
 		{
+			//trace(PsychUIInputText.focusOn);
 			if (PsychUIInputText.focusOn != null)
 			{
-				PsychUIInputText.focusOn = null;
+				//PsychUIInputText.focusOn = null;
 				FlxG.sound.play(Paths.sound('cancelMenu'));
 			}
 			else

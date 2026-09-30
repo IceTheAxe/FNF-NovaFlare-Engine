@@ -20,6 +20,11 @@ import general.shaders.MobileShaderConverter;
 // 设置数据结构，和原版完全一致，只移除了安全相关字段（原本也没有）
 @:structInit class SaveVariables
 {
+	//更新这个直接原地爆破所有人设置
+	public var prefsVersion:Int = 120;
+	//更新这个能让性能相关的强制更新
+	public var performanceDefaultsVersion:Int = 8;
+
 	// General
 	public var framerate:Int = 1000;
 	public var drawFramerate:Int = 1000;
@@ -160,6 +165,7 @@ import general.shaders.MobileShaderConverter;
 	public var developerMode:Bool = false;
 	public var devConScale:Float = #if mobile 1.8 #else 1.5 #end;
 	public var deepDebug:Bool = false;
+	public var moreLuaErrors:Bool = false;
 
 	public var showKeybinds:Bool = false;
 	public var enableRecordRotation:Bool = true;
@@ -213,10 +219,9 @@ class ClientPrefs
 {
 	public static var data:SaveVariables = {};
 	public static var defaultData:SaveVariables = {};
-	public static var modsData:Map<String, Map<String, Dynamic>> = [];
-	public static var flashingWarningAcknowledged(default, null):Bool = false;
+	public static var modsData:Map<String, Map<String, Dynamic>>= [];
 
-	// 按键绑定
+	// Every key has two binds, add your key bind down here and then add your control on options/ControlsSubState.hx and Controls.hx
 	public static var keyBinds:Map<String, Array<FlxKey>> = [
 		'note_left' => [A, LEFT],
 		'note_down' => [S, DOWN],
@@ -321,139 +326,241 @@ class ClientPrefs
 		defaultKeys = keyBinds.copy();
 	}
 
-	public static function acknowledgeFlashingWarning():Void
+	public static function saveSettings()
 	{
-		flashingWarningAcknowledged = true;
+		for (key in Reflect.fields(data))
+			if (key != 'arrowRGB' && key != 'arrowRGBPixel')
+			{
+				Reflect.setField(FlxG.save.data, key, Reflect.field(data, key));
+			} //遍历data输入到flxsave里
+		#if sys
+		else if (key == 'arrowRGB')
+			saveArrowRGBData('arrowRGB.json', data.arrowRGB);
+		else if (key == 'arrowRGBPixel')
+			saveArrowRGBData('arrowRGBPixel.json', data.arrowRGBPixel);
+		#end
+
+		FlxG.save.data.modsData = modsData;
+
+		#if ACHIEVEMENTS_ALLOWED Achievements.save(); #end
+		FlxG.save.flush();
+
+		// Placing this in a separate save so that it can be manually deleted without removing your Score and stuff
+		var save:FlxSave = new FlxSave();
+		save.bind('controls_v4', CoolUtil.getSavePath());
+		save.data.keyboard = keyBinds;
+
+		save.flush();
+		FlxG.log.add("Settings saved!");
 	}
 
-	// ========== 保存和加载（完全基于 FlxSave，移除安全机制） ==========
-
-	public static function saveSettings(showFailureAlert:Bool = true):Bool
+	#if sys
+	public static function saveArrowRGBData(path:String, rgbArray:Array<Array<FlxColor>>)
 	{
-		// 保存主设置到 FlxG.save
-		if (FlxG.save != null)
+		var saveArrowRGB:ArrowRGBSavedData;
+		var colors:Array<EKNoteColor> = [];
+		for (color in rgbArray)
 		{
-			for (key in Reflect.fields(data))
-				if (key != 'arrowRGB' && key != 'arrowRGBPixel')
-					Reflect.setField(FlxG.save.data, key, Reflect.field(data, key));
-			FlxG.save.data.modsData = modsData;
-			if (FlxG.sound != null)
-			{
-				Reflect.setField(FlxG.save.data, 'volume', FlxG.sound.volume);
-				Reflect.setField(FlxG.save.data, 'mute', FlxG.sound.muted);
-			}
-			Reflect.setField(FlxG.save.data, 'fullscreen', FlxG.fullscreen);
-			if (flashingWarningAcknowledged)
-				FlxG.save.data.openedFlash = true;
+			var inner = color[0];
+			var border = color[1];
+			var outline = color[2];
 
-			// note 颜色一并进主存档，不再单独落 .json
-			Reflect.setField(FlxG.save.data, 'arrowRGB', data.arrowRGB);
-			Reflect.setField(FlxG.save.data, 'arrowRGBPixel', data.arrowRGBPixel);
+			var resultColor = new EKNoteColor();
+			resultColor.inner = inner.toHexString(false, false);
+			resultColor.border = border.toHexString(false, false);
+			resultColor.outline = outline.toHexString(false, false);
 
-			#if ACHIEVEMENTS_ALLOWED Achievements.save(); #end
-			FlxG.save.flush();
+			colors.push(resultColor);
+
+			// trace('Saved color ${resultColor.inner} ${resultColor.border} ${resultColor.outline}');
 		}
 
-		// 保存按键绑定到单独的 controls_v4
-		var controlsSave:FlxSave = new FlxSave();
-		try
+		saveArrowRGB = new ArrowRGBSavedData(colors);
+		var writer = new json2object.JsonWriter<ArrowRGBSavedData>();
+		var content = writer.write(saveArrowRGB, '    ');
+		File.saveContent(path, content);
+
+		trace('Wrote to $path');
+	}
+	#end
+
+	public static function loadArrowRGBData(path:String, pixel:Bool = false, defaultColors:Array<EKNoteColor>)
+	{
+		var savedColors:CoolUtil.ArrowRGBSavedData = CoolUtil.getArrowRGB(path, defaultColors);
+
+		if (pixel)
+			ClientPrefs.defaultData.arrowRGBPixel = [];
+		else
+			ClientPrefs.defaultData.arrowRGB = [];
+
+		for (defaultColor in defaultColors)
 		{
-			if (controlsSave.bind('controls_v4', CoolUtil.getSavePath()))
-			{
-				controlsSave.data.keyboard = keyBinds;
-				controlsSave.flush();
-			}
-		}
-		catch (error:Dynamic)
-		{
-			FlxG.log.error('[ClientPrefs] Controls save threw: $error');
+			var thisNote = [
+				CoolUtil.colorFromString(defaultColor.inner),
+				CoolUtil.colorFromString(defaultColor.border),
+				CoolUtil.colorFromString(defaultColor.outline)
+			];
+			if (pixel)
+				ClientPrefs.defaultData.arrowRGBPixel.push(thisNote);
+			else
+				ClientPrefs.defaultData.arrowRGB.push(thisNote);
 		}
 
-		FlxG.log.add('[ClientPrefs] Settings saved.');
-		return true;
+		if (pixel)
+			ClientPrefs.data.arrowRGBPixel = [];
+		else
+			ClientPrefs.data.arrowRGB = [];
+
+		for (color in savedColors.colors)
+		{
+			var thisNote = [
+				CoolUtil.colorFromString(color.inner),
+				CoolUtil.colorFromString(color.border),
+				CoolUtil.colorFromString(color.outline)
+			];
+
+			// trace('Loaded color into save: $thisNote, pixel? $pixel');
+
+			if (pixel)
+				ClientPrefs.data.arrowRGBPixel.push(thisNote);
+			else
+				ClientPrefs.data.arrowRGB.push(thisNote);
+		}
 	}
 
 	public static function loadPrefs()
 	{
 		#if ACHIEVEMENTS_ALLOWED Achievements.load(); #end
 
-		var mainData:Dynamic = FlxG.save != null ? FlxG.save.data : null;
-
-		// 从 FlxG.save 读取设置
-		if (mainData != null)
+		if (FlxG.save.data.prefsVersion != data.prefsVersion)
 		{
-			for (key in Reflect.fields(data))
-				if (key != 'gameplaySettings'
-					&& key != 'arrowRGB'
-					&& key != 'arrowRGBPixel'
-					&& Reflect.hasField(mainData, key))
+			data = {};
+			modsData = [];
+			for (key in Reflect.fields(defaultData))
+			{
+				if (key == 'arrowRGB' || key == 'arrowRGBPixel' || key == 'modsData')
+					continue;
+				if (key == 'gameplaySettings')
 				{
-					Reflect.setField(data, key, Reflect.field(mainData, key));
+					data.gameplaySettings.clear();
+					for (k => v in defaultData.gameplaySettings)
+						data.gameplaySettings.set(k, v);
+					FlxG.save.data.gameplaySettings = data.gameplaySettings;
+					continue;
 				}
+				Reflect.setField(data, key, Reflect.field(defaultData, key));
+				Reflect.setField(FlxG.save.data, key, Reflect.field(defaultData, key));
+			}
+			FlxG.save.data.modsData = modsData;
 
-			if (Reflect.field(mainData, 'gameplaySettings') != null)
-				try
-				{
-					var savedMap:Map<String, Dynamic> = cast Reflect.field(mainData, 'gameplaySettings');
-					for (name => value in savedMap)
-						data.gameplaySettings.set(name, value);
-				}
-				catch (error:Dynamic)
-				{
-					FlxG.log.warn('[ClientPrefs] Ignored invalid legacy gameplay settings: $error');
-				}
+			#if desktop
+			data.framerate = 240;
+			data.drawFramerate = 1200;
+			Reflect.setField(FlxG.save.data, 'framerate', data.framerate);
+			Reflect.setField(FlxG.save.data, 'drawFramerate', data.drawFramerate);
+			#elseif (!html5 && !switch)
+			final refreshRate:Int = FlxG.stage.application.window.displayMode.refreshRate;
+			data.framerate = Std.int(FlxMath.bound(refreshRate * 2, 60, 1000));
+			data.drawFramerate = Std.int(FlxMath.bound(refreshRate, 60, 1000));
+			Reflect.setField(FlxG.save.data, 'framerate', data.framerate);
+			Reflect.setField(FlxG.save.data, 'drawFramerate', data.drawFramerate);
+			#end
 
-			if (Reflect.field(mainData, 'modsData') != null)
-				try
-				{
-					modsData = cast Reflect.field(mainData, 'modsData');
-				}
-				catch (error:Dynamic)
-				{
-					modsData = [];
-				}
-			else
-				modsData = [];
+			FlxG.save.flush();
+
+			#if sys
+			if (FileSystem.exists('arrowRGB.json')) FileSystem.deleteFile('arrowRGB.json');
+			if (FileSystem.exists('arrowRGBPixel.json')) FileSystem.deleteFile('arrowRGBPixel.json');
+			#end
+			loadArrowRGBData('arrowRGB.json', false, ExtraKeysHandler.instance.data.colors);
+			loadArrowRGBData('arrowRGBPixel.json', true, ExtraKeysHandler.instance.data.pixelNoteColors);
+
+			if (defaultKeys == null)
+				loadDefaultKeys();
+
+			keyBinds.clear();
+			for (name => keys in defaultKeys)
+				keyBinds.set(name, keys.copy());
+
+			var controlSave:FlxSave = new FlxSave();
+			controlSave.bind('controls_v4', CoolUtil.getSavePath());
+			if (controlSave != null)
+			{
+				controlSave.data.keyboard = defaultKeys;
+				controlSave.flush();
+			}
+			reloadVolumeKeys();
 		}
 		else
-			modsData = [];
-
-		// 加载按键绑定
-		var controlsSave:FlxSave = new FlxSave();
-		try
 		{
-			if (controlsSave.bind('controls_v4', CoolUtil.getSavePath()) && controlsSave.data.keyboard != null)
+			for (key in Reflect.fields(data))
+				if (key != 'gameplaySettings' && 
+					key != 'arrowRGB' &&
+					key != 'arrowRGBPixel' &&
+					// Keep the compiled migration target. Loading the saved marker
+					// here makes the later comparison oldVersion < targetVersion
+					// compare the old value with itself and silently skip migration.
+					key != 'performanceDefaultsVersion' && Reflect.hasField(FlxG.save.data, key))
+					Reflect.setField(data, key, Reflect.field(FlxG.save.data, key));
+				else if (key == 'arrowRGB') 
+				{
+					loadArrowRGBData('arrowRGB.json', false, ExtraKeysHandler.instance.data.colors);
+				} 
+				else if (key == 'arrowRGBPixel') 
+				{
+					loadArrowRGBData('arrowRGBPixel.json', true, ExtraKeysHandler.instance.data.pixelNoteColors);
+				}
+
+			if (FlxG.save.data.modsData != null)
+				modsData = FlxG.save.data.modsData;
+			else modsData = [];
+
+			var save:FlxSave = new FlxSave();
+			save.bind('controls_v4', CoolUtil.getSavePath());
+			if (save != null)
 			{
-				var loadedControls:Map<String, Array<FlxKey>> = cast controlsSave.data.keyboard;
-				for (control => keys in loadedControls)
-					if (keyBinds.exists(control) && keys != null)
-					{
-						var arr:Array<FlxKey> = [];
-						for (key in keys)
+				if (save.data.keyboard != null)
+				{
+					var loadedControls:Map<String, Array<FlxKey>> = save.data.keyboard;
+					for (control => keys in loadedControls)
+						if (keyBinds.exists(control))
 						{
-							var keyCode:Int = cast key;
-							if (keyCode < -2 || keyCode > 302)
-								throw 'Invalid FlxKey code $keyCode';
-							arr.push(key);
+							var arr = keyBinds.get(control);
+							arr.resize(0);
+							for (i in keys)
+								arr.push(i);
 						}
-						keyBinds.set(control, arr);
-					}
+				}
+				reloadVolumeKeys();
 			}
 		}
-		catch (error:Dynamic)
+
+		#if desktop
+		// Migrate only the measured desktop scheduling defaults. Keep every other
+		// preference and key binding intact.
+		var savedPerformanceDefaultsVersion:Dynamic = Reflect.field(FlxG.save.data, 'performanceDefaultsVersion');
+		if (savedPerformanceDefaultsVersion == null || savedPerformanceDefaultsVersion < data.performanceDefaultsVersion)
 		{
-			FlxG.log.warn('[ClientPrefs] Ignored invalid controls save: $error');
+			data.framerate = 240;
+			data.drawFramerate = 1200;
+			data.lockRender = true;
+			// Lime's GL worker keeps a bounded two-frame pipeline. Keep driver
+			// submission off the update thread; direct submission serializes UI
+			// traversal with GL commands and causes a high-FPS regression.
+			data.renderThread = true;
+			// Keep desktop high-FPS mode at the engine's authored resolution.
+			// Higher resolutions remain selectable, but should be an explicit
+			// image-quality choice rather than a hidden cost on every interface.
+			data.resolution = '720P';
+			Reflect.setField(FlxG.save.data, 'framerate', data.framerate);
+			Reflect.setField(FlxG.save.data, 'drawFramerate', data.drawFramerate);
+			Reflect.setField(FlxG.save.data, 'lockRender', data.lockRender);
+			Reflect.setField(FlxG.save.data, 'renderThread', data.renderThread);
+			Reflect.setField(FlxG.save.data, 'resolution', data.resolution);
+			Reflect.setField(FlxG.save.data, 'performanceDefaultsVersion', data.performanceDefaultsVersion);
+			FlxG.save.flush();
 		}
-
-		// 处理闪烁警告确认
-		if (mainData != null && Reflect.field(mainData, 'openedFlash') == true)
-			flashingWarningAcknowledged = true;
-
-		// 加载箭头颜色（主存档；旧的独立 .json 只在迁移时读一次）
-		loadArrowRGBData(false, ExtraKeysHandler.instance.data.colors);
-		loadArrowRGBData(true, ExtraKeysHandler.instance.data.pixelNoteColors);
-
-		reloadVolumeKeys();
+		#end
 
 		if (Main.fpsVar != null)
 			Main.fpsVar.visible = data.showFPS;
@@ -461,16 +568,24 @@ class ClientPrefs
 		#if (!html5 && !switch)
 		FlxG.autoPause = data.autoPause;
 
-		if (mainData == null || Reflect.field(mainData, 'framerate') == null)
+		if (FlxG.save.data.framerate == null)
 		{
+			#if desktop
+			data.framerate = 240;
+			#else
 			final refreshRate:Int = FlxG.stage.application.window.displayMode.refreshRate * 2;
 			data.framerate = Std.int(FlxMath.bound(refreshRate, 60, 1000));
+			#end
 		}
 
-		if (mainData == null || Reflect.field(mainData, 'drawFramerate') == null)
+		if (FlxG.save.data.drawFramerate == null)
 		{
+			#if desktop
+			data.drawFramerate = 1200;
+			#else
 			final refreshRate:Int = FlxG.stage.application.window.displayMode.refreshRate;
 			data.drawFramerate = Std.int(FlxMath.bound(refreshRate, 60, 1000));
+			#end
 		}
 		#end
 
@@ -514,11 +629,18 @@ class ClientPrefs
 		}
 		openfl.Lib.current.stage.setLogicalSize(Std.int(output[0]), Std.int(output[1]));
 
-		// 音量和静音
-		if (mainData != null && Reflect.field(mainData, 'volume') != null)
-			FlxG.sound.volume = Reflect.field(mainData, 'volume');
-		if (mainData != null && Reflect.field(mainData, 'mute') != null)
-			FlxG.sound.muted = Reflect.field(mainData, 'mute');
+		if (FlxG.save.data.gameplaySettings != null)
+		{
+			var savedMap:Map<String, Dynamic> = FlxG.save.data.gameplaySettings;
+			for (name => value in savedMap)
+				data.gameplaySettings.set(name, value);
+		}
+
+		// flixel automatically saves your volume!
+		if (FlxG.save.data.volume != null)
+			FlxG.sound.volume = FlxG.save.data.volume;
+		if (FlxG.save.data.mute != null)
+			FlxG.sound.muted = FlxG.save.data.mute;
 
 		#if DISCORD_ALLOWED
 		DiscordClient.check();

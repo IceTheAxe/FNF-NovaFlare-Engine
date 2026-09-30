@@ -131,10 +131,12 @@ class Paths
 		// relief. This prevents every menu switch from creating a GC hitch.
 		if (requestMajorGc)
 			#if legacy_gc_compare
-			cpp.vm.Gc.run(true);
+			//cpp.vm.Gc.run(true);
 			#else
-			GCManager.requestFull();
+			//GCManager.requestFull();
 			#end
+
+			cpp.vm.Gc.run(true);
 	}
 
 	///////////////////////////////////////////上面是缓存清除功能，下面是路径功能

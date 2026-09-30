@@ -2,7 +2,7 @@
 <project>
 	<!-- _________________________ Application Settings _________________________ -->
 
-	<app title="NovaFlare-Engine" file="NovaFlare-Engine" packageName="com.novaFrozen" package="com.novaFrozen" main="Main" version="1.2.1" build-number="35260811" company="NF-crew" />
+	<app title="NovaFlare Engine" file="NovaFlare Engine" packageName="com.NovaFlareEngineNew" package="com.NovaFlareEngineNew" main="Main" version="1.2.1" build-number="35260811" company="NF-crew" />
 	<!--Switch Export with Unique ApplicationID and Icon-->
 	<set name="APP_ID" value="0x0100f6c013bbc000" />
 	
@@ -93,7 +93,7 @@
 	<set name="BUILD_DIR" value="export/release" unless="debug" />
 	<!-- Keep the Immix control build separate so NovaGC and legacy GC can be
 	     rebuilt and profiled side by side without destroying either cache. -->
-	<set name="BUILD_DIR" value="export/legacy-gc" if="legacy_gc_compare" />
+	<!--<set name="BUILD_DIR" value="export/legacy-gc" if="legacy_gc_compare" /> -->
 	<set name="BUILD_DIR" value="export/32bit" if="32bits" />
         <set name="BUILD_DIR" value="export/rpi" if="rpi" />
 	<classpath name="source" />
@@ -231,11 +231,10 @@
 
 	<haxedef name="HXCPP_ALIGN_ALLOC"/>
 	<haxedef name="HXCPP_GC_GENERATIONAL" />
-	<!-- The public hxcpp name now selects the exact, moving NovaGC backend on
-	     Windows; keep this in the project so normal Lime builds cannot silently
-	     fall back to the old C++ generator ABI. -->
-	<haxedef name="hxcpp_zgc" if="windows" unless="legacy_gc_compare" />
-	<haxedef name="novagc-precise" if="windows" unless="legacy_gc_compare" />
+	<!-- 默认关闭zgc -->
+	<!-- <haxedef name="hxcpp_zgc" if="windows" unless="legacy_gc_compare" /> -->
+	<!-- <haxedef name="novagc-precise" if="windows" unless="legacy_gc_compare" /> -->
+
 	<!-- Lime otherwise emits a random web cache-buster into AssetCache on every
 	     native build, forcing one unchanged C++ unit to recompile. -->
 	<haxedef name="lime_disable_assets_version" if="windows" />
@@ -290,36 +289,10 @@
 	<haxedef name='no-inline' if="html5"/>
 
 	<section if="cpp">
-		<!-- Null object/array dereferences must stay catchable from Haxe. Without this
-		     define, obj.field / arr[i] compile to a bare C++ dereference and fault as
-		     EXCEPTION_ACCESS_VIOLATION, which bypasses the Haxe layer entirely and lands
-		     in NativeCrashHandler (native-crash-*.txt + process kill). With it,
-		     ObjectPtr::operator-> (hx/Object.h:341) and Array::CheckGetPtr (hx/Array.h:900)
-		     raise a Haxe "Null Object Reference" that openfl.display.Stage.__broadcastEvent
-		     already traps, so CrashHandler can write a Haxe report and the game keeps
-		     running. Keep it enabled for Release as well. -->
-		<haxedef name="HXCPP_CHECK_POINTER" />
-		<!-- Haxe reports are only actionable when hxcpp maintains the Haxe call stack.
-		     Without HXCPP_STACK_TRACE, HX_STACKFRAME/HX_STACK_LINE expand to nothing
-		     (hx/StackContext.h), hx::Throw never records the frames it unwinds, and
-		     __hxcpp_get_exception_stack() returns an empty array (hx/Debug.cpp). That is
-		     why CrashHandler's [haxe_exception_stack] section and the in-game
-		     ErrorSubState body would carry only the message and no "where". Without
-		     HXCPP_STACK_LINE every frame formats as "clazz::func::file::0"
-		     (FormatStack in hx/Debug.cpp), so the line number is lost as well.
-		     Toggling these requires clearing obj/ first: hxcpp names objects after the
-		     target and source path, not the compiler flags (Compiler.hx getObjName), so
-		     the previous objects stay "up to date" and the link fails on undefined
-		     _hx_pos_* and hx::ExceptionStackFrame symbols.
-		     Android stays off: it reports through NativeCrashHandler and would pay the
-		     per-call frame cost for stacks it does not read back. -->
-		<haxedef name="HXCPP_STACK_LINE" />
-		<haxedef name="HXCPP_STACK_TRACE" />
-		<!-- On POSIX targets hxcpp installs this process-wide on every Haxe
-		     thread attach, which can overwrite NovaFlare's Android crash logger.
-		     Keep the translator debug-only and leave Android signals to
-		     NativeCrashHandler even in debug builds. -->
-		<haxedef name="HXCPP_CATCH_SEGV" if="debug" unless="android" />
+		<haxedef name="HXCPP_STACK_TRACE"/>
+		<haxedef name="HXCPP_STACK_LINE"/>
+		
+		<haxedef name="HXCPP_CATCH_SEGV"/>
 	</section>
 
 	<haxedef name="hscriptPos" if="HSCRIPT_ALLOWED" />

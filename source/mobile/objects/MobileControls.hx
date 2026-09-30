@@ -74,23 +74,13 @@ class MobileControls extends FlxTypedSpriteGroup<FlxMobileInputManager>
 
 	public static function setCustomMode(virtualPad:FlxVirtualPad):Void
 	{
-		// 存 [x, y] 而不是 FlxPoint：FlxPoint.get() 返回的是池化实例，序列化进 .sol 后
-		// 反序列化会失败，整个存档被判为损坏
-		if (FlxG.save.data.buttons == null)
-		{
-			FlxG.save.data.buttons = new Array();
-			for (buttons in virtualPad)
-				FlxG.save.data.buttons.push([buttons.x, buttons.y]);
-		}
-		else
-		{
-			var tempCount:Int = 0;
-			for (buttons in virtualPad)
-			{
-				FlxG.save.data.buttons[tempCount] = [buttons.x, buttons.y];
-				tempCount++;
-			}
-		}
+		var buttonPositions:Array<Array<Float>> = [];
+		for (buttons in virtualPad)
+			buttonPositions.push([buttons.x, buttons.y]);
+
+		FlxG.save.data.buttons = buttonPositions;
+
+		FlxG.save.flush();
 	}
 
 	public static function getCustomMode(virtualPad:FlxVirtualPad):FlxVirtualPad
@@ -102,20 +92,11 @@ class MobileControls extends FlxTypedSpriteGroup<FlxMobileInputManager>
 
 		for (buttons in virtualPad)
 		{
-			final saved:Dynamic = FlxG.save.data.buttons[tempCount];
-			if (saved != null)
+			var position:Null<Array<Float>> = readSavedPosition(FlxG.save.data.buttons[tempCount]);
+			if (position != null)
 			{
-				if (Std.isOfType(saved, Array))
-				{
-					buttons.x = saved[0];
-					buttons.y = saved[1];
-				}
-				else
-				{
-					// 早期存档这个位置存的是序列化的 FlxPoint 实例，没有 [0]/[1]
-					buttons.x = Reflect.field(saved, 'x');
-					buttons.y = Reflect.field(saved, 'y');
-				}
+				buttons.x = position[0];
+				buttons.y = position[1];
 			}
 			tempCount++;
 		}
@@ -125,21 +106,13 @@ class MobileControls extends FlxTypedSpriteGroup<FlxMobileInputManager>
 
 	public static function setExtraCustomMode(virtualPad:FlxVirtualPad):Void
 	{
-		if (FlxG.save.data.extraButtons == null)
-		{
-			FlxG.save.data.extraButtons = new Array();
-			for (btn in virtualPad.extraKeys)
-				FlxG.save.data.extraButtons.push([btn.x, btn.y]);
-		}
-		else
-		{
-			var tempCount:Int = 0;
-			for (btn in virtualPad.extraKeys)
-			{
-				FlxG.save.data.extraButtons[tempCount] = [btn.x, btn.y];
-				tempCount++;
-			}
-		}
+		var buttonPositions:Array<Array<Float>> = [];
+		for (btn in virtualPad.extraKeys)
+			buttonPositions.push([btn.x, btn.y]);
+
+		FlxG.save.data.extraButtons = buttonPositions;
+
+		FlxG.save.flush();
 	}
 
 	public static function getExtraCustomMode(virtualPad:FlxVirtualPad):FlxVirtualPad
@@ -151,25 +124,35 @@ class MobileControls extends FlxTypedSpriteGroup<FlxMobileInputManager>
 
 		for (btn in virtualPad.extraKeys)
 		{
-			final saved:Dynamic = FlxG.save.data.extraButtons[tempCount];
-			if (saved != null)
+			var position:Null<Array<Float>> = readSavedPosition(FlxG.save.data.extraButtons[tempCount]);
+			if (position != null)
 			{
-				if (Std.isOfType(saved, Array))
-				{
-					btn.x = saved[0];
-					btn.y = saved[1];
-				}
-				else
-				{
-					// 早期存档这个位置存的是序列化的 FlxPoint 实例，没有 [0]/[1]
-					btn.x = Reflect.field(saved, 'x');
-					btn.y = Reflect.field(saved, 'y');
-				}
+				btn.x = position[0];
+				btn.y = position[1];
 			}
 			tempCount++;
 		}
 
 		return virtualPad;
+	}
+
+	private static function readSavedPosition(savedPosition:Dynamic):Null<Array<Float>>
+	{
+		if (savedPosition == null)
+			return null;
+
+		if (Std.isOfType(savedPosition, Array))
+		{
+			var positionArray:Array<Dynamic> = cast savedPosition;
+			if (positionArray.length >= 2)
+				return [positionArray[0], positionArray[1]];
+		}
+		else if (Reflect.hasField(savedPosition, 'x') && Reflect.hasField(savedPosition, 'y'))
+		{
+			return [Reflect.field(savedPosition, 'x'), Reflect.field(savedPosition, 'y')];
+		}
+
+		return null;
 	}
 
 	override public function destroy():Void

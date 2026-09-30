@@ -15,32 +15,19 @@
 </div>
 <br />
 
----
+# Announcement
 
-# ⚠️ About This Fork / 关于本分支
+> [!WARNING]
+> The NovaFlare-1.2.2 version was withdrawn at 13:20:21 Beijing time on September 30, 2026.
 
-> **请注意：这不是官方 NovaFlare Engine 版本。**  
-> **This is NOT an official NovaFlare Engine release.**
+> [!WARNING]
+> Reason: It was overly customized, relied too much on AI modifications, was too flashy, didn't meet general user needs, and went against NF's development trend.
 
-本仓库是 **基于 NovaFlare Engine 1.2.1-HOTFIX（NF 1.2.1HF）的分支**，由第三方维护，并非 NovaFlare 官方团队发布。
+> [!WARNING]
+> If you still want to use it, please go to [https://github.com/D-C-LushiFu/NovaFlare-Engine-LushiFuFixedsss](https://github.com/D-C-LushiFu/NovaFlare-Engine-LushiFuFixedsss)
 
-- **This repository is a fork based on NovaFlare Engine 1.2.1-HOTFIX (NF 1.2.1HF).**
-- **This is NOT an official NovaFlare Engine version.**
-- **You may continue to modify this derivative work, but you must follow the Code of Conduct of both NovaFlare (NF) and Codename Engine (CNE).**
-- **This fork also aims to fix bugs left in the 1.2.1HF branch and add new interesting components/features.**
-- **This fork has no affiliation with the current NovaFlare branch, and will not submit PRs or perform merges with it.**
-- **The final right of interpretation belongs to the original NovaFlare creators/team.**
+I really don't recommend using AI to write interfaces, and don't belittle Haxe just because you haven't mastered it yourself ----MaoPou
 
-### 中文说明
-
-1. 这是基于 **NF 1.2.1HF** 的分支。
-2. 这 **不是** 一个官方版本的 NF。
-3. 你仍可以继续修改这个衍生版，但你要遵循 **NF** 和 **CNE** 的行为准则。
-4. 本分支亦在修复 **1.2.1HF** 分支遗留的 bug，并添加新的有趣的组件/功能。
-5. 本分支与当前 NF 分支 **无任何关联**，也不会进行 **PR** 和 **Merge**。
-6. 最终解释权归 **NF 主创团队** 所有。
-
----
 
 # Introduction
 The FNF-NovaFlare-Engine was originally created to be compatible with the Camellia mod, and it has continuously evolved into an independent engine, developed by Chinese developers. 

@@ -30,6 +30,10 @@ class MaintenanceGroup extends OptionCata
 		option.experMode = true;
 		addOption(option);
 		#end
+
+		var option:Option = new Option(this, 'moreLuaErrors', BOOL);
+		option.experMode = true;
+		addOption(option);
         
         var option:Option = new Option(this, 'devConScale', FLOAT, [0.5, 3, 1]);
 		addOption(option);
@@ -41,8 +45,7 @@ class MaintenanceGroup extends OptionCata
 		addOption(option);
 
 		#if android
-		// 数组元素不带点号：SUtil.getStorageDirectory 会自己拼 '/.' + folderName。
-		var storageFolderArray:Array<String> = ['NovaFlare Engine', 'NovaFlare Engine-1.2', 'NovaFrozen', 'FrozenEngine'];
+		var storageFolderArray:Array<String> = ['NovaFlare Engine', 'NovaFlare Engine-1.2', 'NovaFlare Engine-1.2.1'];
 		var option:Option = new Option(this, 'storageFolder', STRING, storageFolderArray);
 		option.onChange = onChangeStorageFolder;
 		addOption(option);

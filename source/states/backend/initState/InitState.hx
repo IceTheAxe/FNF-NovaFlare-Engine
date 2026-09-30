@@ -72,20 +72,7 @@ class InitState extends MusicBeatState
 
 		super.create();
 
-		FlxG.save.bind('funkin', CoolUtil.getSavePath(), function(rawData:String, error:haxe.Exception):Dynamic
-		{
-			// FlxG.log.* 在 Release 下整块被 #if FLX_DEBUG 掉，只有 trace / Sys.println 能进 logcat
-			trace('[InitState] Main save could not be parsed (${rawData.length} bytes): $error');
-			#if sys
-			try
-			{
-				// FlxSave 会把返回值写回 SharedObject 并落盘，返回 {} 等于把存档洗掉 —— 先留一份原件
-				sys.io.File.saveContent('funkin.sol.corrupt', rawData);
-			}
-			catch (e:Dynamic) {}
-			#end
-			return {};
-		});
+		FlxG.save.bind('funkin', CoolUtil.getSavePath());
 
 		ClientPrefs.loadPrefs();
 
@@ -288,8 +275,10 @@ class InitState extends MusicBeatState
 		#elseif CHARTING
 		MusicBeatState.switchState(new ChartingState());
 		#else
-		if (!ClientPrefs.flashingWarningAcknowledged)
+		if (FlxG.save.data.openedFlash == null)
 		{
+			FlxG.save.data.openedFlash = true;
+			//ClientPrefs.saveSettings();
 			FlxTransitionableState.skipNextTransIn = true;
 			FlxTransitionableState.skipNextTransOut = true;
 			MusicBeatState.switchState(new FlashingState());
