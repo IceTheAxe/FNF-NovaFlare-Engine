@@ -979,7 +979,7 @@ class ResultsScreen extends MusicBeatSubstate
 		var time:Float = 0;
 		var maxTime:Float = 0.5;
 
-		var timerTween:FlxTimer;
+		var timerTween:FlxTimer = null;
 
 		timerTween = new FlxTimer().start(0.0001, function(tmr:FlxTimer)
 		{
@@ -1003,7 +1003,7 @@ class ResultsScreen extends MusicBeatSubstate
 			}
 			sprite.clipRect = swagRect;
 
-			if (time == maxTime)
+			if (time == maxTime && timerTween != null)
 			{
 				timerTween.cancel();
 			}

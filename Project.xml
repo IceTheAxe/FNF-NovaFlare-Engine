@@ -93,7 +93,7 @@
 	<set name="BUILD_DIR" value="export/release" unless="debug" />
 	<!-- Keep the Immix control build separate so NovaGC and legacy GC can be
 	     rebuilt and profiled side by side without destroying either cache. -->
-	<set name="BUILD_DIR" value="export/legacy-gc" if="legacy_gc_compare" />
+	<!--<set name="BUILD_DIR" value="export/legacy-gc" if="legacy_gc_compare" /> -->
 	<set name="BUILD_DIR" value="export/32bit" if="32bits" />
         <set name="BUILD_DIR" value="export/rpi" if="rpi" />
 	<classpath name="source" />
@@ -226,11 +226,10 @@
 
 	<haxedef name="HXCPP_ALIGN_ALLOC"/>
 	<haxedef name="HXCPP_GC_GENERATIONAL" />
-	<!-- The public hxcpp name now selects the exact, moving NovaGC backend on
-	     Windows; keep this in the project so normal Lime builds cannot silently
-	     fall back to the old C++ generator ABI. -->
-	<haxedef name="hxcpp_zgc" if="windows" unless="legacy_gc_compare" />
-	<haxedef name="novagc-precise" if="windows" unless="legacy_gc_compare" />
+	<!-- 默认关闭zgc -->
+	<!-- <haxedef name="hxcpp_zgc" if="windows" unless="legacy_gc_compare" /> -->
+	<!-- <haxedef name="novagc-precise" if="windows" unless="legacy_gc_compare" /> -->
+
 	<!-- Lime otherwise emits a random web cache-buster into AssetCache on every
 	     native build, forcing one unchanged C++ unit to recompile. -->
 	<haxedef name="lime_disable_assets_version" if="windows" />
@@ -285,18 +284,10 @@
 	<haxedef name='no-inline' if="html5"/>
 
 	<section if="cpp">
-		<!-- These checks add work to nearly every generated call and preserve
-		     large stacks/string tables. Keep them in debug builds only. -->
-		<!-- The project no longer requests per-line HXCPP stack maintenance. Normal
-		     Release builds keep it off; stock hxcpp may still enable it internally
-		     for an explicit -debug build. HScript/Lua hot contexts instead use
-		     immutable NativeCrashHandler slots for actionable source evidence. -->
-		<haxedef name="HXCPP_STACK_TRACE" if="debug" />
-		<!-- On POSIX targets hxcpp installs this process-wide on every Haxe
-		     thread attach, which can overwrite NovaFlare's Android crash logger.
-		     Keep the translator debug-only and leave Android signals to
-		     NativeCrashHandler even in debug builds. -->
-		<haxedef name="HXCPP_CATCH_SEGV" if="debug" unless="android" />
+		<haxedef name="HXCPP_STACK_TRACE"/>
+		<haxedef name="HXCPP_STACK_LINE"/>
+		
+		<haxedef name="HXCPP_CATCH_SEGV"/>
 	</section>
 
 	<haxedef name="hscriptPos" if="HSCRIPT_ALLOWED" />

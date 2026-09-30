@@ -73,7 +73,9 @@ class OutdatedState extends MusicBeatState
 				FlxTween.tween(warnText, {alpha: 0}, 1, {
 					onComplete: function(twn:FlxTween)
 					{
-						MusicBeatState.switchState(new MainMenuState());
+						//MusicBeatState.switchState(new MainMenuState());
+						//不行的flxg的music在titlestate播放，直接进mainmenu会有问题
+						MusicBeatState.switchState(new TitleState());
 					}
 				});
 			}
