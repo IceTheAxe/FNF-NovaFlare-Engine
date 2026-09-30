@@ -2,7 +2,7 @@
 
 日期：2026-09-22　commit：`a16bf467`（"android fix"）
 设备：`emulator-5554` = `sdk_gphone16k_x86_64`（Android 17 / API 37 / x86_64 / **PAGE_SIZE=16384**）
-包名：`com.NovaFlareEngineNew`　`primaryCpuAbi=arm64-v8a`（走 `libndk_translation.so` 翻译）
+包名：`com.NovaFrozen`　`primaryCpuAbi=arm64-v8a`（走 `libndk_translation.so` 翻译）
 
 ---
 
@@ -44,8 +44,8 @@
 ```bash
 ADB="/c/Users/Ice_Axe/AppData/Local/Android/Sdk/platform-tools/adb.exe"
 "$ADB" logcat -c
-"$ADB" shell am force-stop com.NovaFlareEngineNew
-"$ADB" shell am start -W -n com.NovaFlareEngineNew/.MainActivity
+"$ADB" shell am force-stop com.NovaFrozen
+"$ADB" shell am start -W -n com.NovaFrozen/.MainActivity
 sleep 25
 "$ADB" logcat -d -v time > logcat_full.txt
 "$ADB" logcat -d -b crash -v time > logcat_crash.txt
