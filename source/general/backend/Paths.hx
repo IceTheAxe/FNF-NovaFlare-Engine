@@ -462,7 +462,9 @@ class Paths
 		if (bitmap != null)
 			return cacheBitmap(file, bitmap, allowGPU);
 
-		trace('oh no its returning null NOOOO ($file)');
+		var stack = haxe.CallStack.callStack();
+		var fucker = (stack.length > 1) ? stack[1] : null;
+		trace('oh no its returning null NOOOO ($file) -> $fucker');
 		return null;
 	}
 

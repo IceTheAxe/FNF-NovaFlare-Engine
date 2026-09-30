@@ -16,6 +16,15 @@ import games.backend.Song;
 
 class KeyboardViewer extends FlxSpriteGroup
 {
+	public var previewMode(default, set):Bool = false;
+	var autoPressLoop:Bool = false;
+	var autoPressTimer:Float = 0;
+	var autoPressIndex:Int = 0;
+	var autoPressHoldTime:Float = 0.64;
+	var autoPressStopTime:Float = 0.05;
+	var autoPressHold:Bool = false;
+	var previewClock:Float = 0;
+
 	public var noteArrays:Array<Array<TimeDis>> = []; // 存储所有键位的数组
 	public var keyAlphas:Array<KeyButtonAlpha> = []; // 存储键位透明度对象
 	public var keyTexts:Array<FlxText> = []; // 存储键位文本对象
@@ -32,6 +41,14 @@ class KeyboardViewer extends FlxSpriteGroup
 	var total:Int = 0;
 
 	public static var instance:KeyboardViewer;
+
+	function set_previewMode(value:Bool):Bool
+	{
+		previewMode = value;
+		if (value)
+			autoPressLoop = true;
+		return value;
+	}
 
 	public function new(X:Float, Y:Float)
 	{
@@ -195,6 +212,35 @@ class KeyboardViewer extends FlxSpriteGroup
 
 	}
 
+	public function setBGColor(color:FlxColor):Void
+	{
+		var i:Int = members.length - 1;
+		while (i >= 0)
+		{
+			var obj = members[i];
+			if (obj != null)
+			{
+				if (Std.isOfType(obj, KeyButton))
+					(cast obj:KeyButton).color = color;
+				else if (Std.isOfType(obj, TimeDis))
+					(cast obj:TimeDis).color = color;
+			}
+			i--;
+		}
+	}
+
+	public function setTextColor(color:FlxColor):Void
+	{
+		var i:Int = members.length - 1;
+		while (i >= 0)
+		{
+			var obj = members[i];
+			if (obj != null && Std.isOfType(obj, FlxText))
+				(cast obj:FlxText).color = color;
+			i--;
+		}
+	}
+
 	public function pressed(key:Int)
 	{
 		if(key < keyAlphas.length) {
@@ -202,21 +248,30 @@ class KeyboardViewer extends FlxSpriteGroup
 			keyTexts[key].color = FlxColor.BLACK;
 		}
 
-		if (!PlayState.replayMode)
-			total++;
-		totalText.text = Std.string(total);
-		hitArray.unshift(Date.now());
+		if (!previewMode)
+		{
+			if (!PlayState.replayMode)
+				total++;
+			totalText.text = Std.string(total);
+			hitArray.unshift(Date.now());
+		}
 
 		if (!ClientPrefs.data.keyboardTimeDisplay)
 			return;
 
-		var obj:TimeDis = new TimeDis(key, Conductor.songPosition, _x, _y);
+		var startT:Float = previewMode ? previewClock : Conductor.songPosition;
+		var obj:TimeDis = new TimeDis(key, startT, _x, _y);
+		if (previewMode)
+		{
+			obj.previewMode = true;
+			obj.previewTime = startT;
+		}
 		add(obj);
 
 		if(key < noteArrays.length) {
 			var arr = noteArrays[key];
 			if(arr.length > 0 && arr[arr.length - 1].endTime == -999999)
-				arr[arr.length - 1].endTime = Conductor.songPosition;
+				arr[arr.length - 1].endTime = startT;
 			arr.push(obj);
 		}
 	}
@@ -231,7 +286,7 @@ class KeyboardViewer extends FlxSpriteGroup
 		if(key < noteArrays.length) {
 			var arr = noteArrays[key];
 			if(arr.length > 0 && arr[arr.length - 1].endTime == -999999)
-				arr[arr.length - 1].endTime = Conductor.songPosition;
+				arr[arr.length - 1].endTime = previewMode ? previewClock : Conductor.songPosition;
 		}
 	}
 
@@ -287,6 +342,33 @@ class KeyboardViewer extends FlxSpriteGroup
 
 	override function update(elapsed:Float)
 	{
+		if (previewMode)
+		{
+			super.update(elapsed);
+			previewClock += elapsed * 1000;
+
+			if (autoPressLoop && keyAlphas.length > 0)
+			{
+				autoPressTimer += elapsed;
+
+				if (!autoPressHold && autoPressTimer >= autoPressStopTime)
+				{
+					autoPressTimer = 0;
+					autoPressHold = true;
+					pressed(autoPressIndex);
+				}
+				else if (autoPressHold && autoPressTimer >= autoPressHoldTime)
+				{
+					autoPressTimer = 0;
+					autoPressHold = false;
+					released(autoPressIndex);
+					autoPressIndex = (autoPressIndex + 1) % keyAlphas.length;
+				}
+			}
+
+			return;
+		}
+
 		super.update(elapsed);
 		var i = hitArray.length - 1;
 		while (i >= 0)
@@ -295,7 +377,7 @@ class KeyboardViewer extends FlxSpriteGroup
 			if (time != null && time.getTime() + 1000 < Date.now().getTime())
 				hitArray.remove(time);
 			else
-				i = -1; // 跳出循环
+				i = -1;
 			i--;
 		}
 		kps = hitArray.length;
@@ -367,6 +449,8 @@ class TimeDis extends FlxSprite
 	public var startTime:Float;
 	public var endTime:Float = -999999;
 	public var line:Int;
+	public var previewMode:Bool = false;
+	public var previewTime:Float = 0;
 
 	var durationTime:Float = ClientPrefs.data.keyboardTime;
 
@@ -386,32 +470,37 @@ class TimeDis extends FlxSprite
 
 	override function update(elapsed:Float)
 	{
+		var songPos:Float = previewMode ? previewTime : Conductor.songPosition;
+
 		if (endTime == -999999)
 		{
-			_frame.frame.y = (1 - ((Conductor.songPosition - startTime) / durationTime)) * DisBitmap.Height;
-			_frame.frame.height = ((Conductor.songPosition - startTime) / durationTime) * DisBitmap.Height;
-			offset.y = -(1 - ((Conductor.songPosition - startTime) / durationTime)) * DisBitmap.Height;
+			_frame.frame.y = (1 - ((songPos - startTime) / durationTime)) * DisBitmap.Height;
+			_frame.frame.height = ((songPos - startTime) / durationTime) * DisBitmap.Height;
+			offset.y = -(1 - ((songPos - startTime) / durationTime)) * DisBitmap.Height;
 			if (_frame.frame.y < 0)
 				_frame.frame.y = 0;
-			if (Conductor.songPosition - startTime > durationTime)
+			if (songPos - startTime > durationTime)
 				offset.y = 0;
-			saveTime = Conductor.songPosition;
+			saveTime = songPos;
 		}
 		else
 		{
 			if (endTime - startTime < durationTime)
-				_frame.frame.y = (1 - ((Conductor.songPosition - startTime) / durationTime)) * DisBitmap.Height;
+				_frame.frame.y = (1 - ((songPos - startTime) / durationTime)) * DisBitmap.Height;
 			else
-				_frame.frame.y = (1 - ((Conductor.songPosition - (endTime - durationTime)) / durationTime)) * DisBitmap.Height;
-			offset.y -= -((Conductor.songPosition - saveTime) / durationTime) * DisBitmap.Height;
-			saveTime = Conductor.songPosition;
+				_frame.frame.y = (1 - ((songPos - (endTime - durationTime)) / durationTime)) * DisBitmap.Height;
+			offset.y -= -((songPos - saveTime) / durationTime) * DisBitmap.Height;
+			saveTime = songPos;
 		}
 		if (_frame.frame.height > DisBitmap.Height)
 			_frame.frame.height = DisBitmap.Height;
 		if (_frame.frame.height <= 0)
 			_frame.frame.height = 1; // fix bug
 
-		if (endTime != -999999 && Conductor.songPosition - endTime > durationTime)
+		if (previewMode)
+			previewTime += elapsed * 1000;
+
+		if (endTime != -999999 && songPos - endTime > durationTime)
 			KeyboardViewer.instance.removeObj(this);
 	}
 }
@@ -445,4 +534,3 @@ class DisBitmap extends Bitmap
 		Cache.setFrame('keyboardViewer', {graphic:null, frame:spr.frames});
 	}
 }
-

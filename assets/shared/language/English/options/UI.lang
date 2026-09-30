@@ -31,8 +31,7 @@ KeyBoard => Keyboard
 keyboardTimeDisplay => Keyboard Press Details
 keyboardAlpha => Keyboard Alpha
 keyboardTime => Keyboard Sustain Time
-keyboardBGColor => Keyboard BG Color
-keyboardTextColor => Keyboard Text Color
+KeyBoardSubState => Keyboard Color Palette
 
 
 Camera => Camera

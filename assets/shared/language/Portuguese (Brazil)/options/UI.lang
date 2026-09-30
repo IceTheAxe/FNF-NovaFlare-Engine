@@ -30,8 +30,7 @@ KeyBoard => Teclado
 keyboardTimeDisplay => Detalhes de Pressionamento do Teclado
 keyboardAlpha => Transparência do Teclado
 keyboardTime => Tempo de Sustentação do Teclado
-keyboardBGColor => Cor de Fundo do Teclado
-keyboardTextColor => Cor do Texto do Teclado
+KeyBoardSubState => Paleta de Cores do Teclado
 
 
 Camera => Câmera

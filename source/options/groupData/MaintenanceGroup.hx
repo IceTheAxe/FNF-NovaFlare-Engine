@@ -45,7 +45,7 @@ class MaintenanceGroup extends OptionCata
 		addOption(option);
 
 		#if android
-		var storageFolderArray:Array<String> = ['NovaFlare Engine', 'NovaFlare Engine-1.2', 'NovaFlare Engine-1.2.1'];
+		var storageFolderArray:Array<String> = ['NovaFlare Engine', 'NovaFlare Engine-1.2'];
 		var option:Option = new Option(this, 'storageFolder', STRING, storageFolderArray);
 		option.onChange = onChangeStorageFolder;
 		addOption(option);

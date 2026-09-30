@@ -4,7 +4,21 @@ class OptionsHelpers
 {
 	public static function colorArray(data:String):FlxColor
 	{
-		switch (data)
+		if (data == null || data.length == 0)
+			return FlxColor.WHITE;
+
+		var s:String = data.trim().toUpperCase();
+		if (s.startsWith('#'))
+			s = s.substr(1);
+
+		if (s.length == 6)
+		{
+			var c:Null<FlxColor> = FlxColor.fromString('#' + s);
+			if (c != null)
+				return c;
+		}
+
+		switch (s)
 		{
 			case 'BLACK':
 				return FlxColor.BLACK;
