@@ -222,7 +222,7 @@ jobs:
           set -e
           shopt -s nullglob
 
-          APK=$(ls export/legacy-gc/android/bin/app/build/outputs/apk/release/*.apk | head -1)
+          APK=$(ls export/release/android/bin/app/build/outputs/apk/release/*.apk | head -1)
           READELF=$(ls "$ANDROID_NDK_ROOT"/toolchains/llvm/prebuilt/*/bin/llvm-readelf | head -1)
           echo "APK: $APK"
           echo "NDK: $ANDROID_NDK_ROOT"

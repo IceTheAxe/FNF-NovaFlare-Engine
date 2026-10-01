@@ -13,7 +13,7 @@ name: hxcpp Cache
 #     （obj_stamp < source_stamp 就算过期，外面还套一层 FileGroup.isOutOfDate
 #      的 obj_stamp < mNewest）。CI 每次 checkout 完源文件 mtime 都是"刚刚"，
 #     缓存里的 .obj 是上一轮的，怎么比都是过期。
-#     => 直接把 export/legacy-gc/*/obj/ 丢进 cache 是无效的，不要那么干。
+#     => 直接把 export/release/*/obj/ 丢进 cache 是无效的，不要那么干。
 #
 #  2) 设了 HXCPP_COMPILE_CACHE 那条 —— Compiler.getCachedObjName() 改走
 #     getHashedName()，产物名 = MD5(.cpp 内容 + 编译参数 + 依赖 hash + 编译器版本)，
