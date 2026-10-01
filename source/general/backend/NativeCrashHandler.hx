@@ -676,12 +676,26 @@ static LONG CALLBACK novaflare_windows_vectored_exception(EXCEPTION_POINTERS* po
 	return EXCEPTION_CONTINUE_SEARCH;
 }
 
-static void novaflare_windows_show_crash_notification() {
-	const wchar_t* title =
-		L"NovaFlare Engine - \\u5e94\\u7528\\u7a0b\\u5e8f\\u95ea\\u9000 / Application Crash";
-	const wchar_t* message =
-		L"\\u5e94\\u7528\\u7a0b\\u5e8f\\u5df2\\u95ea\\u9000\\uff0c\\u9519\\u8bef\\u4fe1\\u606f\\u5df2\\u4fdd\\u5b58\\u81f3 crash \\u6587\\u4ef6\\u5939\\u3002\\r\\n"
-		L"The application has crashed. Error information was saved to the crash folder.";
+static void novaflare_windows_show_crash_notification(EXCEPTION_POINTERS* pointers) {
+	const wchar_t* title = L"NovaFlare Engine - Error";
+
+	DWORD exceptionCode = 0;
+	ULONG_PTR exceptionAddress = 0;
+	if (pointers != 0 && pointers->ExceptionRecord != 0) {
+		exceptionCode = (DWORD)pointers->ExceptionRecord->ExceptionCode;
+		exceptionAddress = (ULONG_PTR)pointers->ExceptionRecord->ExceptionAddress;
+	}
+
+	wchar_t message[512];
+	_snwprintf_s(
+		message,
+		sizeof(message) / sizeof(wchar_t),
+		_TRUNCATE,
+		L"Exception 0x%08lX @ %p\\r\\n"
+		L"\\u9519\\u8bef\\u4fe1\\u606f\\u5df2\\u4fdd\\u5b58\\u81f3 crash \\u6587\\u4ef6\\u5939\\u3002 / saved to the crash folder.",
+		(unsigned long)exceptionCode,
+		(void*)exceptionAddress);
+
 	typedef int (WINAPI* NovaFlareMessageBoxTimeoutW)(
 		HWND,
 		LPCWSTR,
@@ -712,7 +726,7 @@ static void novaflare_windows_show_crash_notification() {
 
 static LONG WINAPI novaflare_windows_unhandled_exception(EXCEPTION_POINTERS* pointers) {
 	novaflare_windows_write_report(pointers, "unhandled-filter", true);
-	novaflare_windows_show_crash_notification();
+	novaflare_windows_show_crash_notification(pointers);
 	return EXCEPTION_EXECUTE_HANDLER;
 }
 
@@ -759,8 +773,12 @@ static int novaflare_android_notification_ack[2] = {-1, -1};
 static pthread_t novaflare_android_notification_thread;
 static volatile sig_atomic_t novaflare_android_notification_status = 0;
 
+static volatile sig_atomic_t novaflare_android_crash_signal = 0;
+static volatile unsigned long long novaflare_android_crash_fault = 0;
+
 typedef void* (*NovaFlareAndroidSDLObjectGetter)(void);
 static void novaflare_android_write_all(int fd, const char* data, size_t length);
+static const char* novaflare_android_signal_name(int signalNumber);
 
 static void novaflare_android_clear_jni_exception(JNIEnv* environment) {
 	if (environment != 0 && environment->ExceptionCheck()) {
@@ -950,11 +968,10 @@ static void novaflare_android_publish_crash_notification(JNIEnv* environment) {
 
 	if (builder != 0) {
 		novaflare_android_notification_status = 42;
-		jstring title = environment->NewStringUTF(
-			"NovaFlare Engine - \\u5e94\\u7528\\u7a0b\\u5e8f\\u95ea\\u9000 / Application Crash");
+		jstring title = environment->NewStringUTF("NovaFlare Engine - Error");
 		jstring message = environment->NewStringUTF(
-			"\\u5e94\\u7528\\u7a0b\\u5e8f\\u5df2\\u95ea\\u9000\\uff0c\\u9519\\u8bef\\u4fe1\\u606f\\u5df2\\u4fdd\\u5b58\\u81f3 crash \\u6587\\u4ef6\\u5939\\u3002\\n"
-			"The application has crashed. Error information was saved to the crash folder.");
+			"\\u9519\\u8bef\\u4fe1\\u606f\\u5df2\\u4fdd\\u5b58\\u81f3 crash \\u6587\\u4ef6\\u5939\\u3002\\n"
+			"Error information was saved to the crash folder.");
 		jmethodID setAutoCancel = environment->GetMethodID(
 			builderClass,
 			"setAutoCancel",
@@ -1044,9 +1061,21 @@ static bool novaflare_android_show_crash_dialog(JNIEnv* environment) {
 		return false;
 	}
 
+	char detail[192];
+	snprintf(
+		detail,
+		sizeof(detail),
+		"%s (%d)\\nfault: 0x%llX",
+		novaflare_android_signal_name((int)novaflare_android_crash_signal),
+		(int)novaflare_android_crash_signal,
+		(unsigned long long)novaflare_android_crash_fault);
+
+	jstring detailString = environment->NewStringUTF(detail);
 	jboolean confirmed = environment->CallStaticBooleanMethod(
 		novaflare_android_crash_dialog_class,
-		novaflare_android_crash_dialog_method);
+		novaflare_android_crash_dialog_method,
+		detailString);
+	if (detailString != 0) environment->DeleteLocalRef(detailString);
 	if (environment->ExceptionCheck()) {
 		environment->ExceptionClear();
 		return false;
@@ -1151,7 +1180,7 @@ static void novaflare_android_start_notification_worker() {
 	novaflare_android_crash_dialog_method = environment->GetStaticMethodID(
 		novaflare_android_crash_dialog_class,
 		"showAndWait",
-		"()Z");
+		"(Ljava/lang/String;)Z");
 	if (novaflare_android_crash_dialog_method == 0) {
 		novaflare_android_clear_jni_exception(environment);
 		novaflare_android_notification_status = -11;
@@ -1294,10 +1323,8 @@ static void novaflare_android_prepare_output() {
 		(long long)now.tv_sec,
 		now.tv_nsec,
 		(int)pid);
-	novaflare_android_pending_fd = open(
-		novaflare_android_pending_path,
-		O_CREAT | O_WRONLY | O_TRUNC | O_CLOEXEC,
-		0644);
+
+	novaflare_android_pending_fd = -1;
 }
 
 static const char* novaflare_android_signal_name(int signalNumber) {
@@ -1398,7 +1425,18 @@ static void novaflare_android_signal_handler(int signalNumber, siginfo_t* signal
 	if (novaflare_android_handling_crash) _exit(128 + signalNumber);
 	novaflare_android_handling_crash = 1;
 
+	novaflare_android_crash_signal = signalNumber;
+	novaflare_android_crash_fault = signalInfo != 0
+		? (unsigned long long)(uintptr_t)signalInfo->si_addr
+		: 0;
+
 	int reportFd = novaflare_android_pending_fd;
+	if (reportFd < 0 && novaflare_android_pending_path[0] != 0) {
+		reportFd = open(
+			novaflare_android_pending_path,
+			O_CREAT | O_WRONLY | O_TRUNC | O_CLOEXEC,
+			0644);
+	}
 	if (reportFd < 0) {
 		reportFd = open(
 			"native-crash-emergency.txt",

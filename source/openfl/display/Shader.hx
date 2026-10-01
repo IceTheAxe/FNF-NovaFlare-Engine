@@ -326,6 +326,22 @@ class Shader
 	// }
 	// return shader;
 	// }
+
+	private static inline var SHADER_SOURCE_PREVIEW_LINES:Int = 5;
+
+	private static function sourceHead(source:String):String
+	{
+		if (source == null || source.length == 0)
+			return '';
+
+		var normalized:String = StringTools.replace(StringTools.replace(source, '\r\n', '\n'), '\r', '\n');
+		var lines:Array<String> = normalized.split('\n');
+		if (lines.length > SHADER_SOURCE_PREVIEW_LINES)
+			lines = lines.slice(0, SHADER_SOURCE_PREVIEW_LINES);
+
+		return '[source]\n' + lines.join('\n');
+	}
+
 	@:noCompletion private function __createGLShader(source:String, type:Int):GLShader
 	{
 		var gl = __context.gl;
@@ -355,9 +371,17 @@ class Shader
 			catch (e:haxe.Exception)
 				Log.warn("Couldn\'t save error message. (${e.message})", null);
 			#end
-			
-			#if (android && !macro) AndroidTools.showAlertDialog("Shader Compile Error!", fullMessage, {name: "OK", func: null},
-				null) #elseif !ios openfl.Lib.application.window.alert('$fullMessage', 'Shader Compile Error!') #else Log.error(fullMessage) #end;
+
+			var message = 'Error compiling ' + shaderType + ' shader:';
+			if (shaderInfoLog != null && StringTools.trim(shaderInfoLog).length > 0)
+				message += '\n' + StringTools.trim(shaderInfoLog);
+			message += '\n' + sourceHead(source);
+
+			#if sys
+			mobile.backend.SUtil.showPopUp(message, 'Shader Compile Error!');
+			#else
+			openfl.Lib.application.window.alert(message, 'Shader Compile Error!');
+			#end
 		}
 		else if (hasInfoLog)
 		{

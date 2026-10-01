@@ -12,7 +12,8 @@ class Macros {
 		"flixel.system.macros.*",
 		"flixel.addons.editors.spine.*",
 		"flixel.addons.nape.*",
-		"flixel.addons.tile.FlxRayCastTilemap"
+		"flixel.addons.tile.FlxRayCastTilemap",
+		"foxlite.macro.*"
 	];
 
 	static final CODENAME_IGNORE = [];
@@ -46,12 +47,13 @@ class Macros {
 			#if foxlite
 			"foxlite",
 			"foxlite.animation", "foxlite.color", "foxlite.culling",
-			"foxlite.extra", "foxlite.flixel", "foxlite.funkin",
-			"foxlite.groups", "foxlite.instancing", "foxlite.lights",
-			"foxlite.loaders", "foxlite.materials", "foxlite.math",
-			"foxlite.mesh", "foxlite.polyfill", "foxlite.post",
-			"foxlite.renderer", "foxlite.skin", "foxlite.sky",
-			"foxlite.stencil", "foxlite.system", "foxlite.texture",
+			"foxlite.environment", "foxlite.extras", "foxlite.flixel",
+			"foxlite.funkin", "foxlite.group", "foxlite.instancing",
+			"foxlite.lights", "foxlite.loaders", "foxlite.material",
+			"foxlite.math", "foxlite.mesh", "foxlite.physics",
+			"foxlite.polyfill", "foxlite.post", "foxlite.renderer",
+			"foxlite.skin", "foxlite.sky", "foxlite.stencil",
+			"foxlite.system", "foxlite.texture",
 			#end
 			#end
 			#if VIDEO_CUTSCENES "hxvlc.flixel", "hxvlc.openfl", #end

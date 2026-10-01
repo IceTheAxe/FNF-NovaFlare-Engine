@@ -22,8 +22,17 @@ using general.backend.CoolUtil;
  */
 class CrashHandler
 {
+	private static inline var ERROR_DEBOUNCE_MS:Float = 3000;
+	private static var lastErrorTime:Float = 0;
+
+	public static var installed(default, null):Bool = false;
+
 	public static function init():Void
 	{
+		if (installed)
+			return;
+		installed = true;
+
 		#if (cpp && (windows || android))
 		general.backend.NativeCrashHandler.init(
 			states.mainMenuState.MainMenuState.novaFlareEngineCommit);
@@ -48,6 +57,11 @@ class CrashHandler
 		e.preventDefault();
 		e.stopPropagation();
 		e.stopImmediatePropagation();
+
+		var now:Float = Date.now().getTime();
+		if (now - lastErrorTime < ERROR_DEBOUNCE_MS)
+			return;
+		lastErrorTime = now;
 
 		var m:String = Std.string(e.error);
 		if (Std.isOfType(e.error, Error))
@@ -99,7 +113,6 @@ class CrashHandler
 			haxeSnapshot = '[snapshot_capture_failed] ${Std.string(snapshotError)}';
 
 		general.backend.NativeCrashHandler.setHaxeRuntimeSnapshot(haxeSnapshot);
-		var savedCrashPath:String = null;
 		var saveFailure:String = null;
 		try
 		{
@@ -151,8 +164,8 @@ class CrashHandler
 				.replace(':', "'") + '.txt';
 			var crashPath = FileSystem.absolutePath(Path.join([crashDirectory, fileName]));
 			File.saveContent(crashPath, saveError);
-			savedCrashPath = crashPath;
 			Sys.println('haxe:uncaught_error message=$m');
+			Sys.println('haxe:uncaught_error report=$crashPath');
 			Sys.println(saveError);
 		}
 		catch (saveErrorValue:Dynamic)
@@ -162,14 +175,52 @@ class CrashHandler
 			trace(Std.string(states.mainMenuState.MainMenuState.novaFlareEngineCommit + '\n' + '$m\n$stackLabel'));
 		}
 
-		var popupMessage:String = savedCrashPath != null
-			? '程序发生致命错误。\n错误信息已保存至：\n$savedCrashPath\n\nA fatal error occurred.\nThe error report was saved to:\n$savedCrashPath'
-			: '程序发生致命错误，但错误报告保存失败。\n$saveFailure\n\nA fatal error occurred, but the report could not be saved.\n$saveFailure';
-		try
-			mobile.backend.SUtil.showPopUp(popupMessage, "NovaFlare Engine - Error")
-		catch (popupError:Dynamic)
-			Sys.println('Couldn\'t show the fatal error dialog: ${Std.string(popupError)}\n$popupMessage');
+		showError(buildErrorText(m, stackLabelArr));
 		general.backend.NativeCrashHandler.setHaxeRuntimeSnapshot("");
+		#end
+	}
+
+	private static function buildErrorText(message:String, stackLines:Array<String>):String
+	{
+		var lines:Array<String> = [];
+		if (message != null && StringTools.trim(message).length > 0)
+			lines.push(StringTools.trim(message));
+
+		if (stackLines != null)
+		{
+			for (line in stackLines)
+			{
+				if (line != null && line.length > 0)
+					lines.push(line);
+			}
+		}
+
+		return lines.length > 0 ? lines.join("\n") : "Unknown error";
+	}
+
+	private static function showError(errorText:String):Void
+	{
+		var shown:Bool = false;
+		try
+		{
+			if (openfl.Lib.current != null && flixel.FlxG.state != null)
+			{
+				flixel.FlxG.state.openSubState(new substates.ErrorSubState(errorText));
+				shown = true;
+			}
+		}
+		catch (_:Dynamic) {}
+
+		if (shown)
+			return;
+
+		#if sys
+		try
+			mobile.backend.SUtil.showPopUp(errorText, "NovaFlare Engine - Error")
+		catch (_:Dynamic)
+			Sys.println(errorText);
+		#else
+		trace(errorText);
 		#end
 	}
 

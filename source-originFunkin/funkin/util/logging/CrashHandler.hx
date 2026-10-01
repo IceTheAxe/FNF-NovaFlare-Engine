@@ -31,6 +31,9 @@ class CrashHandler
    */
   public static function initialize():Void
   {
+    if (mobile.backend.CrashHandler.installed)
+      return;
+
     trace('[LOG] Enabling standard uncaught error handler...');
     Lib.current.loaderInfo.uncaughtErrorEvents.addEventListener(UncaughtErrorEvent.UNCAUGHT_ERROR, onUncaughtError);
 
