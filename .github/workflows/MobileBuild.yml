@@ -323,10 +323,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@main
         
-      - name: Select Xcode 16.4
+      - name: Select Xcode 26.6
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: '16.4'
+          xcode-version: '26.6.0'
   
       - name: Setup Haxe
         uses: krdlab/setup-haxe@master
