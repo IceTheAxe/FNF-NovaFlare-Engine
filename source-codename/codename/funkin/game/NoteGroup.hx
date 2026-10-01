@@ -51,7 +51,7 @@ class NoteGroup extends FlxTypedGroup<Note> {
 		return __forcedSongPos == null ? Conductor.songPosition : __forcedSongPos;
 
 	public override function update(elapsed:Float) {
-		i = length-1;
+		i = length - 1;
 		__loopSprite = null;
 		__time = __getSongPos() + limit;
 		while(i >= 0) {
@@ -66,16 +66,24 @@ class NoteGroup extends FlxTypedGroup<Note> {
 		var oldDefaultCameras = FlxCamera._defaultCameras;
 		if (_cameras != null) FlxCamera._defaultCameras = _cameras;
 
+		var renderingSustains = true;
 		var oldCur = __currentlyLooping;
 		__currentlyLooping = true;
 
-		i = length-1;
+		i = length - 1;
 		__loopSprite = null;
 		__time = __getSongPos() + limit;
 		while(i >= 0) {
 			__loopSprite = members[i--];
-			if (__loopSprite == null || !__loopSprite.exists || !__loopSprite.visible) continue;
-			if (__loopSprite.strumTime > __time) break;
+			if (__loopSprite == null || (__loopSprite.isSustainNote != renderingSustains) || !__loopSprite.exists || !__loopSprite.visible) continue;
+			if (__loopSprite.strumTime > __time) {
+				if (renderingSustains) {
+					renderingSustains = false;
+					i = length - 1; // loop again
+					continue;
+				}
+				else break;
+			}
 			__loopSprite.draw();
 		}
 		__currentlyLooping = oldCur;
@@ -91,7 +99,7 @@ class NoteGroup extends FlxTypedGroup<Note> {
 	}
 
 	public override function forEach(noteFunc:Note->Void, recursive:Bool = false) {
-		i = length-1;
+		i = length - 1;
 		__loopSprite = null;
 		__time = __getSongPos() + limit;
 

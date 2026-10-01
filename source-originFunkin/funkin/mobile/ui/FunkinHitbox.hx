@@ -247,20 +247,19 @@ class FunkinHint extends FunkinButton
 
 enum abstract FunkinHitboxControlSchemes(String) from String to String
 {
-  var PadRight = 'Pad-Right';
-  var PadLeft = 'Pad-Left';
-  var PadCustom = 'Pad-Custom';
-  var PadDuo = 'Pad-Duo';
-  var Hitbox = 'Hitbox';
-  var Keyboard = 'Keyboard';
-  var Origin = 'Origin';
+  public var PadRight = 'Pad-Right';
+  public var PadLeft = 'Pad-Left';
+  public var PadCustom = 'Pad-Custom';
+  public var PadDuo = 'Pad-Duo';
+  public var Hitbox = 'Hitbox';
+  public var Keyboard = 'Keyboard';
+  public var Origin = 'Origin';
 
-  // Legacy official values remain readable so old 0.8.4 saves do not break.
-  var FourLanes = 'Four Lanes';
-  var DoubleThumbTriangle = 'Double Thumb Triangle';
-  var DoubleThumbSquare = 'Double Thumb Square';
-  var DoubleThumbDPad = 'Double Thumb DPad';
-  var Arrows = 'Arrows';
+  public var FourLanes = 'Four Lanes';
+  public var DoubleThumbTriangle = 'Double Thumb Triangle';
+  public var DoubleThumbSquare = 'Double Thumb Square';
+  public var DoubleThumbDPad = 'Double Thumb DPad';
+  public var Arrows = 'Arrows';
 }
 
 /**

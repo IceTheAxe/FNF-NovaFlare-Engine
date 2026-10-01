@@ -23,7 +23,7 @@ class OriginFunkinMode
 	public static inline final FOLDER_NAME:String = "OriginFunkin";
 	public static inline final ASSET_FOLDER_NAME:String = "assets";
 	static inline final LEGACY_FOLDER_NAME:String = "originFunkin";
-	public static inline final VERSION:String = "0.8.4";
+	public static inline final VERSION:String = "0.8.7";
 
 	public static var active(default, null):Bool = false;
 	public static var assetsAvailable(default, null):Bool = false;
@@ -400,7 +400,7 @@ class OriginFunkinMode
 			}
 		}
 
-		// Libraries owned by NovaFlare/CNE are not part of FNF 0.8.4's asset
+		// Libraries owned by NovaFlare/CNE are not part of FNF 0.8.7's asset
 		// layout. Leaving any of them registered makes Polymod reject the
 		// official asset-library map before it can parse core or mod scripts.
 		for (foreignLibrary in ["week_assets", "codename_fallback", "codename_mobile"])

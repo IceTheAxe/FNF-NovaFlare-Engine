@@ -61,7 +61,7 @@ CodeName Engine may automatically create a `.temp` directory at runtime; this is
 
 ### OriginFunkin
 
-- Place official FNF 0.8.4 resources into `Funkin/OriginFunkin/assets/`.
+- Place official FNF 0.8.7 resources into `Funkin/OriginFunkin/assets/`.
 - Place V-Slice mods into `Funkin/OriginFunkin/mods-vslice/`.
 - `assets` and `mods-vslice` must be at the same directory level.
 - Do **not** place `mods-vslice` inside `assets`.

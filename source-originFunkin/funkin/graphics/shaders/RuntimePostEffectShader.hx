@@ -179,7 +179,7 @@ class RuntimePostEffectShader extends FlxRuntimeShader
     uFrameBounds = cast Reflect.field(data, 'uFrameBounds');
     if (uScreenResolution == null || uCameraBounds == null || uFrameBounds == null)
     {
-      throw 'Could not initialize the FNF 0.8.4 post-effect shader uniforms.';
+      throw 'Could not initialize the FNF 0.8.7 post-effect shader uniforms.';
     }
 
     uScreenResolution.value = [FlxG.width, FlxG.height];

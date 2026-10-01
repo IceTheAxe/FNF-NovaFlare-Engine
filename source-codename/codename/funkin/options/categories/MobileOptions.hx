@@ -1,5 +1,6 @@
 package codename.funkin.options.categories;
 
+#if TOUCH_CONTROLS
 import codename.funkin.options.type.OptionType;
 import codename.mobile.MobileSettingsRuntime;
 
@@ -100,3 +101,4 @@ class MobileOptions extends TreeMenuScreen
 		}
 	}
 }
+#end

@@ -14,10 +14,10 @@ import android.Tools;
  */
 class OriginFunkinDialog
 {
-	static inline final ORIGIN_TITLE:String = "NovaFlare Engine x Friday Night Funkin' 0.8.4";
+	static inline final ORIGIN_TITLE:String = "NovaFlare Engine x Friday Night Funkin' 0.8.7";
 	static final ORIGIN_NOTICE:String =
 		"You are playing the original FNF through NovaFlare Engine.\n\n"
-		+ "This build is based on FNF 0.8.4, but it differs from the official game. "
+		+ "This build is based on FNF 0.8.7, but it differs from the official game. "
 		+ "If something breaks here, please do not report it to the Funkin' Crew.";
 
 	static inline final MOD_TITLE:String = "Mod compatibility warning";

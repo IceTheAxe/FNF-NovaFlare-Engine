@@ -77,9 +77,16 @@ class FunkinCamera extends FlxCamera
     HARDLIGHT,
     #if !desktop LIGHTEN, #end
     OVERLAY,
-    DIFFERENCE
+    DIFFERENCE,
     #if !ORIGIN_FUNKIN_COMPAT
-    , COLORDODGE, COLORBURN, SOFTLIGHT, EXCLUSION, HUE, SATURATION, COLOR, LUMINOSITY
+    COLORDODGE,
+    COLORBURN,
+    SOFTLIGHT,
+    EXCLUSION,
+    HUE,
+    SATURATION,
+    COLOR,
+    LUMINOSITY,
     #end
   ];
 

@@ -61,7 +61,7 @@ CodeName Engine 运行时可能自动创建 `.temp`，这是正常的临时目�
 
 ### OriginFunkin
 
-- FNF 0.8.4 官方资源放入 `Funkin/OriginFunkin/assets/`。
+- FNF 0.8.7 官方资源放入 `Funkin/OriginFunkin/assets/`。
 - V-Slice 模组放入 `Funkin/OriginFunkin/mods-vslice/`。
 - `assets` 与 `mods-vslice` 必须同级。
 - 不要把 `mods-vslice` 放进 `assets`。

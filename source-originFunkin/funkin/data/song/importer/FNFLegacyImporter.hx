@@ -20,8 +20,7 @@ class FNFLegacyImporter
     if (parser.errors.length > 0)
     {
       trace('[FNFLegacyImporter] Error parsing JSON data from ' + fileName + ':');
-      for (error in parser.errors)
-        DataError.printError(error);
+      for (error in parser.errors) DataError.printError(error);
       return null;
     }
     return parser.value;
