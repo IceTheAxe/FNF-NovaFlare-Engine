@@ -85,8 +85,8 @@ class MouseMove extends FlxBasic
 
         var checkInput:Bool = true;
 
-        if (!(mouse.x > mouseLimit[0][0] && mouse.x < mouseLimit[0][1] && mouse.y > mouseLimit[1][0] && mouse.y < mouseLimit[1][1])) {
-            endDrag();
+        var inBounds:Bool = mouse.x > mouseLimit[0][0] && mouse.x < mouseLimit[0][1] && mouse.y > mouseLimit[1][0] && mouse.y < mouseLimit[1][1];
+        if (!inBounds && !isDragging) {
             _dragPending = false;
             checkInput = false;
         }
@@ -111,7 +111,7 @@ class MouseMove extends FlxBasic
             }
 
             // 鼠标滚轮
-            if (enableMouseWheel && mouse.wheel!= 0) {
+            if (enableMouseWheel && inBounds && mouse.wheel != 0) {
                 isDragging = false;
                 _dragPending = false;
                 velocity += mouse.wheel * mouseWheelSensitivity;
@@ -124,14 +124,15 @@ class MouseMove extends FlxBasic
                 updateDrag(mouse.y);
             }
 
-            // 鼠标释放时停止拖动
-            if (mouse.justReleased) {
-                if (_dragPending) _dragPending = false;
-                endDrag();
-            }
         } else {
             lastMouseY = mouse.y;
             _dragPending = false;
+        }
+
+        // 拖动开始后允许指针经过滚动区域外，但释放事件无论位置都必须结束拖动。
+        if (mouse.justReleased) {
+            if (_dragPending) _dragPending = false;
+            endDrag();
         }
 
         super.update(elapsed);

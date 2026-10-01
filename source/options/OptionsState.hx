@@ -139,13 +139,7 @@ class OptionsState extends MusicBeatState
 			}
 		}
 
-		var moveHeight:Float = 100;
-		for (num in cataGroup) {
-			if (num != cataGroup[cataGroup.length - 1]) {
-				moveHeight -= num.bg.realHeight;
-				moveHeight -= FlxG.width * (0.8 / 40);
-			}
-		}
+		var moveHeight:Float = getCategoryMinScroll(false);
 		cataMove = new MouseMove(OptionsState, 'cataPosiData', 
 								[moveHeight, 100],
 								[ 
@@ -357,14 +351,22 @@ class OptionsState extends MusicBeatState
 
 	public function cataMoveChange()
 	{
-		var moveHeight:Float = 100;
-		for (num in cataGroup) {
-			if (num != cataGroup[cataGroup.length - 1]) {
-				moveHeight -= num.bg.waitHeight;
-				moveHeight -= FlxG.width * (0.8 / 40);
-			}
+		cataMove.moveLimit[0] = getCategoryMinScroll(true);
+	}
+
+	private function getCategoryMinScroll(useWaitHeight:Bool):Float
+	{
+		var contentHeight:Float = 0;
+		var gap:Float = FlxG.width * (0.8 / 40);
+		for (i in 0...cataGroup.length)
+		{
+			contentHeight += useWaitHeight ? cataGroup[i].bg.waitHeight : cataGroup[i].bg.realHeight;
+			if (i < cataGroup.length - 1)
+				contentHeight += gap;
 		}
-		cataMove.moveLimit[0] = moveHeight;
+
+		var viewportBottom:Float = FlxG.height - Std.int(FlxG.height * 0.1);
+		return Math.min(100, viewportBottom - contentHeight);
 	}
 
 	static public var naviPosiData:Float = 0;

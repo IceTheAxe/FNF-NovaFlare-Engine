@@ -51,7 +51,7 @@ class Constants
   #else
   static function get_VERSION():String
   {
-    return 'v0.8.4' + VERSION_SUFFIX;
+    return 'v0.8.7' + VERSION_SUFFIX;
   }
   #end
 

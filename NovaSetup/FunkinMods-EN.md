@@ -65,8 +65,8 @@ CodeName Engine may automatically create a `.temp` directory at runtime; this is
 - Place V-Slice mods into `Funkin/OriginFunkin/mods-vslice/`.
 - `assets` and `mods-vslice` must be at the same directory level.
 - Do **not** place `mods-vslice` inside `assets`.
-- You need to download the required resources from [Funkin Assets] (https://github.com/FunkinCrew/funkin.assets/tree/b91f1ca5f9ee56ce1a3266c5f22cae7c4f70442b).
-- [Resource Download Direct Link](https://github.com/FunkinCrew/funkin.assets/archive/b91f1ca5f9ee56ce1a3266c5f22cae7c4f70442b.zip)
+- You need to download the required resources from [Funkin Assets] (https://github.com/FunkinCrew/funkin.assets/tree/724eba9de9e76761d9cefd52169926bc51c760a5).
+- [Resource Download Direct Link](https://github.com/FunkinCrew/funkin.assets/archive/724eba9de9e76761d9cefd52169926bc51c760a5.zip)
 - Mod Support: Go to Settings and toggle the option below FPS Settings to enable mod support.
   
 ### CodeName Engine
