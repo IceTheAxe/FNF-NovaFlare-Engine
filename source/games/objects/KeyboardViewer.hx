@@ -26,7 +26,15 @@ class KeyboardViewer extends FlxSpriteGroup
 
 	var destroyed:Bool = false;
 
-	public var currentTextColor:FlxColor = FlxColor.BLACK;
+	public var currentBGColor:FlxColor = {
+		var c:Null<FlxColor> = OptionsHelpers.colorArray(ClientPrefs.data.keyboardBGColor);
+		c != null ? c : FlxColor.WHITE;
+	};
+
+	public var currentTextColor:FlxColor = {
+		var c:Null<FlxColor> = OptionsHelpers.colorArray(ClientPrefs.data.keyboardTextColor);
+		c != null ? c : FlxColor.BLACK;
+	};
 
 	public var noteArrays:Array<Array<TimeDis>> = []; // 存储所有键位的数组
 	public var keyAlphas:Array<KeyButtonAlpha> = []; // 存储键位透明度对象
@@ -218,6 +226,7 @@ class KeyboardViewer extends FlxSpriteGroup
 
 	public function setBGColor(color:FlxColor):Void
 	{
+		currentBGColor = color;
 		var i:Int = members.length - 1;
 		while (i >= 0)
 		{
@@ -287,6 +296,8 @@ class KeyboardViewer extends FlxSpriteGroup
 
 		var startT:Float = isPreview ? previewClock : Conductor.songPosition;
 		var obj:TimeDis = new TimeDis(key, startT, _x, _y);
+		if (isPreview)
+			obj.color = currentBGColor;
 		if (isPreview)
 		{
 			obj.previewMode = true;
