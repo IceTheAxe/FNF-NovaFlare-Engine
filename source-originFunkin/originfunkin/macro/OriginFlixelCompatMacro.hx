@@ -28,7 +28,7 @@ class OriginFlixelCompatMacro
 			access: [APublic],
 			kind: FVar(macro : Int, macro 0),
 			pos: Context.currentPos(),
-			doc: "Compatibility draw-order value used by originFunkin 0.8.4."
+			doc: "Compatibility draw-order value used by originFunkin 0.8.7."
 		});
 		return fields;
 	}
@@ -212,7 +212,7 @@ class OriginFlixelCompatMacro
 	}
 
 	/**
-	 * Adds only the touch gesture fields needed by FNF 0.8.4 to NF's current
+	 * Adds only the touch gesture fields needed by FNF 0.8.7 to NF's current
 	 * FlxTouchManager.
 	 */
 	public static macro function addTouchManagerCompatibility():Array<Field>

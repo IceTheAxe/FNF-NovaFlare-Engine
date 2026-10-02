@@ -22,8 +22,14 @@ using general.backend.CoolUtil;
  */
 class CrashHandler
 {
+	public static var installed(default, null):Bool = false;
+
 	public static function init():Void
 	{
+		if (installed)
+			return;
+		installed = true;
+
 		// 先注册 Haxe 层异常监听
 		openfl.Lib.current.loaderInfo.uncaughtErrorEvents.addEventListener(UncaughtErrorEvent.UNCAUGHT_ERROR, onUncaughtError);
 		

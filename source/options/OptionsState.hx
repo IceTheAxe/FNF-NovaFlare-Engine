@@ -155,9 +155,7 @@ class OptionsState extends MusicBeatState
 			}
 		}
 
-		// 统一的 cataMove 初始化
-		updateCataMoveLimits();
-		
+		var moveHeight:Float = getCategoryMinScroll(false);
 		cataMove = new MouseMove(OptionsState, 'cataPosiData', 
 			[cataMoveMinLimit, 100],
 			[ 
@@ -396,7 +394,22 @@ class OptionsState extends MusicBeatState
 
 	public function cataMoveChange()
 	{
-		updateCataMoveLimits();
+		cataMove.moveLimit[0] = getCategoryMinScroll(true);
+	}
+
+	private function getCategoryMinScroll(useWaitHeight:Bool):Float
+	{
+		var contentHeight:Float = 0;
+		var gap:Float = FlxG.width * (0.8 / 40);
+		for (i in 0...cataGroup.length)
+		{
+			contentHeight += useWaitHeight ? cataGroup[i].bg.waitHeight : cataGroup[i].bg.realHeight;
+			if (i < cataGroup.length - 1)
+				contentHeight += gap;
+		}
+
+		var viewportBottom:Float = FlxG.height - Std.int(FlxG.height * 0.1);
+		return Math.min(100, viewportBottom - contentHeight);
 	}
 
 	static public var naviPosiData:Float = 0;

@@ -246,12 +246,39 @@ class Config {
 		"lime.utils.UInt8ClampedArray",
 		// --- CNE abstracts ---
 		"codename.funkin.backend.assets.AssetSource",
+
+		#if THREE_D_SUPPORT
+		#if foxlite
+		"foxlite.FoxLayer",
+		"foxlite.animation.FoxEaseType",
+		"foxlite.animation.FoxTrackType",
+		"foxlite.instancing.FoxInstanceUpdateMode",
+		"foxlite.lights.FoxAreaLightShape",
+		"foxlite.lights.FoxLightType",
+		"foxlite.material.FoxBlendMode",
+		"foxlite.material.FoxDepthCompareMode",
+		"foxlite.material.FoxTriangleFace",
+		"foxlite.mesh.FoxQuadFace",
+		"foxlite.mesh.buffer.FoxVertexBufferType",
+		"foxlite.physics.FoxPhysicsBodyType",
+		"foxlite.stencil.FoxStencilActionType",
+		"foxlite.texture.FoxCubemapSide",
+		"foxlite.texture.FoxMipFilter",
+		"foxlite.texture.FoxTextureFilter",
+		"foxlite.texture.FoxWrapMode",
+		#end
+		#end
 		#else
 		"flixel",
 		"openfl",
 		"haxe.xml",
 		"haxe.CallStack",
 		"codename.funkin",
+		#if THREE_D_SUPPORT
+		#if foxlite
+		"foxlite",
+		#end
+		#end
 		#end
 		#end
 	];

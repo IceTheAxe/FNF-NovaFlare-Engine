@@ -135,8 +135,7 @@ class PreferencesMenu extends Page<OptionsState.OptionsMenuPageName>
     {
       Preferences.downscroll = value;
     },
-      Preferences.downscroll, #if mobile ControlsHandler.hasExternalInputDevice
-      || !Preferences.usesOriginArrowLayout() #end);
+      Preferences.downscroll, #if mobile ControlsHandler.hasExternalInputDevice #end);
     createPrefItemCheckbox('Middle Scroll',
       "When enabled, the player's arrows are centered.",
       function(value:Bool):Void
@@ -239,11 +238,18 @@ class PreferencesMenu extends Page<OptionsState.OptionsMenuPageName>
     }, Preferences.previewOnSave);
     #end
 
+    #if FEATURE_DISCORD_RPC
+    createPrefItemCheckbox('Discord RPC', 'Toggles Discord RPC.', function(value:Bool):Void
+    {
+      Preferences.enabledDiscordRPC = value;
+    }, Preferences.enabledDiscordRPC);
+    #end
+
     #if sys
     OriginFunkinConfig.load();
     var modSupportCheckbox:CheckboxPreferenceItem = null;
     modSupportCheckbox = createPrefItemCheckbox('V-SLICE MOD SUPPORT',
-	      'Load compatible FNF 0.8.4 mods from the mods-vslice folder beside OriginFunkin/assets. Takes effect after restarting.',
+	      'Load compatible FNF 0.8.7 mods from the mods-vslice folder beside OriginFunkin/assets. Takes effect after restarting.',
       function(value:Bool):Void
       {
         if (value && !OriginFunkinConfig.modWarningAcknowledged)

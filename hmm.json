@@ -231,6 +231,13 @@
       "dir": null,
       "ref": "bdb191fe7cf745c02a980749906dbf22719e200b",
       "url": "https://github.com/fponticelli/thx.semver"
+    },
+    {
+      "name": "foxlite",
+      "type": "git",
+      "dir": null,
+      "ref": "f87ec207a774deffb01d613a03dee68d9473bbc3",
+      "url": "https://github.com/dwdvIl/foxlite"
     }
   ]
 }

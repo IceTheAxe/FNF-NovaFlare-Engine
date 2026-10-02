@@ -9,6 +9,9 @@ import openfl.events.UncaughtErrorEvent;
 
 final class CrashHandler {
 	public static function init() {
+		if (mobile.backend.CrashHandler.installed)
+			return;
+
 		Lib.current.loaderInfo.uncaughtErrorEvents.addEventListener(UncaughtErrorEvent.UNCAUGHT_ERROR, onUncaughtError);
 		#if cpp
 		untyped __global__.__hxcpp_set_critical_error_handler(onError);

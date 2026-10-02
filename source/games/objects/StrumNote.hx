@@ -204,9 +204,12 @@ class StrumNote extends FlxSprite
 		}
 		else
 		{
-			x = player == 0 ? 320 : 640;
-			if (player == 0)
+			var controlledPlayer:Int = ClientPrefs.data.playOpponent ? 0 : 1;
+			if (player == controlledPlayer)
+				x = 640;
+			else
 			{
+				x = 320;
 				if (noteData > Math.floor((PlayState.SONG.mania / 2)))
 					x = 960;
 			}

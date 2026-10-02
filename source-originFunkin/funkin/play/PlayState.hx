@@ -910,7 +910,7 @@ class PlayState extends MusicBeatSubState
     addHitbox(false);
     if (hitbox != null)
     {
-      hitbox.isPixel = currentChart.noteStyle == "pixel";
+      hitbox.isPixel = currentChart.noteStyle == 'pixel';
 
       if (Preferences.usesOriginControls())
       {
@@ -3053,6 +3053,7 @@ class PlayState extends MusicBeatSubState
 
       // Play the strumline animation.
       playerStrumline.playPress(input.noteDirection);
+      trace('NO PENALTY Score: ${songScore}');
     }
     else
     {

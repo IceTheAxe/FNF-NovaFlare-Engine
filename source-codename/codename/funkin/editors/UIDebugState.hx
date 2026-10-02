@@ -12,13 +12,6 @@ class UIDebugState extends UIState {
 	public var testingUIItems:Array<FlxSprite> = [];
 	public var testingUIHidden:Bool = false;
 
-	#if mobile
-	public override function onMobileBack():Bool {
-		FlxG.switchState(new codename.funkin.menus.MainMenuState());
-		return true;
-	}
-	#end
-
 	public override function create() {
 		super.create();
 

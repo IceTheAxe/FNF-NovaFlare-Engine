@@ -53,7 +53,7 @@ class Flags {
 
 	@:lazy public static var WINDOW_TITLE_USE_MOD_NAME:Null<Bool> = null;
 	@:lazy public static var TITLE:String = Application.current.meta.get('name');
-	@:lazy public static var VERSION:String = #if CODENAME_ENGINE_COMPAT "1.0.1" #else Application.current.meta.get('version') #end;
+	@:lazy public static var VERSION:String = #if CODENAME_ENGINE_COMPAT "1.1.0" #else Application.current.meta.get('version') #end;
 
 	@:lazy public static var VERSION_MESSAGE:String = 'Codename Engine v$VERSION';
 

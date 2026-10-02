@@ -1,6 +1,18 @@
 package general.shaders;
 
 /** Sources prepared for the OpenFL GL program cache and compiler. */
+
+/*
+ * NovaFlare Engine * Copyright (c) 2023-2026 NF Crew
+ * https://github.com/NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine/
+ *
+ * 允许在保留本版权声明的前提下，自由使用、复制、修改、合并、发布、分发、再授权及/或销售本软件。
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software, to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, provided that the above copyright notice
+ * is retained.
+ *
+ */
 typedef MobileShaderProgramSources =
 {
 	var vertex:String;
@@ -153,7 +165,7 @@ private typedef MobileShaderGlobalInitLowering =
  */
 class MobileShaderConverter
 {
-	public static inline var ABI_VERSION:Int = 4;
+	public static inline var ABI_VERSION:Int = 5;
 
 	public static var enabled(default, null):Bool = true;
 	public static var revision(default, null):Int = 1;
@@ -1876,6 +1888,128 @@ class MobileShaderConverter
 		return ~/^(?:0|[1-9][0-9]*)$/.match(tokenValue(token));
 	}
 
+	private static function convertMacroTextureAliases(tokens:Array<MobileShaderToken>, bodyReplacements:Map<String, String>,
+		dropAliases:Map<String, Bool>):Void
+	{
+		if (bodyReplacements == null || dropAliases == null) return;
+
+		var i = 0;
+		while (i < tokens.length)
+		{
+			var token = tokens[i];
+			if (token.removed || !token.preprocessor || token.kind != SYMBOL || token.text != '#')
+			{
+				i++;
+				continue;
+			}
+
+			var directive = nextSignificantInDirective(tokens, i);
+			if (directive < 0 || tokenValue(tokens[directive]) != 'define')
+			{
+				i++;
+				continue;
+			}
+
+			var nameIndex = nextSignificantInDirective(tokens, directive);
+			if (nameIndex < 0 || tokens[nameIndex].kind != IDENTIFIER)
+			{
+				i++;
+				continue;
+			}
+
+			var macroName = tokenValue(tokens[nameIndex]);
+			var bodyStart = nextSignificantInDirective(tokens, nameIndex);
+			var parameters:Array<String> = [];
+			if (bodyStart >= 0 && bodyStart == nameIndex + 1 && tokenValue(tokens[bodyStart]) == '(')
+			{
+				var close = findMatching(tokens, bodyStart, '(', ')');
+				if (close < 0)
+				{
+					i++;
+					continue;
+				}
+				for (parameterIndex in (bodyStart + 1)...close)
+				{
+					var parameter = tokens[parameterIndex];
+					if (parameter.kind == IDENTIFIER && !parameters.contains(parameter.text)) parameters.push(parameter.text);
+				}
+				bodyStart = nextSignificantInDirective(tokens, close);
+			}
+			if (bodyStart < 0)
+			{
+				i++;
+				continue;
+			}
+
+			var aliased:Array<Int> = [];
+			var cursor = bodyStart;
+			while (cursor >= 0 && cursor < tokens.length && tokens[cursor].preprocessor)
+			{
+				var bodyToken = tokens[cursor];
+				if (!bodyToken.removed && bodyToken.kind == IDENTIFIER && !parameters.contains(bodyToken.text)
+					&& bodyReplacements.exists(bodyToken.text)) aliased.push(cursor);
+				cursor++;
+			}
+			if (aliased.length == 0)
+			{
+				i++;
+				continue;
+			}
+
+			if (dropAliases.exists(macroName))
+			{
+				removeDirective(tokens, i);
+				continue;
+			}
+
+			for (index in aliased)
+				tokens[index].replacement = bodyReplacements.get(tokens[index].text);
+			i++;
+		}
+	}
+
+	/** Removes every token of one preprocessor directive, preserving its line breaks. */
+	private static function removeDirective(tokens:Array<MobileShaderToken>, hashIndex:Int):Void
+	{
+		var i = hashIndex;
+		while (i < tokens.length && tokens[i].preprocessor)
+		{
+			tokens[i].removed = true;
+			i++;
+		}
+	}
+
+	private static function modernTextureBuiltins():Map<String, Bool>
+	{
+		var result:Map<String, Bool> = new Map();
+		for (name in ['texture', 'textureProj', 'textureLod', 'textureGrad', 'textureProjLod', 'textureProjGrad',
+			'textureSize', 'textureOffset', 'texelFetch'])
+			result.set(name, true);
+		return result;
+	}
+
+	private static function legacyTextureBuiltins():Map<String, Bool>
+	{
+		var result:Map<String, Bool> = new Map();
+		for (name in ['texture2D', 'textureCube', 'texture2DProj', 'texture2DLod', 'textureCubeLod', 'texture2DProjLod',
+			'texture2DLodEXT', 'textureCubeLodEXT', 'texture2DProjLodEXT', 'texture2DGradEXT', 'textureCubeGradEXT',
+			'texture2DProjGradEXT'])
+			result.set(name, true);
+		return result;
+	}
+
+	private static function es100TextureAliases():Map<String, String>
+	{
+		return [
+			'texture' => 'texture2D',
+			'textureProj' => 'texture2DProj',
+			'textureLod' => 'texture2DLod',
+			'textureGrad' => 'texture2DGradEXT',
+			'textureProjLod' => 'texture2DProjLod',
+			'textureProjGrad' => 'texture2DProjGradEXT'
+		];
+	}
+
 	private static function convertToES300(tokens:Array<MobileShaderToken>, isFragment:Bool, macroNames:Map<String, Bool>,
 		generatedHeader:Array<String>, diagnostics:Array<MobileShaderDiagnostic>):Void
 	{
@@ -1900,6 +2034,7 @@ class MobileShaderConverter
 			'textureCubeGradEXT' => 'textureGrad',
 			'texture2DProjGradEXT' => 'textureProjGrad'
 		];
+		convertMacroTextureAliases(tokens, textureMap, modernTextureBuiltins());
 
 		for (i in 0...tokens.length)
 		{
@@ -2016,6 +2151,7 @@ class MobileShaderConverter
 		diagnostics:Array<MobileShaderDiagnostic>):Null<String>
 	{
 		removeSafeES100Layouts(tokens, isFragment, diagnostics);
+		convertMacroTextureAliases(tokens, es100TextureAliases(), legacyTextureBuiltins());
 
 		var usesTexture = false;
 		var usesTextureProj = false;

@@ -28,35 +28,70 @@ class ErrorHandledShader extends FlxShader implements IErrorHandler
 		}
 		catch (error)
 		{
-			ErrorHandledShader.crashSave(this.shaderName, error, onError);
+			ErrorHandledShader.crashSave(this.shaderName, error, onError, vertexSource, fragmentSource);
 			return null;
 		}
 	}
 
-	public static function crashSave(shaderName:String, error:Dynamic, onError:Dynamic) // prevent the app from dying immediately
+	public static inline var SHADER_SOURCE_PREVIEW_LINES:Int = 5;
+
+	public static function crashSave(shaderName:String, error:Dynamic, onError:Dynamic, ?vertexSource:String,
+			?fragmentSource:String)
 	{
 		if (shaderName == null)
 			shaderName = 'unnamed';
-		var alertTitle:String = 'Error on Shader: "$shaderName"';
 
 		trace(error);
 
+		var detail:String = error == null ? '' : Std.string(error);
+
 		#if !debug
 		// Save a crash log on Release builds
-		var errMsg:String = "";
 		var dateNow:String = StringTools.replace(StringTools.replace(Date.now().toString(), " ", "_"), ":", "'");
 
 		if (!FileSystem.exists('./logs/'))
 			FileSystem.createDirectory('./logs/');
 
 		var crashLogPath:String = './logs/shader_${shaderName}_${dateNow}.txt';
-		File.saveContent(crashLogPath, error);
-		Application.current.window.alert('Error log saved at: $crashLogPath', alertTitle);
+		File.saveContent(crashLogPath,
+			'shader=$shaderName\n\n[error]\n$detail\n\n[vertex]\n$vertexSource\n\n[fragment]\n$fragmentSource');
+		#end
+
+		var message:String = 'Shader Compile Error!\nshader: $shaderName';
+
+		var errorHead:String = headLines(detail, SHADER_SOURCE_PREVIEW_LINES);
+		if (errorHead.length > 0)
+			message += '\n\n[error]\n' + errorHead;
+
+		var sourcePreview:String = headLines(fragmentSource != null ? fragmentSource : vertexSource, SHADER_SOURCE_PREVIEW_LINES);
+		if (sourcePreview.length > 0)
+			message += '\n\n[source]\n' + sourcePreview;
+
+		#if sys
+		try
+			mobile.backend.SUtil.showPopUp(message, 'Shader Compile Error!')
+		catch (_:Dynamic)
+			trace(message);
 		#else
-		Application.current.window.alert('Error logs aren\'t created on debug builds, check the trace log instead.', alertTitle);
+		try
+			Application.current.window.alert(message, 'Shader Compile Error!')
+		catch (_:Dynamic)
+			trace(message);
 		#end
 
 		onError(error);
+	}
+
+	private static function headLines(value:String, limit:Int):String
+	{
+		if (value == null || value.length == 0)
+			return '';
+
+		var normalized:String = StringTools.replace(StringTools.replace(value, '\r\n', '\n'), '\r', '\n');
+		var lines:Array<String> = normalized.split('\n');
+		if (lines.length > limit)
+			lines = lines.slice(0, limit);
+		return lines.join('\n');
 	}
 }
 
@@ -83,7 +118,7 @@ class ErrorHandledRuntimeShader extends FlxRuntimeShader implements IErrorHandle
 		}
 		catch (error)
 		{
-			ErrorHandledShader.crashSave(this.shaderName, error, onError);
+			ErrorHandledShader.crashSave(this.shaderName, error, onError, vertexSource, fragmentSource);
 			return null;
 		}
 	}

@@ -16,7 +16,6 @@ using StringTools;
 class CreditsDataHandler
 {
   public static final BACKER_PUBLIC_URL:String = 'https://funkin.me/backers';
-
   #if HARDCODED_CREDITS
   static final CREDITS_DATA_PATH:String = "assets/exclude/data/credits.json";
   #else
@@ -68,10 +67,12 @@ class CreditsDataHandler
   public static inline function getFallback():CreditsData
   {
     return {
-      entries: [{
-        header: 'Founders',
-        body: [{line: 'ninjamuffin99'}, {line: 'PhantomArcade'}, {line: 'Kawai Sprite'}, {line: 'evilsk8r'},]
-      }]
+      entries: [
+        {
+          header: 'Founders',
+          body: [{line: 'ninjamuffin99'}, {line: 'PhantomArcade'}, {line: 'Kawai Sprite'}, {line: 'evilsk8r'},]
+        }
+      ]
     };
   }
 
@@ -168,8 +169,7 @@ class CreditsDataHandler
   {
     trace('[CREDITS] Failed to parse credits data: ${id}');
 
-    for (error in errors)
-      funkin.data.DataError.printError(error);
+    for (error in errors) funkin.data.DataError.printError(error);
   }
   #end
 }

@@ -27,11 +27,14 @@
 	<define name="PSYCH_WATERMARKS"/> <!-- DELETE THIS TO REMOVE WATERMARKS/DEV NAMES ON TITLE SCREEN -->
 	<define name="VIDEOS_ALLOWED" if="desktop || mobile" unless="32bits || hl || NOVIDEO || rpi"/> <!-- i'll keep this cuz it makes vscode think i don't use videos -->
     <define name="CUSTOM_SHADERS_ALLOWED" if="LUA_ALLOWED"/>
-	<!-- FNF 0.8.4 compatibility features. Origin scripts remain enabled. -->
+	<!-- FNF 0.8.7 compatibility features. Origin scripts remain enabled. -->
 	<define name="ORIGIN_FUNKIN_COMPAT"/>
 	<!-- Codename runs as an isolated state chain with NovaFlare's state-aware
 	     mobile input layer. Keyboard, gamepad and touch stay active together. -->
 	<define name="CODENAME_ENGINE_COMPAT" />
+	<define name="COMPILE_ALL_CLASSES"/>
+	<define name="origin_include_libs"/>
+	<define name="origin_include_funkin"/>
 	<define name="TOUCH_CONTROLS" if="mobile" />
 	<!-- Match Codename's HScript abstract surface. This is required for abstract
 	     statics such as FlxColor.fromRGB. Abstracts are registered explicitly;
@@ -100,6 +103,7 @@
 	<classpath name="source-originFunkin" />
 	<classpath name="source-codename" if="CODENAME_ENGINE_COMPAT" />
 	<haxeflag name="--macro" value="codename.funkin.backend.system.macros.Macros.initMacros()" if="CODENAME_ENGINE_COMPAT"/>
+	<haxeflag name="--macro" value="codename.funkin.backend.system.macros.Macros.addAdditionalClasses()" if="COMPILE_ALL_CLASSES"/>
 
 	<!-- __________________________ Game Assets & Etc. __________________________ -->
 
@@ -164,6 +168,10 @@
 	<haxelib name="hxWebSockets" />
 	<haxelib name="spinehaxe" />
 
+	<haxelib name="foxlite" />
+
+	<haxedef name="THREE_D_SUPPORT" />
+
 	<!--Psych stuff needed-->
 	<haxelib name="linc_luajit" if="LUA_ALLOWED"/>
 	<haxelib name="luahscript" if="LUA_ALLOWED"/>
@@ -176,7 +184,7 @@
 	<haxelib name="flxanimate" unless="html5"/>
 	<haxelib name="tjson"/>
 	<haxelib name="json2object"/>
-	<!-- FNF 0.8.4 dependencies; NF's existing core libraries stay selected. -->
+	<!-- FNF 0.8.7 dependencies; NF's existing core libraries stay selected. -->
 	<haxelib name="polymod"/>
 	<haxelib name="FlxPartialSound"/>
 	<haxelib name="format"/>
@@ -318,6 +326,13 @@
 	<haxeflag name="--macro" value="include('funkin.play.event')" />
 	<haxeflag name="--macro" value="include('funkin.play.notes.notekind')" />
 	<haxeflag name="--macro" value="include('funkin.ui.debug', false, ['funkin.ui.debug.FunkinDebugDisplay', 'funkin.ui.debug.GraphicCursorCross', 'funkin.ui.debug.WaveformTestState'])" />
+	<haxeflag name="--macro" value="include('animate')" if="origin_include_libs" />
+	<haxeflag name="--macro" value="include('openfl')" if="origin_include_libs" />
+	<haxeflag name="--macro" value="include('lime', true, ['lime.tools.*', 'lime._internal.*'])" if="origin_include_libs" />
+	<haxeflag name="--macro" value="originfunkin.macro.OriginIncludeMacro.includeFlixel()" if="origin_include_libs" />
+	<haxeflag name="--macro" value="originfunkin.macro.OriginIncludeMacro.includeFunkin()" if="origin_include_funkin" />
+	<haxeflag name="--macro" value="addMetadata('@:build(funkin.util.macro.FlxMacro.buildFlxBasic())', 'flixel.FlxBasic')" />
+	<haxeflag name="--macro" value="addMetadata('@:build(funkin.util.macro.FlxMacro.buildFlxSprite())', 'flixel.FlxSprite')" />
 	<haxeflag name="--macro" value="addMetadata('@:build(originfunkin.macro.OriginFlixelCompatMacro.addZIndex())', 'flixel.FlxBasic')" />
 	<haxeflag name="--macro" value="addMetadata('@:build(originfunkin.macro.OriginFlixelCompatMacro.addContainsExact())', 'thx.Arrays')" />
 	<haxeflag name="--macro" value="addMetadata('@:build(originfunkin.macro.OriginFlixelCompatMacro.addTouchCompatibility())', 'flixel.input.touch.FlxTouch')" if="mobile" />

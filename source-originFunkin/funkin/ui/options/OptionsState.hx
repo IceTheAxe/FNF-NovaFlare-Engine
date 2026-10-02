@@ -367,12 +367,12 @@ class OptionsMenu extends Page<OptionsMenuPageName>
 
 enum abstract OptionsMenuPageName(String) to PageName
 {
-  var Options = "options";
-  var Controls = "controls";
-  var Colors = "colors";
-  var Mods = "mods";
-  var Preferences = "preferences";
-  var Offsets = "offsets";
-  var SaveData = "saveData";
-  var ExtraOptions = "extraOptions";
+  public var Options = 'options';
+  public var Controls = 'controls';
+  public var Colors = 'colors';
+  public var Mods = 'mods';
+  public var Preferences = 'preferences';
+  public var Offsets = 'offsets';
+  public var SaveData = 'saveData';
+  public var ExtraOptions = 'extraOptions';
 }

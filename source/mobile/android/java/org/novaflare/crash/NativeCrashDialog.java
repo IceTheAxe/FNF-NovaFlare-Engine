@@ -19,7 +19,7 @@ public final class NativeCrashDialog
 {
 	private NativeCrashDialog() {}
 
-	public static boolean showAndWait()
+	public static boolean showAndWait(final String detail)
 	{
 		final Activity activity = Extension.mainActivity;
 		if (activity == null || activity.isFinishing())
@@ -27,6 +27,9 @@ public final class NativeCrashDialog
 
 		final CountDownLatch dismissed = new CountDownLatch(1);
 		final AtomicBoolean confirmed = new AtomicBoolean(false);
+		final String message = (detail == null || detail.length() == 0)
+			? "错误信息已保存至 crash 文件夹。\nError information was saved to the crash folder."
+			: detail;
 
 		try
 		{
@@ -38,10 +41,8 @@ public final class NativeCrashDialog
 					try
 					{
 						AlertDialog dialog = new AlertDialog.Builder(activity)
-							.setTitle("NovaFlare Engine - 游戏报错 / Game Crash")
-							.setMessage(
-								"游戏报错，错误信息已保存至 crash 文件夹。\n\n"
-								+ "The game has crashed. Error information was saved to the crash folder.")
+							.setTitle("NovaFlare Engine - Error")
+							.setMessage(message)
 							.setCancelable(false)
 							.setPositiveButton("确定 / OK", new DialogInterface.OnClickListener()
 							{

@@ -31,6 +31,9 @@ class CrashHandler
    */
   public static function initialize():Void
   {
+    if (mobile.backend.CrashHandler.installed)
+      return;
+
     trace('[LOG] Enabling standard uncaught error handler...');
     Lib.current.loaderInfo.uncaughtErrorEvents.addEventListener(UncaughtErrorEvent.UNCAUGHT_ERROR, onUncaughtError);
 
@@ -301,9 +304,12 @@ class CrashHandler
     {
       switch (FlxG.renderMethod)
       {
-        case FlxRenderMethod.DRAW_TILES: 'DRAW_TILES';
-        case FlxRenderMethod.BLITTING: 'BLITTING';
-        default: 'UNKNOWN';
+        case FlxRenderMethod.DRAW_TILES:
+          'DRAW_TILES';
+        case FlxRenderMethod.BLITTING:
+          'BLITTING';
+        default:
+          'UNKNOWN';
       }
     }
     catch (e)
