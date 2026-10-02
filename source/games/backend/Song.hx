@@ -33,6 +33,7 @@ typedef SwagSong =
 	@:optional var splashSkin:String;
 
 	@:optional var mania:Int;
+	@:optional var keyCount:Int;
 	@:optional var mapper:String;
 	@:optional var musican:String;
 }
@@ -168,7 +169,16 @@ class Song
 		}
 
 		if (songJson.mania == null)
-			songJson.mania = 3;
+		{
+			var keyCount:Null<Float> = cast songJson.keyCount;
+			if (keyCount != null && !Math.isNaN(keyCount) && keyCount > 0)
+				songJson.mania = Std.int(keyCount) - 1;
+			else
+				songJson.mania = 3;
+		}
+
+		if (Reflect.hasField(songJson, 'keyCount'))
+			Reflect.deleteField(songJson, 'keyCount');
 
 		if (songJson.format == null)
 			songJson.format = 'psych_v1_convert';
