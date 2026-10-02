@@ -34,9 +34,12 @@ class FNFCProvider
   public static function queryFNFC():Null<String>
   {
     #if ios
+    /*
     final fileURL:Null<String> = System.getHint('IOS_UIApplicationLaunchOptionsURLKey');
     if (fileURL != null && fileURL.length > 0) getFNFCFromURL(fileURL);
     return _lastFNFC;
+    */
+    return null;
     #elseif android
     final staticField = JNIUtil.createStaticField('funkin/extensions/FNFCExtension', 'lastFNFC', 'Ljava/lang/String;');
     if (staticField != null) return staticField.get();

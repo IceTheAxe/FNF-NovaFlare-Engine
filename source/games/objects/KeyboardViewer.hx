@@ -1,5 +1,10 @@
 ﻿package games.objects;
 
+/*
+ * NovaFlare Engine * Copyright (c) 2023-2026 NF Crew
+ * https://github.com/NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine/
+*/
+
 import openfl.display.Bitmap;
 import openfl.display.BitmapData;
 import openfl.display.Shape;
