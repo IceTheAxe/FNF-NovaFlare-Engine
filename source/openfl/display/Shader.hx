@@ -224,6 +224,8 @@ class Shader
 	@:noCompletion private var __glVertexSource:String;
 	#if mobile
 	@:noCompletion private var __glProgramDirty:Bool;
+	@:noCompletion private var __glRawFragmentSource:String;
+	@:noCompletion private var __glRawVertexSource:String;
 	@:noCompletion private var __glTransformRevision:Int;
 	#end
 	@:noCompletion private var __hasColorTransform:ShaderParameter<Bool>;
@@ -272,6 +274,8 @@ class Shader
 		__glSourceDirty = true;
 		#if mobile
 		__glProgramDirty = true;
+		__glRawFragmentSource = null;
+		__glRawVertexSource = null;
 		__glTransformRevision = -1;
 		#end
 		__numPasses = 1;
@@ -346,9 +350,7 @@ class Shader
 	{
 		var gl = __context.gl;
 
-		var shader = gl.createShader(type);
-		gl.shaderSource(shader, source);
-		gl.compileShader(shader);
+		var shader = __compileGLShader(source, type);
 		var shaderInfoLog = gl.getShaderInfoLog(shader);
 		var hasInfoLog = shaderInfoLog != null && StringTools.trim(shaderInfoLog) != "";
 		var compileStatus = gl.getShaderParameter(shader, gl.COMPILE_STATUS);
@@ -392,8 +394,128 @@ class Shader
 		return shader;
 	}
 
+	@:noCompletion private function __compileGLShader(source:String, type:Int):GLShader
+	{
+		var gl = __context.gl;
+
+		var shader = gl.createShader(type);
+		gl.shaderSource(shader, source);
+		gl.compileShader(shader);
+
+		return shader;
+	}
+
+	/** Fix support for drivers that don't draw if attribute 0 is disabled. */
+	@:noCompletion private function __bindPositionAttribute(program:GLProgram):Void
+	{
+		for (param in __paramFloat)
+		{
+			if (param.name.indexOf("Position") > -1 && StringTools.startsWith(param.name, "openfl_"))
+			{
+				__context.gl.bindAttribLocation(program, 0, param.name);
+				break;
+			}
+		}
+	}
+
+	#if mobile
+	/**
+	 * Compiles one shader without reporting anything to the player. Returns
+	 * `null` when the driver rejects it, appending the driver message to
+	 * `failureLog` when one is provided.
+	 */
+	@:noCompletion private function __tryCompileGLShader(source:String, type:Int, ?failureLog:Array<String>):Null<GLShader>
+	{
+		var gl = __context.gl;
+		var shader = __compileGLShader(source, type);
+
+		if (gl.getShaderParameter(shader, gl.COMPILE_STATUS) == 0)
+		{
+			if (failureLog != null)
+			{
+				var shaderType = (type == gl.VERTEX_SHADER) ? "vertex" : "fragment";
+				var infoLog = gl.getShaderInfoLog(shader);
+				failureLog.push(shaderType + ': ' + (infoLog != null ? StringTools.trim(infoLog) : ''));
+			}
+			gl.deleteShader(shader);
+			return null;
+		}
+
+		var shaderInfoLog = gl.getShaderInfoLog(shader);
+		if (shaderInfoLog != null && StringTools.trim(shaderInfoLog) != "")
+		{
+			var shaderType = (type == gl.VERTEX_SHADER) ? "vertex" : "fragment";
+			Log.debug('Info compiling ' + shaderType + ' shader: ' + shaderInfoLog + '\n' + source);
+		}
+
+		return shader;
+	}
+
+	/**
+	 * Compiles and links a program without reporting anything. Returns `null`
+	 * when the driver rejects it; every GL object created for the attempt is
+	 * released, so a source can be probed before deciding whether to keep it.
+	 */
+	@:noCompletion private function __tryCreateGLProgram(vertexSource:String, fragmentSource:String,
+		?failureLog:Array<String>):Null<GLProgram>
+	{
+		var gl = __context.gl;
+
+		var vertexShader = __tryCompileGLShader(vertexSource, gl.VERTEX_SHADER, failureLog);
+		if (vertexShader == null) return null;
+
+		var fragmentShader = __tryCompileGLShader(fragmentSource, gl.FRAGMENT_SHADER, failureLog);
+		if (fragmentShader == null)
+		{
+			gl.deleteShader(vertexShader);
+			return null;
+		}
+
+		var program = gl.createProgram();
+		__bindPositionAttribute(program);
+		gl.attachShader(program, vertexShader);
+		gl.attachShader(program, fragmentShader);
+		gl.linkProgram(program);
+
+		gl.deleteShader(vertexShader);
+		gl.deleteShader(fragmentShader);
+
+		if (gl.getProgramParameter(program, gl.LINK_STATUS) == 0)
+		{
+			if (failureLog != null)
+			{
+				var infoLog = gl.getProgramInfoLog(program);
+				failureLog.push('link: ' + (infoLog != null ? StringTools.trim(infoLog) : ''));
+			}
+			gl.deleteProgram(program);
+			return null;
+		}
+
+		return program;
+	}
+	#end
+
 	@:noCompletion private function __createGLProgram(vertexSource:String, fragmentSource:String):GLProgram
 	{
+		#if mobile
+		// The GLSL ES conversion is only a compatibility layer. When this
+		// device's driver still rejects the translated source, keep the shader
+		// usable by falling back to the original OpenFL GLSL instead of
+		// leaving a program the driver refused to build.
+		var failureLog:Array<String> = [];
+		var glProgram = __tryCreateGLProgram(vertexSource, fragmentSource, failureLog);
+		if (glProgram != null) return glProgram;
+
+		if (__glRawVertexSource != null && __glRawFragmentSource != null
+			&& (vertexSource != __glRawVertexSource || fragmentSource != __glRawFragmentSource))
+		{
+			Log.warn('NovaFlare GLSL ES conversion was rejected by this driver (${failureLog.join("; ")});'
+				+ ' falling back to the original shader source', null);
+			glProgram = __tryCreateGLProgram(__glRawVertexSource, __glRawFragmentSource);
+			if (glProgram != null) return glProgram;
+		}
+		#end
+
 		var gl = __context.gl;
 
 		var vertexShader = __createGLShader(vertexSource, gl.VERTEX_SHADER);
@@ -401,15 +523,7 @@ class Shader
 
 		var program = gl.createProgram();
 
-		// Fix support for drivers that don't draw if attribute 0 is disabled
-		for (param in __paramFloat)
-		{
-			if (param.name.indexOf("Position") > -1 && StringTools.startsWith(param.name, "openfl_"))
-			{
-				gl.bindAttribLocation(program, 0, param.name);
-				break;
-			}
-		}
+		__bindPositionAttribute(program);
 
 		gl.attachShader(program, vertexShader);
 		gl.attachShader(program, fragmentShader);
@@ -555,6 +669,10 @@ class Shader
 		var gl = __context.gl;
 		var glVersion = MobileShaderConverter.configureFromGL(gl);
 		var prepared = MobileShaderConverter.prepareProgram(vertexSource, fragmentSource, glVersion);
+		// Remember the untranslated sources so a driver that rejects the
+		// converted GLSL ES can still be handed the original OpenFL GLSL.
+		__glRawVertexSource = vertexSource;
+		__glRawFragmentSource = fragmentSource;
 		for (diagnostic in prepared.diagnostics)
 			Log.warn('NovaFlare GLSL ES conversion [${diagnostic.stage}:${diagnostic.line}]: ${diagnostic.message}', null);
 		return prepared;
