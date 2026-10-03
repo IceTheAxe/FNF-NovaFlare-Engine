@@ -2,9 +2,8 @@
 # File used for the NG API. Should not be shared with others.
 APIStuff.hx
 
-# Private analytics & secrets - DO NOT COMMIT
-# Only SAMPLE templates and README are visible to all repo members.
-# The actual credential/config files must be obtained from an admin.
+# Legacy private files and local credentials stay outside version control.
+# GameAnalytics implementation is public under source/gameanalytics/.
 /private/*
 !/private/README.md
 !/private/.gitkeep

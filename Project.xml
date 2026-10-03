@@ -340,8 +340,7 @@
 	<haxeflag name="-dce" value="no" unless="windows || ios || debug" />
 	<!-- _________________________________ Custom _______________________________ -->
 
-	<!-- GameAnalytics is enabled automatically when all private sources exist. -->
-	<classpath name="private" />
+	<!-- GameAnalytics keys are read from the build environment at compile time. -->
 	<haxeflag name="--macro" value="gameanalytics.GACompileConfig.configure()" />
 
 	<assets path='art/icon16.png' rename='icon.png' if="linux" />

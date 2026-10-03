@@ -31,6 +31,11 @@ jobs:
     concurrency:
       group: ${{ github.workflow }}-Android-${{ github.ref }}
 
+    env:
+      NOVA_GA_GAME_KEY: ${{ github.repository == 'NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine' && github.event_name != 'pull_request_target' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && secrets.NOVA_GA_GAME_KEY || '' }}
+      NOVA_GA_SECRET_KEY: ${{ github.repository == 'NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine' && github.event_name != 'pull_request_target' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && secrets.NOVA_GA_SECRET_KEY || '' }}
+      NOVA_GA_REQUIRED: ${{ github.repository == 'NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine' && github.event_name != 'pull_request_target' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && '1' || '' }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@main
@@ -52,14 +57,10 @@ jobs:
         with:
           haxe-version: 4.3.7
 
-      - name: Restore private GameAnalytics
+      - name: Check GameAnalytics credentials
         if: github.repository == 'NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine' && github.event_name != 'pull_request_target' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         shell: pwsh
-        env:
-          NOVA_GA_IMPL_B64: ${{ secrets.NOVA_GA_IMPL_B64 }}
-          NOVA_GA_TYPES_B64: ${{ secrets.NOVA_GA_TYPES_B64 }}
-          NOVA_GA_CONFIG_B64: ${{ secrets.NOVA_GA_CONFIG_B64 }}
-        run: ./tools/restore-private-gameanalytics.ps1 -Required
+        run: ./tools/check-gameanalytics-env.ps1 -Required
               
       - name: Determine Android cache strategy
         id: android_cache
@@ -201,6 +202,11 @@ jobs:
     concurrency:
       group: ${{ github.workflow }}-iOS-${{ github.ref }}
 
+    env:
+      NOVA_GA_GAME_KEY: ${{ github.repository == 'NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine' && github.event_name != 'pull_request_target' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && secrets.NOVA_GA_GAME_KEY || '' }}
+      NOVA_GA_SECRET_KEY: ${{ github.repository == 'NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine' && github.event_name != 'pull_request_target' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && secrets.NOVA_GA_SECRET_KEY || '' }}
+      NOVA_GA_REQUIRED: ${{ github.repository == 'NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine' && github.event_name != 'pull_request_target' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && '1' || '' }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@main
@@ -215,14 +221,10 @@ jobs:
         with:
           haxe-version: 4.3.7
 
-      - name: Restore private GameAnalytics
+      - name: Check GameAnalytics credentials
         if: github.repository == 'NovaFlare-Engine-Concentration/FNF-NovaFlare-Engine' && github.event_name != 'pull_request_target' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         shell: pwsh
-        env:
-          NOVA_GA_IMPL_B64: ${{ secrets.NOVA_GA_IMPL_B64 }}
-          NOVA_GA_TYPES_B64: ${{ secrets.NOVA_GA_TYPES_B64 }}
-          NOVA_GA_CONFIG_B64: ${{ secrets.NOVA_GA_CONFIG_B64 }}
-        run: ./tools/restore-private-gameanalytics.ps1 -Required
+        run: ./tools/check-gameanalytics-env.ps1 -Required
    
       - name: Determine iOS cache strategy
         id: ios_cache

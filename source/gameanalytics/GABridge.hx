@@ -1,13 +1,9 @@
 package gameanalytics;
 
 /**
- * Public bridge to the private GameAnalytics module.
- *
- * All actual implementation resides in the `private/` directory
- * (gitignored — accessible only to repo admins).
- *
- * The build enables the implementation automatically when all private source
- * files exist. Otherwise every method is a no-op and is eliminated by Haxe.
+ * Public bridge to GameAnalytics. The implementation is versioned with the
+ * engine; credentials are supplied through the build environment.
+ * Without credentials, these methods compile as no-ops.
  */
 class GABridge {
 
