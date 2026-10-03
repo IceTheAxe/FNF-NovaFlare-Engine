@@ -16,6 +16,45 @@ import general.backend.ui.PsychUIInputText;
 
 import openfl.Lib;
 
+/**
+ * 集中管理所有布局尺寸。
+ * 所有数值都基于屏幕宽高按比例派生，避免散落的魔法数字。
+ * 注意：Haxe 不支持类内嵌套 class，所以放在 OptionsState 外面。
+ */
+private class LayoutMetrics
+{
+	// ---- 垂直方向 ----
+	public static inline function naviTop():Float return FlxG.height * 0.005;
+	public static inline function naviItemHeight():Float return FlxG.height * 0.1;
+	public static inline function naviBottomPadding():Float return FlxG.height * 0.005;
+	public static inline function naviVisibleHeight():Float return FlxG.height - naviTop() - naviBottomPadding();
+
+	public static inline function topBarHeight():Float return Std.int(FlxG.height * 0.1);
+	public static inline function bottomBarHeight():Float return Std.int(FlxG.height * 0.1);
+	public static inline function bottomBarY():Float return FlxG.height - bottomBarHeight();
+	public static inline function contentTop():Float return topBarHeight();
+	public static inline function contentBottom():Float return FlxG.height - bottomBarHeight();
+	public static inline function contentVisibleHeight():Float return contentBottom() - contentTop();
+
+	// ---- 水平方向 ----
+	public static inline function naviWidth():Float return FlxG.width * 0.2;
+	public static inline function contentLeft():Float return naviWidth();
+	public static inline function contentWidth():Float return FlxG.width - contentLeft();
+	public static inline function cataWidth():Float return FlxG.width * (0.8 - (0.8 / 20 * 2));
+	public static inline function cataGapX():Float return FlxG.width * (0.8 / 20);
+
+	// ---- 展开项 ----
+	public static inline function expandedItemHeight():Float return 50;
+	public static inline function expandedPadding():Float return 15;
+	public static inline function expandedExtra(navi:NaviGroup):Float
+		return navi.parent.length * expandedItemHeight() + expandedPadding();
+
+	// ---- 底部按钮 ----
+	public static inline function tipButtonGap():Float return FlxG.height * 0.01;
+	public static inline function tipButtonHeight():Float return Std.int(FlxG.height * 0.08);
+	public static inline function specButtonWidth():Float return Std.int(FlxG.width * 0.15);
+}
+
 class OptionsState extends MusicBeatState
 {
 	public static var instance:OptionsState;
@@ -23,48 +62,6 @@ class OptionsState extends MusicBeatState
 	var filePath:String = 'menuExtend/OptionsState/';
 
 	var naviArray:Array<NaviData> = [];
-
-	////////////////////////////////////////////////////////////////////////////////////////////
-	// 统一高度设定系统
-	////////////////////////////////////////////////////////////////////////////////////////////
-
-	/**
-	 * 集中管理所有布局尺寸。
-	 * 所有数值都基于屏幕宽高按比例派生，避免散落的魔法数字。
-	 */
-	public static class LayoutMetrics
-	{
-		// ---- 垂直方向 ----
-		public static inline function naviTop():Float return FlxG.height * 0.005;
-		public static inline function naviItemHeight():Float return FlxG.height * 0.1;
-		public static inline function naviBottomPadding():Float return FlxG.height * 0.005;
-		public static inline function naviVisibleHeight():Float return FlxG.height - naviTop() - naviBottomPadding();
-
-		public static inline function topBarHeight():Float return Std.int(FlxG.height * 0.1);
-		public static inline function bottomBarHeight():Float return Std.int(FlxG.height * 0.1);
-		public static inline function bottomBarY():Float return FlxG.height - bottomBarHeight();
-		public static inline function contentTop():Float return topBarHeight();
-		public static inline function contentBottom():Float return FlxG.height - bottomBarHeight();
-		public static inline function contentVisibleHeight():Float return contentBottom() - contentTop();
-
-		// ---- 水平方向 ----
-		public static inline function naviWidth():Float return FlxG.width * 0.2;
-		public static inline function contentLeft():Float return naviWidth();
-		public static inline function contentWidth():Float return FlxG.width - contentLeft();
-		public static inline function cataWidth():Float return FlxG.width * (0.8 - (0.8 / 20 * 2));
-		public static inline function cataGapX():Float return FlxG.width * (0.8 / 20);
-
-		// ---- 展开项 ----
-		public static inline function expandedItemHeight():Float return 50;
-		public static inline function expandedPadding():Float return 15;
-		public static inline function expandedExtra(navi:NaviGroup):Float
-			return navi.parent.length * expandedItemHeight() + expandedPadding();
-
-		// ---- 底部按钮 ----
-		public static inline function tipButtonGap():Float return FlxG.height * 0.01;
-		public static inline function tipButtonHeight():Float return Std.int(FlxG.height * 0.08);
-		public static inline function specButtonWidth():Float return Std.int(FlxG.width * 0.15);
-	}
 
 	////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -155,7 +152,7 @@ class OptionsState extends MusicBeatState
 		for (i in 0...naviArray.length)
 		{
 			var naviSprite = new NaviGroup(
-				LayoutMetrics.naviTop() * 1, // x 偏移 (原 0.005 * width 改为统一的 y 间距对齐)
+				LayoutMetrics.naviTop(),
 				LayoutMetrics.naviTop() + i * LayoutMetrics.naviItemHeight(),
 				LayoutMetrics.naviWidth() - LayoutMetrics.naviTop(),
 				LayoutMetrics.naviItemHeight() * 0.9,
@@ -246,12 +243,11 @@ class OptionsState extends MusicBeatState
 
 	/**
 	 * 初始化导航栏滚动。
-	 * 计算所有导航组（含已展开项）的总高度，得出最大上滚偏移。
 	 */
 	private function initNaviScrolling():Void
 	{
 		naviMove = new MouseMove(OptionsState, 'naviPosiData',
-			[0, LayoutMetrics.naviTop()], // moveLimit 稍后由 refreshNavScrollBounds 刷新
+			[0, LayoutMetrics.naviTop()],
 			[
 				[LayoutMetrics.naviTop(), LayoutMetrics.naviWidth() - LayoutMetrics.naviTop()],
 				[0, FlxG.height]
@@ -267,7 +263,7 @@ class OptionsState extends MusicBeatState
 	private function initCataScrolling():Void
 	{
 		cataMove = new MouseMove(OptionsState, 'cataPosiData',
-			[100, 100], // moveLimit 稍后由 refreshCataScrollBounds 刷新
+			[100, 100],
 			[
 				[LayoutMetrics.contentLeft(), FlxG.width],
 				[0, LayoutMetrics.contentBottom()]
@@ -285,7 +281,6 @@ class OptionsState extends MusicBeatState
 
 	/**
 	 * 重新计算导航栏滚动边界。
-	 * 统一处理：基础高度 + 展开高度 + 可见区域。
 	 */
 	public function refreshNavScrollBounds():Void
 	{
@@ -306,14 +301,12 @@ class OptionsState extends MusicBeatState
 		naviMove.moveLimit[0] = minScroll;
 		naviMove.moveLimit[1] = LayoutMetrics.naviTop();
 
-		// 夹紧当前值
 		if (naviPosiData < minScroll) naviPosiData = minScroll;
 		if (naviPosiData > LayoutMetrics.naviTop()) naviPosiData = LayoutMetrics.naviTop();
 	}
 
 	/**
 	 * 重新计算内容区滚动边界。
-	 * @param useWaitHeight true 使用目标高度（动画中），false 使用实际高度
 	 */
 	public function refreshCataScrollBounds(useWaitHeight:Bool = false):Void
 	{
@@ -428,8 +421,8 @@ class OptionsState extends MusicBeatState
 
 		var outputX:Float = LayoutMetrics.contentLeft() + LayoutMetrics.cataGapX();
 		var outputWidth:Float = LayoutMetrics.cataWidth();
-		var outputY:Float = LayoutMetrics.contentTop(); // 等待被初始化
-		var outputHeight:Float = 200; // 等待被初始化
+		var outputY:Float = LayoutMetrics.contentTop();
+		var outputHeight:Float = 200;
 
 		switch (type)
 		{
@@ -472,7 +465,7 @@ class OptionsState extends MusicBeatState
 	public var cataMoveMinLimit:Float = 100;
 
 	/**
-	 * 内容区布局刷新：重新计算每个分类的 y 坐标，并更新滚动边界。
+	 * 内容区布局刷新：重新计算每个分类的 y 坐标。
 	 */
 	public function cataMoveEvent(){
 		var gap:Float = LayoutMetrics.cataGapX();
@@ -539,7 +532,6 @@ class OptionsState extends MusicBeatState
 		}
 		naviTween = [];
 
-		// 统一刷新滚动边界（基于 isOpened 的最新状态）
 		refreshNavScrollBounds();
 
 		var extra:Float = LayoutMetrics.expandedExtra(navi);
