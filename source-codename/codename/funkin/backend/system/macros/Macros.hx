@@ -18,6 +18,14 @@ class Macros {
 
 	static final CODENAME_IGNORE = [];
 
+	static final SCRIPT_GENERIC_METHODS:Map<String, Array<String>> = [
+		"flixel.math.FlxRandom" => ["getObject", "shuffle", "shuffleArray"],
+		"flixel.util.FlxArrayUtil" => ["fastSplice", "swapAndPop", "flatten2DArray"],
+		"flixel.group.FlxTypedSpriteGroup" => ["transformChildren", "multiTransformChildren"],
+		"flixel.system.frontEnds.InputFrontEnd" => ["add", "addInput", "addUniqueType", "remove", "replace"],
+		"flixel.system.frontEnds.PluginFrontEnd" => ["add"]
+	];
+
 	static final CODENAME_PACKAGES = [
 		"codename.funkin.backend",
 		"codename.funkin.editors",
@@ -108,11 +116,34 @@ class Macros {
 		Compiler.addMetadata('@:build($macroPath.buildLimeApplication())', 'lime.app.Application');
 		Compiler.addMetadata('@:build($macroPath.buildLimeWindow())', 'lime.ui.Window');
 		Compiler.addMetadata('@:build($macroPath.buildOpenflAssets())', 'openfl.utils.Assets');
+		// Use a package filter for secondary types such as FlxTypedSpriteGroup.
+		for (path in ["flixel.math.FlxRandom", "flixel.util.FlxArrayUtil", "flixel.group", "flixel.system.frontEnds"])
+			Compiler.addGlobalMetadata(path, '@:build($macroPath.buildScriptGenericMethods())');
 
 		//Adds Compat for #if hscript blocks when you have hscript improved
 		if (Context.defined("hscript_improved") && !Context.defined("hscript")) {
 			Compiler.define('hscript');
 		}
+	}
+
+	public static function buildScriptGenericMethods():Array<Field> {
+		final fields = Context.getBuildFields();
+		final classRef = Context.getLocalClass();
+		if (classRef == null) return fields;
+		final localClass = classRef.get();
+		final methods = SCRIPT_GENERIC_METHODS.get(localClass.pack.concat([localClass.name]).join("."));
+		if (methods == null) return fields;
+		// @:generic replaces the original method with type-specific names on
+		// native targets. HScript calls these methods by their original names.
+		// Preserve their bodies and type parameters; only disable specialization
+		// for the listed script-facing methods. Class-level generics are untouched.
+		for (field in fields) {
+			if (!methods.contains(field.name)) continue;
+			field.meta = field.meta == null ? [] : field.meta.filter(meta -> meta.name != ":generic");
+			if (!Lambda.exists(field.meta, meta -> meta.name == ":keep"))
+				field.meta.push({name: ":keep", params: [], pos: field.pos});
+		}
+		return fields;
 	}
 
 	public static function buildLimeAssetLibrary():Array<Field> {

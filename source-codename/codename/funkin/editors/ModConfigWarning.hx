@@ -8,6 +8,7 @@ class ModConfigWarning extends UIState {
 
 	var library:ModsFolderLibrary = null;
 	var goToState:Class<FlxState>;
+	var useAPIWarning:Bool = false;
 
 	public static var defaultModConfigText = 
 '[Common] # This section applies the \'MOD_\' prefix to the flags so you don\'t have to.
@@ -47,23 +48,39 @@ LOGO_TEXT=""
 [StateRedirects.force] # Use this if you want to override redirects set by subsequent addons/mods
 ';
 
-	public function new(library:ModsFolderLibrary, ?goToState:Class<FlxState>) {
+	public function new(library:ModsFolderLibrary, ?goToState:Class<FlxState>, ?useAPIWarning:Bool = false) {
 		super();
 		this.library = library;
 		this.goToState = goToState != null ? goToState : codename.funkin.menus.TitleState;
+		this.useAPIWarning = useAPIWarning;
+	}
+
+	public function goBack() {
+		MusicBeatState.skipTransOut = MusicBeatState.skipTransIn = false;
+		FlxG.switchState(cast Type.createInstance(goToState, []));
 	}
 
 	override function createPost() {
 		super.createPost();
 		hadPopup = true;
 
-		var substate = new UIWarningSubstate(TU.translate("modConfigWarning.warningTitle"), TU.translate("modConfigWarning.warningDesc"), [
+		// Older external asset packs may not contain the API warning translations.
+		var substate = useAPIWarning ? new UIWarningSubstate(
+			TU.translate("modApiWarning.warningTitle", [Flags.MOD_API_VERSION != null ? Std.string(Flags.MOD_API_VERSION) : "???", Flags.CURRENT_API_VERSION], "Outdated API Version! (v{0} < v{1})"),
+			TU.translate("modApiWarning.warningDesc", null, "Your mod's config runs on an outdated API Version! This WILL cause compatibility and code issues!\n\nIt is recommended that you make changes to your mod and its config file to fit the new version.\n\nMeanwhile, the game will try its best to make your mod compatible, but you should still update your mod.\n\n(PS: If this is not your mod please disable Developer mode, and notify the mod developers if needed.)"), [
+			{
+				label: TU.translate("editor.ok", null, "OK"),
+				color: 0x969533,
+				onClick: function (_) {
+					goBack();
+				}
+			}
+		], false) : new UIWarningSubstate(TU.translate("modConfigWarning.warningTitle"), TU.translate("modConfigWarning.warningDesc"), [
 			{
 				label: TU.translate("editor.notNow"),
 				color: 0x969533,
 				onClick: function (_) {
-					MusicBeatState.skipTransOut = MusicBeatState.skipTransIn = false;
-					FlxG.switchState(cast Type.createInstance(goToState, []));
+					goBack();
 				}
 			},
 			{
@@ -75,8 +92,7 @@ LOGO_TEXT=""
 						{
 							label: TU.translate("editor.ok"),
 							onClick: function (_) {
-								MusicBeatState.skipTransOut = MusicBeatState.skipTransIn = false;
-								FlxG.switchState(cast Type.createInstance(goToState, []));
+								goBack();
 							}
 						},
 					], false));

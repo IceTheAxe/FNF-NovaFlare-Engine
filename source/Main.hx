@@ -400,6 +400,7 @@ class Main extends Sprite
 		var codeNameWatermarkBitmap = Assets.getBitmapData('assets/shared/images/menuExtend/Others/watermark.png').clone();
 
 		CodeNameMode.prepare();
+		var codeNameMain = new codename.funkin.backend.system.Main(false);
 		var flxGame:codename.funkin.backend.system.FunkinGame = new codename.funkin.backend.system.FunkinGame(1280, 720, CodeNameIntroState, gameConfig.framerate,
 			gameConfig.framerate, true, false);
 		loadNovaFlareOverlayPrefs();
@@ -407,18 +408,14 @@ class Main extends Sprite
 		codename.funkin.backend.system.Main.game = flxGame;
 		codenamechain.CodeNameScriptRuntime.init();
 
-		addChild(flxGame);
+		codeNameMain.addChild(flxGame);
 		#if android
-		// The Codename chain bypasses NF's InitState, so install the Android
-		// BACK-key policy here before any Codename menu starts handling it.
 		FlxG.android.preventDefaultKeys = [BACK];
 		#end
-		// CNE normally boots straight into MainState, which initializes Conductor
-		// before the first Framerate update. NF's CNE intro delays MainState, so
-		// seed the default BPM map before ConductorInfo reads Conductor.bpm.
-		// Main.loadGameSettings() will still run Conductor.init() and reset it.
+
 		codename.funkin.backend.system.Conductor.changeBPM();
-		addChild(codename.funkin.backend.system.Main.framerateSprite = new codename.funkin.backend.system.framerate.Framerate());
+		codeNameMain.addChild(codename.funkin.backend.system.Main.framerateSprite = new codename.funkin.backend.system.framerate.Framerate());
+		addChild(codeNameMain);
 		#if mobile
 		codename.funkin.backend.system.Main.framerateSprite.setScale();
 		Lib.current.stage.window.onResize.add((width:Int, height:Int) -> codename.funkin.backend.system.Main.framerateSprite.setScale());
@@ -435,7 +432,6 @@ class Main extends Sprite
 
 		Lib.current.stage.align = "tl";
 		Lib.current.stage.scaleMode = StageScaleMode.NO_SCALE;
-		Lib.current.stage.window.title = "NovaFlare Engine";
 	}
 
 	private static function loadNovaFlareOverlayPrefs():Void

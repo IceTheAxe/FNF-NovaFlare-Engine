@@ -3,7 +3,6 @@ package codename.funkin.backend.system;
 import flixel.system.debug.log.LogStyle;
 import flixel.system.frontEnds.LogFrontEnd;
 import codename.funkin.backend.utils.NativeAPI.ConsoleColor;
-import codename.funkin.backend.utils.NativeAPI.MessageBoxIcon;
 import codename.funkin.backend.utils.NativeAPI;
 import haxe.Log;
 
@@ -132,13 +131,8 @@ final class Logs {
 		#end
 	}
 
-	public inline static function traceColored(text:Array<LogText>, level:Level = INFO) {
-		#if (windows && !debug && CODENAME_ENGINE_COMPAT)
-		if (level == ERROR)
-			NativeAPI.showMessageBox("Codename Engine Error", [for (part in text) part.text].join(""), MSG_ERROR);
-		#end
+	public inline static function traceColored(text:Array<LogText>, level:Level = INFO)
 		__showInConsole(prepareColoredTrace(text, level));
-	}
 
 	public static function trace(text:String, level:Level = INFO, color:ConsoleColor = LIGHTGRAY, ?prefix:String) {
 		var text = [logText(text, color)];
