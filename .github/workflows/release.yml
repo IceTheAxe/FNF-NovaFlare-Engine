@@ -105,31 +105,24 @@ jobs:
     uses: ./.github/workflows/MobileBuild.yml
     with:
       dependencies_to_update: 'all'
-      build_ref: ${{ needs.update-versions.outputs.commit_sha }}
     secrets: inherit
 
   macos-build:
     name: "macOS Build"
-    needs: [update-versions, mobile-build]
+    needs: mobile-build
     uses: ./.github/workflows/MacBuild.yml
-    with:
-      build_ref: ${{ needs.update-versions.outputs.commit_sha }}
     secrets: inherit
 
   windows-build:
     name: "Windows Build"
     needs: update-versions
     uses: ./.github/workflows/WindowsBuild.yml
-    with:
-      build_ref: ${{ needs.update-versions.outputs.commit_sha }}
     secrets: inherit
 
   linux-build:
     name: "Linux Build"
     needs: update-versions
     uses: ./.github/workflows/LinuxBuild.yml
-    with:
-      build_ref: ${{ needs.update-versions.outputs.commit_sha }}
     secrets: inherit
 
   releaser:
