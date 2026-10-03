@@ -4,21 +4,21 @@
       "name": "lime",
       "type": "git",
       "dir": null,
-      "ref": "main",
+      "ref": "e4adfed089eacf9e6eb1bc3ed306eb2e68336256",
       "url": "https://github.com/NovaFlare-Engine-haxelib/lime-8.3.0"
     },
     {
       "name": "openfl",
       "type": "git",
       "dir": null,
-      "ref": "main",
+      "ref": "89a29e6ebbd19a4fdc3c37ed41e4fbe8a8208923",
       "url": "https://github.com/NovaFlare-Engine-haxelib/openfl-9.5.0"
     },
     {
       "name": "flixel",
       "type": "git",
       "dir": null,
-      "ref": "main",
+      "ref": "bd89bbbe812ea20623397537ce544cb6813e1f27",
       "url": "https://github.com/NovaFlare-Engine-haxelib/flixel-5.9.0"
     },
     {
@@ -39,7 +39,7 @@
       "name": "flixel-addons",
       "type": "git",
       "dir": null,
-      "ref": "main",
+      "ref": "516853354f0fca367e9eba3b21c77b78ed16a0a6",
       "url": "https://github.com/NovaFlare-Engine-haxelib/flixel-addons-3.3.2"
     },
     {
@@ -238,6 +238,20 @@
       "dir": null,
       "ref": "f87ec207a774deffb01d613a03dee68d9473bbc3",
       "url": "https://github.com/dwdvIl/foxlite"
+    },
+    {
+      "name": "away3d",
+      "type": "git",
+      "dir": null,
+      "ref": "3d2442aaa041e1ddb589e91ddb8553fdbf605bbd",
+      "url": "https://github.com/NovaFlare-Engine-haxelib/away3d-5.0.9"
+    },
+    {
+      "name": "flixel-animate",
+      "type": "git",
+      "dir": null,
+      "ref": "01c63babf2954addb8c2caacb5900b6cc7f4276f",
+      "url": "https://github.com/NovaFlare-Engine-haxelib/flixel-animate-1.5.0"
     }
   ]
 }

@@ -66,25 +66,21 @@ class NoteGroup extends FlxTypedGroup<Note> {
 		var oldDefaultCameras = FlxCamera._defaultCameras;
 		if (_cameras != null) FlxCamera._defaultCameras = _cameras;
 
-		var renderingSustains = true;
 		var oldCur = __currentlyLooping;
 		__currentlyLooping = true;
 
-		i = length - 1;
-		__loopSprite = null;
 		__time = __getSongPos() + limit;
-		while(i >= 0) {
-			__loopSprite = members[i--];
-			if (__loopSprite == null || (__loopSprite.isSustainNote != renderingSustains) || !__loopSprite.exists || !__loopSprite.visible) continue;
-			if (__loopSprite.strumTime > __time) {
-				if (renderingSustains) {
-					renderingSustains = false;
-					i = length - 1; // loop again
-					continue;
-				}
-				else break;
+		for (pass in 0...2) {
+			var renderingSustains = pass == 0;
+			i = length - 1;
+			__loopSprite = null;
+			while(i >= 0) {
+				__loopSprite = members[i--];
+				if (__loopSprite == null) continue;
+				if (__loopSprite.strumTime > __time) break;
+				if (__loopSprite.isSustainNote != renderingSustains || !__loopSprite.exists || !__loopSprite.visible) continue;
+				__loopSprite.draw();
 			}
-			__loopSprite.draw();
 		}
 		__currentlyLooping = oldCur;
 

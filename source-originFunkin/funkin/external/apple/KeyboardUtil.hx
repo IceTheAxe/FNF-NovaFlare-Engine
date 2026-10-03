@@ -4,7 +4,8 @@ package funkin.external.apple;
 /**
  * Utility class for keyboard detection.
  */
-@:build(funkin.util.macro.LinkerMacro.xml('project/Build.xml')) @:include('KeyboardUtil.hpp') @:unreflective
+
+//@:build(funkin.util.macro.LinkerMacro.xml('project/Build.xml')) @:include('KeyboardUtil.hpp') @:unreflective
 extern class KeyboardUtil
 {
   /**
@@ -14,7 +15,7 @@ extern class KeyboardUtil
    *
    * @return Returns a Boolean value that indicates whether someone is likely to enter text using a hardware keyboard.
    */
-  @:native('Apple_KeyboardUtil_isKeyboardConnected')
+  /*@:native('Apple_KeyboardUtil_isKeyboardConnected')*/
   static function isKeyboardConnected():Bool;
 }
 #end

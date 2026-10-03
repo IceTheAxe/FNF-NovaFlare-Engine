@@ -14,7 +14,6 @@ import openfl.display3D._internal.GLProgram;
 import openfl.display3D._internal.GLShader;
 import openfl.utils._internal.Log;
 #if mobile
-import codename.funkin.backend.utils.NativeAPI.MessageBoxIcon;
 import general.shaders.MobileShaderConverter;
 #end
 
@@ -83,40 +82,11 @@ class FunkinShader extends FlxShader implements IHScriptCustomBehaviour {
 	static var ERROR_REGEX = ~/ERROR: (\d+):(\d+): (.*)/g;
 	static var ERROR_REGEX_2 = ~/(\d+)\((\d+)\) : error ([^:]+): (.*)/g;
 
-	static function reportShaderFailure(title:String, message:String, kind:String):Void
+	function reportShaderFailure(title:String, message:String, kind:String, ?vertexSource:String, ?fragmentSource:String):Void
 	{
 		Logs.error(message, RED, "Shader");
-		Log.error(message);
-
-		var logPath:Null<String> = null;
-		#if sys
-		try
-		{
-			if (!sys.FileSystem.exists("logs")) sys.FileSystem.createDirectory("logs");
-
-			var date = Date.now().toString().replace(" ", "_").replace(":", "-");
-			var basePath = 'logs/CNE_Shader${kind}Error_${date}';
-			logPath = '$basePath.txt';
-			var suffix = 1;
-			while (sys.FileSystem.exists(logPath)) {
-				logPath = '${basePath}_$suffix.txt';
-				suffix++;
-			}
-			sys.io.File.saveContent(logPath, '$title\n\n$message');
-			Logs.infos('Shader error log saved to: $logPath', LIGHTGRAY, "Shader");
-		}
-		catch (error:Dynamic)
-		{
-			logPath = null;
-			Logs.error('Could not save shader error log: ${Std.string(error)}', RED, "Shader");
-		}
-		#end
-
-		#if mobile
-		var dialogMessage = message;
-		if (logPath != null) dialogMessage += '\n\nError log saved to: $logPath';
-		codename.funkin.backend.utils.NativeAPI.showMessageBox(title, dialogMessage, MSG_ERROR);
-		#end
+		general.shaders.ErrorHandledShader.crashSave('CNE_${fileName}_$kind', '$title\n$message', null,
+			vertexSource, fragmentSource);
 	}
 
 	@:noCompletion private override function __createGLShader(source:String, type:Int):GLShader
@@ -195,7 +165,8 @@ class FunkinShader extends FlxShader implements IHScriptCustomBehaviour {
 
 			var message = messageBuf.toString();
 			if (compileStatus == 0) {
-				reportShaderFailure("Shader Compile Error", message, "Compile");
+				reportShaderFailure("Shader Compile Error", message, "Compile",
+					isVertexShader ? source : null, isVertexShader ? null : source);
 			}
 			else if (hasInfoLog) Log.debug(message);
 		}
@@ -236,12 +207,13 @@ class FunkinShader extends FlxShader implements IHScriptCustomBehaviour {
 				messageBuf.add("\n");
 				messageBuf.add(gl.getProgramInfoLog(program));
 				var message = messageBuf.toString();
-				reportShaderFailure("Shader Link Error", message, "Link");
+				reportShaderFailure("Shader Link Error", message, "Link", vertexSource, fragmentSource);
 			}
 		}
 		catch (error:Dynamic)
 		{
-			reportShaderFailure("Shader Compile Error", 'Failed to compile shader $fileName:\n${Std.string(error)}', "Exception");
+			reportShaderFailure("Shader Compile Error", 'Failed to compile shader $fileName:\n${Std.string(error)}', "Exception",
+				vertexSource, fragmentSource);
 		}
 		return program;
 

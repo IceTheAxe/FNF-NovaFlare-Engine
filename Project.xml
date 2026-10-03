@@ -169,6 +169,7 @@
 	<haxelib name="spinehaxe" />
 
 	<haxelib name="foxlite" />
+	<haxeflag name="--macro" value="addMetadata('@:build(general.shaders.FoxliteCompatMacro.buildRenderer())', 'foxlite.renderer.FoxRenderer')"/>
 
 	<haxedef name="THREE_D_SUPPORT" />
 

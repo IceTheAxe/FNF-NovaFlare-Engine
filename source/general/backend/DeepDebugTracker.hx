@@ -147,17 +147,23 @@ class DeepDebugTracker
 
 		try
 		{
-			var programDirectory:String = Path.directory(Sys.programPath());
-			if (programDirectory == null || programDirectory.length == 0)
-				programDirectory = Sys.getCwd();
+			var baseDirectory:String = resolveOutputBaseDirectory();
 
 			var outputDirectory:String = Path.join([
-				programDirectory,
+				baseDirectory,
 				'debug',
 				sanitizeFileName(reportMod, 'originFunkin'),
 				sanitizeFileName(reportDifficulty, 'Unknown')
 			]);
-			FileSystem.createDirectory(outputDirectory);
+
+			try
+			{
+				makeDirectories(outputDirectory);
+			}
+			catch (directoryError:Dynamic)
+			{
+				trace('[DeepDebug] Could not create report directory "$outputDirectory": $directoryError');
+			}
 
 			var outputFile:String = Path.join([
 				outputDirectory,
@@ -184,6 +190,87 @@ class DeepDebugTracker
 	}
 
 	#if sys
+
+	static function resolveOutputBaseDirectory():String
+	{
+		var overrideDir:String = null;
+		try overrideDir = Sys.getEnv('NOVAFLARE_DIAGNOSTIC_DIR') catch (_:Dynamic) {}
+
+		if (overrideDir != null && StringTools.trim(overrideDir).length > 0)
+			return overrideDir;
+
+		#if android
+		var storageDirectory:String = null;
+		try
+		{
+			var folder:String = null;
+			try
+			{
+				folder = general.backend.ClientPrefs.data.storageFolder;
+			}
+			catch (_:Dynamic) {}
+
+			if (folder == null || StringTools.trim(folder).length == 0)
+				folder = lime.app.Application.current.meta.get('file');
+
+			storageDirectory = mobile.backend.SUtil.getStorageDirectory(EXTERNAL, folder);
+		}
+		catch (error:Dynamic)
+		{
+			trace('[DeepDebug] Could not resolve engine storage directory: $error');
+		}
+
+		if (storageDirectory != null && StringTools.trim(storageDirectory).length > 0)
+			return storageDirectory;
+		#end
+
+		var cwd:String = null;
+		try cwd = Sys.getCwd() catch (_:Dynamic) {}
+		if (cwd == null || cwd.length == 0)
+		{
+			var programDirectory:String = null;
+			try programDirectory = Path.directory(Sys.programPath()) catch (_:Dynamic) {}
+			if (programDirectory != null && programDirectory.length > 0)
+				return programDirectory;
+			return '.';
+		}
+		return cwd;
+	}
+
+	static function makeDirectories(directory:String):Void
+	{
+		if (directory == null || directory.length == 0)
+			return;
+
+		var normalized:String = StringTools.replace(directory, '\\', '/');
+		var isAbsolute:Bool = normalized.startsWith('/');
+		var parts:Array<String> = normalized.split('/');
+		var current:StringBuf = new StringBuf();
+		if (isAbsolute)
+			current.add('/');
+
+		for (part in parts)
+		{
+			if (part == null || part.length == 0 || part == '.')
+				continue;
+
+			if (current.length > 0 && !StringTools.endsWith(current.toString(), '/'))
+				current.add('/');
+			current.add(part);
+
+			var path:String = current.toString();
+			try
+			{
+				if (!FileSystem.exists(path))
+					FileSystem.createDirectory(path);
+			}
+			catch (error:Dynamic)
+			{
+				trace('[DeepDebug] Could not create directory "$path": $error');
+			}
+		}
+	}
+
 	static function captureRuntimeCache():Void
 	{
 		for (key in Cache.localTrackedAssets)

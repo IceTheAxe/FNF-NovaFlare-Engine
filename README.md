@@ -55,10 +55,15 @@ I really don't recommend using AI to write interfaces, and don't belittle Haxe j
 The FNF-NovaFlare-Engine was originally created to be compatible with the Camellia mod, and it has continuously evolved into an independent engine, developed by Chinese developers. 
 
 V1.0.1 is based on FNF-Psych-Engine-0.6.3.
+
 V1.1.0-beta-1 and above are based on 0.7.3.
+
 V1.1.8-HOTFIX is based on 0.7.3 and supports mods version 1.0.0 and above (partially).
+
 v1.2.1: Minimum support **Psych mod 0.7.3 to 1.0.4**, **V-Slice 0.8.4**, **CodeName 1.0.1**
+
 v1.2.1-HotFix-2: Minimum support **Psych mod 0.7.3 to 1.0.4**, **V-Slice 0.8.7**, **CodeName 1.1.0-rc3**
+
 
 Highly optimize a large number of pending issues, including but not limited to frame rate improvement, loading optimization, major overhauls of the underlying system, and script system overhauls...  
 Add more practical features and beautify the interface.  

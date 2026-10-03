@@ -45,16 +45,27 @@ class ErrorHandledShader extends FlxShader implements IErrorHandler
 
 		var detail:String = error == null ? '' : Std.string(error);
 
-		#if !debug
-		// Save a crash log on Release builds
-		var dateNow:String = StringTools.replace(StringTools.replace(Date.now().toString(), " ", "_"), ":", "'");
-
-		if (!FileSystem.exists('./logs/'))
-			FileSystem.createDirectory('./logs/');
-
-		var crashLogPath:String = './logs/shader_${shaderName}_${dateNow}.txt';
-		File.saveContent(crashLogPath,
-			'shader=$shaderName\n\n[error]\n$detail\n\n[vertex]\n$vertexSource\n\n[fragment]\n$fragmentSource');
+		var crashLogPath:Null<String> = null;
+		#if sys
+		try
+		{
+			var safeName = ~/[^a-zA-Z0-9_.-]/g.replace(shaderName, "_");
+			var dateNow = Date.now().toString().split(" ").join("_").split(":").join("-");
+			var logDirectory = haxe.io.Path.join([Sys.getCwd(), "logs"]);
+			if (!FileSystem.exists(logDirectory)) FileSystem.createDirectory(logDirectory);
+			var basePath = haxe.io.Path.join([logDirectory, 'shader_${safeName}_${dateNow}']);
+			crashLogPath = '$basePath.txt';
+			var suffix = 1;
+			while (FileSystem.exists(crashLogPath)) crashLogPath = '${basePath}_${suffix++}.txt';
+			File.saveContent(crashLogPath,
+				'shader=$shaderName\n\n[error]\n$detail\n\n[vertex]\n$vertexSource\n\n[fragment]\n$fragmentSource');
+			trace('Shader error log saved to: $crashLogPath');
+		}
+		catch (saveError:Dynamic)
+		{
+			crashLogPath = null;
+			trace('Could not save shader error log: $saveError');
+		}
 		#end
 
 		var message:String = 'Shader Compile Error!\nshader: $shaderName';
@@ -66,6 +77,7 @@ class ErrorHandledShader extends FlxShader implements IErrorHandler
 		var sourcePreview:String = headLines(fragmentSource != null ? fragmentSource : vertexSource, SHADER_SOURCE_PREVIEW_LINES);
 		if (sourcePreview.length > 0)
 			message += '\n\n[source]\n' + sourcePreview;
+		if (crashLogPath != null) message += '\n\nError log saved to: $crashLogPath';
 
 		#if sys
 		try
@@ -79,7 +91,7 @@ class ErrorHandledShader extends FlxShader implements IErrorHandler
 			trace(message);
 		#end
 
-		onError(error);
+		if (onError != null) onError(error);
 	}
 
 	private static function headLines(value:String, limit:Int):String
