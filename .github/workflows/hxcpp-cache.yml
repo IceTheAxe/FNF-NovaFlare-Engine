@@ -2,7 +2,8 @@ name: hxcpp Cache
 
 # hxcpp 编译缓存 + 依赖缓存的维护入口：看有哪些缓存、把旧的清掉。
 #
-# 缓存的读写在 MobileBuild.yml 里 —— 那边每个 job 的 Compile 前后 restore/save。
+# 缓存的读写在 build.yml 里 —— 那边每个矩阵目标在 Compile 前后 restore/save
+# （use_cache=true 时才做；release 链是 false，全量重编）。
 # 这里只做查看和清理：key 是滚动的（每次构建新开一份），不收敛的话会把仓库
 # 10 GB 的缓存配额吃光，连带把别的缓存挤出去。
 #
@@ -29,14 +30,19 @@ name: hxcpp Cache
 #     它们只影响真正读了它的那几个 .cpp（MainMenuState）。
 #
 # HXCPP_COMPILE_CACHE 是 hxcpp 从进程环境读的：BuildTool.runMain() 开头就把
-# Sys.environment() 整个灌进 defines。MobileBuild.yml 只设环境变量这一条通道 ——
+# Sys.environment() 整个灌进 defines。build.yml 只设环境变量这一条通道 ——
 # 别再加 -D HXCPP_COMPILE_CACHE，那条在 Windows 上会被上游把值拼坏
 # （值成了 "<路径>=<路径>"，CompileCache.init() 建目录直接失败），FE 两仓已经踩过。
 #
 # ── 两族 key ──
-#   nf-hxcpp-<os>-<arch>-<target>-<run_id>   滚动 key，去掉末尾 run_id 是一条线
-#   nf-deps-<os>-<target>-<hmm.json 的 hash> 内容 key，去掉末尾那段 hash 才是一条线
+#   nf-hxcpp-<os>-<arch>-<slug>-<run_id>    滚动 key，去掉末尾 run_id 是一条线
+#   nf-deps-<os>-<slug>-<hmm.json 的 hash>  内容 key，依赖没变就不重复上传
 # 依赖那族用内容 key 是因为它动辄几百 MB：依赖没变就不该重复上传，变了自然换 key。
+#
+# slug 是目标名（小写化、空格转连字符）：Windows / linux / linux-arm64 /
+# macos-15-arm64 / macos-14-x86_64 / android / ios / windows-zgc。
+# 必须带 slug：Android、iOS、macOS 都跑在 macOS runner 上，光靠 os+arch 区分不开，
+# 几个目标会抢同一个 key —— 只有一个 save 得进去，其余的全白编。
 
 on:
   workflow_dispatch:

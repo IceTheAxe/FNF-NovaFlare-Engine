@@ -1,5 +1,30 @@
 name: Release
 
+# 发版编排：改版本号 -> 7 个目标并行编 -> 一次性打包发布。
+#
+# 相对旧版的改动：
+#
+#  1) 平台不再各自一个 workflow（旧的 WindowsBuild / LinuxBuild / MacBuild /
+#     MobileBuild 各自被调用、各自上传一个 zip）。现在只有 build.yml 一个 worker，
+#     本文件用 matrix 决定编哪些。加目标 = matrix 加一行。
+#
+#  2) ★ 打包只做一次。旧流程：每个平台 job 自己 zip 一次 -> releaser 收集这些 zip
+#     -> 直接发。同一份字节压了两遍（apk/ipa 更是被套进第二层 zip：
+#     android.zip 里装 apk、ios.zip 里装 ipa，用户下载后要先解一层才能装）。
+#     现在 worker 只上传原始产物（目录 / *.apk / *.ipa），由 releaser 统一压一次；
+#     apk / ipa 本身已经是压缩包，作为附件直接发，不再套 zip。
+#
+#  3) macos-build 不再 needs mobile-build。旧版把 macOS 挂在移动端后面串行跑，
+#     只是历史遗留，没有任何依赖关系。现在全部并行。
+#
+#  4) 平台划分跟 Frozen Engine 对齐：macOS / Linux 各拆 x86_64 与 arm64 两份，
+#     runner 一律用 latest（架构靠 -arm64 / -64 交叉编译表达，不靠挑镜像）。
+#     旧版 macOS 是按 macos-14 / macos-15 两个镜像区分的，等于用"镜像版本"当
+#     "架构"用 —— 镜像一滚动，这个划分就和真实产物对不上了。
+#
+#  5) 发布链一律 use_cache=false 全量重编，不让缓存成为发布产物的一个变量
+#     （和 FE 两个仓库的 release 链一致）。日常 CI 才用缓存，见 build-all.yml。
+
 on:
   workflow_dispatch:
     inputs:
@@ -7,9 +32,16 @@ on:
         description: '输入格式为"版本名 版本号"，例如：1.2.0-Dev 2.7'
         required: true
         default: ''
+      dependencies_to_update:
+        description: '留空 = 全部走缓存；输入 "all" 强制重装所有 haxelib。发布链默认建议留空'
+        required: false
+        default: ''
 
 permissions:
   contents: write
+
+env:
+  PROJECT_NAME: NovaFlareEngine
 
 jobs:
   update-versions:
@@ -31,17 +63,22 @@ jobs:
           version_number=$(echo "$input" | awk '{print $2}')
           commit_sha=$(git rev-parse --short HEAD)
           current_timestamp=$(date +%Y%m%d%H%M)
-          
+
           version_number_int=$(echo "$version_number" | tr -d '.')
           current_date=$(date +%y%m%d)
           version_number_int_with_timestamp="${version_number_int}${current_date}"
+
+          if [ -z "$version_name" ] || [ -z "$version_number" ]; then
+            echo "::error::version_input 需要两个字段，格式：\"版本名 版本号\"，例如：1.2.0-Dev 2.7"
+            exit 1
+          fi
 
           echo "Parsed version name: $version_name"
           echo "Parsed version number: $version_number"
           echo "Version number without dots: $version_number_int"
           echo "Version number with timestamp: $version_number_int_with_timestamp"
           echo "Commit SHA: $commit_sha"
-          
+
           echo "version_name=$version_name" >> $GITHUB_OUTPUT
           echo "version_number=$version_number" >> $GITHUB_OUTPUT
           echo "version_number_int_with_timestamp=$version_number_int_with_timestamp" >> $GITHUB_OUTPUT
@@ -80,96 +117,225 @@ jobs:
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
           git add gitVersion.txt Project.xml source/states/mainMenuState/MainMenuState.hx
-    
+
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
             git commit -m "chore: Release version ${{ steps.parse-version.outputs.version_name }} ${{ steps.parse-version.outputs.version_number_int_with_timestamp }}"
             git push
           fi
-          
-  mobile-build:
-    name: "Mobile Build (macOS 14)"
+
+  build:
+    name: ${{ matrix.name }}
     needs: update-versions
-    uses: ./.github/workflows/MobileBuild.yml
+    # 任何一个目标失败都要让其余目标跑完：一个平台挂了不影响其他平台出包，
+    # 也不该把已经编成功的 target 一起取消掉。
+    #
+    # continue-on-error 是配套的：默认 matrix 有一个 job 失败，needs 就判失败，
+    # releaser 根本不会跑 —— 明明 Windows 和 Android 编好了，产物却拿不到手。
+    # 这里让失败被记下来但不阻断，最后由 releaser 逐个校验"该有的包在不在"，
+    # 真的少东西时它会带着明确的 ::error:: 失败。这比"默默发一个缺包的 release"安全。
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ---------- 桌面 ----------
+          # 架构靠 lime 的 -arm64 / -64 交叉编译表达，不靠"挑一个对应架构的镜像"。
+          # 唯一例外是 macOS x86_64：macos-latest 已经是 Apple Silicon 独占，
+          # Intel 镜像停在 macos-26（最后一个），所以这条显式钉住。
+          - name: Windows
+            os: windows-latest
+            buildArgs: windows
+            artifactName: windows-x86_64
+            artifactPath: export\release\windows\bin\*
+
+          - name: Linux
+            os: ubuntu-latest
+            buildArgs: linux
+            artifactName: linux-x86_64
+            artifactPath: export/release/linux/bin/*
+
+          # ARM64 与 x86_64 的编译参数不同，hxcpp 算出来的 hash 也不同 ——
+          # 两条线在 build.yml 里靠 slug 区分缓存，互不干扰。
+          - name: Linux ARM64
+            os: ubuntu-latest
+            buildArgs: linux -arm64 -D HXCPP_ARM64
+            artifactName: linux-arm64
+            artifactPath: export/release/linux/bin/*
+
+          - name: macOS ARM64
+            os: macos-latest
+            buildArgs: mac -arm64 -D HXCPP_ARM64
+            artifactName: macos-arm64
+            artifactPath: export/release/macos/bin/*
+
+          # macos-26 是 GitHub 最后一个 Intel macOS runner。往后 macos-latest 只剩
+          # Apple Silicon，x86_64 产物就再也没法出了 —— 所以这条不能跟着 latest 走。
+          - name: macOS x86_64
+            os: macos-26
+            buildArgs: mac -64 -D HXCPP_M64
+            artifactName: macos-x86_64
+            artifactPath: export/release/macos/bin/*
+
+          # ---------- 移动端 ----------
+          # Android / iOS 也跑在 macos-latest 上，但 target slug 不同，
+          # 不会和上面的 macOS 抢同一份 hxcpp 缓存。
+          - name: Android
+            os: macos-latest
+            buildArgs: android
+            artifactName: android-arm64
+            artifactPath: export/release/android/bin/app/build/outputs/apk/release/*.apk
+
+          - name: iOS
+            os: macos-latest
+            buildArgs: ios -arm64 -nosign
+            artifactName: ios-arm64
+            # build.yml 里已经把它打成 .ipa（Payload/xxx.app），这里直接传成品，
+            # 不要在 releaser 里再套一层 zip。
+            artifactPath: export/release/ios/build/Release-iphoneos/*.ipa
+    # 记录失败但不阻断 —— 理由见上面 strategy 那段注释。
+    # 每个目标失败时 releaser 的校验会抓住缺失的包并明确报错。
+    continue-on-error: true
+    uses: ./.github/workflows/build.yml
     with:
-      dependencies_to_update: 'all'
-    secrets: inherit
-
-  macos-build:
-    name: "macOS Build"
-    needs: mobile-build
-    uses: ./.github/workflows/MacBuild.yml
-    secrets: inherit
-
-  windows-build:
-    name: "Windows Build"
-    needs: update-versions
-    uses: ./.github/workflows/WindowsBuild.yml
-    secrets: inherit
-
-  linux-build:
-    name: "Linux Build"
-    needs: update-versions
-    uses: ./.github/workflows/LinuxBuild.yml
-    secrets: inherit
+      name: ${{ matrix.name }}
+      os: ${{ matrix.os }}
+      buildArgs: ${{ matrix.buildArgs }}
+      artifactName: ${{ matrix.artifactName }}
+      artifactPath: ${{ matrix.artifactPath }}
+      # 发布链全量重编。
+      use_cache: false
+      dependencies_to_update: ${{ inputs.dependencies_to_update }}
 
   releaser:
-    name: "Create Release"
-    needs: [update-versions, mobile-build, macos-build, windows-build, linux-build]
+    name: Package and Publish
+    needs: [update-versions, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      VERSION_NAME: ${{ needs.update-versions.outputs.version_name }}
     steps:
-      - name: Download Android Build
+      # download-artifact 用 continue-on-error：某个 target 失败时 artifact 压根不存在，
+      # 默认行为是让这一步直接红掉，看不出"到底缺哪个包"的清晰原因。
+      # 真正的判断交给下面的 Assemble —— 它会逐个点名缺哪个。
+      #
+      # ---- 桌面：目录 -> zip（唯一一次压缩）----
+      - name: Download Windows build
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
-          name: androidBuild
-          path: artifacts/
+          name: windows-x86_64
+          path: artifacts/windows-x86_64
 
-      - name: Download iOS Build
+      - name: Download Linux build
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
-          name: iOSBuild
-          path: artifacts/
+          name: linux-x86_64
+          path: artifacts/linux-x86_64
 
-      - name: Download macOS14 Build
+      - name: Download Linux ARM64 build
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
-          name: macOSBuild-14
-          path: artifacts/
+          name: linux-arm64
+          path: artifacts/linux-arm64
 
-      - name: Download macOS15 Build
+      - name: Download macOS ARM64 build
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
-          name: macOSBuild-15
-          path: artifacts/
+          name: macos-arm64
+          path: artifacts/macos-arm64
 
-      - name: Download Windows Build
+      - name: Download macOS x86_64 build
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
-          name: windowsBuild
-          path: artifacts/
+          name: macos-x86_64
+          path: artifacts/macos-x86_64
 
-      - name: Download Linux Build
+      # ---- 移动端：apk / ipa 本身已是压缩包，直接改名当附件，不再套 zip ----
+      - name: Download Android build
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
-          name: LinuxBuild
-          path: artifacts/
+          name: android-arm64
+          path: artifacts/mobile
 
-      - name: List downloaded artifacts
+      - name: Download iOS build
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-arm64
+          path: artifacts/mobile
+
+      - name: Assemble release files
+        shell: bash
         run: |
-          find artifacts/ -type f -name "*" | sort
-          echo "Total files found:"
-          find artifacts/ -type f -name "*" | wc -l
+          set -euo pipefail
+          mkdir -p dist
 
-      - name: Publish The Release
+          # 桌面产物是目录，压一次 —— 全流程唯一一次压缩。
+          # -X 去掉扩展属性，装的时候少一堆 __MACOSX/ 垃圾。
+          #
+          # 输出用绝对路径：早先写成 (cd "$dir" && zip ../../"$out") 的话，
+          # ../../ 能落回 dist/ 只因为 artifacts/<name>/ 恰好两层深。哪天把下载目录
+          # 改成 artifacts/<platform>/<variant>/ 就静默写到仓库根外面去了。
+          pack() {
+            local dir="$GITHUB_WORKSPACE/artifacts/$1"
+            local out="$GITHUB_WORKSPACE/dist/$2"
+            if [ ! -d "$dir" ]; then
+              echo "::error::缺少产物目录: $dir"
+              return 1
+            fi
+            # shellcheck disable=SC2012
+            local count=$(ls -A "$dir" | wc -l)
+            if [ "$count" -eq 0 ]; then
+              echo "::error::$dir 是空的，产物上传失败了"
+              return 1
+            fi
+            echo "packing $1 -> $2 ($count entries)"
+            (cd "$dir" && zip -r -X -9 "$out" .)
+          }
+
+          pack windows-x86_64    "${{ env.PROJECT_NAME }}-Windows-x86_64-V$VERSION_NAME.zip"
+          pack linux-x86_64      "${{ env.PROJECT_NAME }}-Linux-x86_64-V$VERSION_NAME.zip"
+          pack linux-arm64        "${{ env.PROJECT_NAME }}-Linux-arm64-V$VERSION_NAME.zip"
+          pack macos-arm64        "${{ env.PROJECT_NAME }}-macOS-arm64-V$VERSION_NAME.zip"
+          pack macos-x86_64       "${{ env.PROJECT_NAME }}-macOS-x86_64-V$VERSION_NAME.zip"
+
+          # apk / ipa 直接改名。它们已经是 zip 格式（apk 是 zip；ipa 是 Payload/xxx.app），
+          # 再压一遍既费 CPU 又让人多解一层。
+          shopt -s nullglob
+          apks=(artifacts/mobile/*.apk)
+          ipas=(artifacts/mobile/*.ipa)
+          shopt -u nullglob
+
+          if [ ${#apks[@]} -eq 0 ]; then
+            echo "::error::没有找到 apk（Android 构建可能失败了）"
+            exit 1
+          fi
+          if [ ${#ipas[@]} -eq 0 ]; then
+            echo "::error::没有找到 ipa（iOS 构建可能失败了）"
+            exit 1
+          fi
+
+          cp "${apks[0]}" "dist/${{ env.PROJECT_NAME }}-Android-arm64-V$VERSION_NAME.apk"
+          cp "${ipas[0]}" "dist/${{ env.PROJECT_NAME }}-iOS-arm64-nosign-V$VERSION_NAME.ipa"
+
+          echo "---- release files ----"
+          ls -lh dist/
+
+      - name: Publish the release
         uses: softprops/action-gh-release@v3
         with:
-          token: "${{ secrets.GITHUB_TOKEN }}"
+          token: ${{ secrets.GITHUB_TOKEN }}
           prerelease: false
           tag_name: "V${{ needs.update-versions.outputs.version_name }}"
           name: "V${{ needs.update-versions.outputs.version_name }}"
           files: |
-            artifacts/*.zip
+            dist/*
+          fail_on_unmatched_files: true
           allowUpdates: true

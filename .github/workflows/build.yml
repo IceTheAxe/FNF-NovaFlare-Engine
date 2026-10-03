@@ -1,0 +1,438 @@
+name: Build
+
+# 单个平台的构建 worker。整个仓库只有这一份"怎么编一个平台"的实现，
+# 上层（build-all.yml / release.yml）只负责用 matrix 决定编哪些、并���待哪些产物。
+#
+# 设计要点（相对旧的 WindowsBuild/LinuxBuild/MacBuild/MobileBuild 各自一份）：
+#
+#  1) 平台差异全部收进 matrix 的 buildArgs / setupCommand，本文件里用 name 做
+#     少量分支（Android 要 NDK、iOS 要 IPA、Linux 要 libvlc），不再按平台拆文件。
+#     加一个目标 = matrix 里加一行，不是一个新文件。
+#
+#  2) 缓存做成开关（use_cache），而不是像旧 MobileBuild 那样按 inputs 猜。
+#     发布链走 use_cache=false 全量重编，CI 链走 use_cache=true。
+#     理由和 FE 两个仓库一致：出 release 时宁可全量重编，也不想让缓存
+#     成为发布产物的一个变量。
+#
+#  3) ★ 本 worker 不打包。旧流程里每个平台 job 自己 zip 一次，releaser 再把这些
+#     zip 收集一遍，等于同一份字节压了两次；apk/ipa 还被套进第二层 zip
+#     （android.zip 里装 apk、ios.zip 里装 ipa），用户下载后要先解一层才能装。
+#     现在这里只上传"原始产物"（目录 / *.apk / *.ipa），压缩统一由 releaser 做一次，
+#     且 apk/ipa 直接作为 release 附件，不再套 zip。见 release.yml 的 releaser。
+#
+#  4) 环境变量优先用 job/step env 而不是内联，pwsh 与 bash 都能读。
+#     特别注意 HXCPP_COMPILE_CACHE 只走环境变量这一条通道：hxcpp 的
+#     BuildTool.runMain() 开头会把 Sys.environment() 整个灌进 defines，环境变量本身就够；
+#     再用 -D 传一遍在 Windows 上会被上游拼坏（值成了 "<路径>=<路径>"，
+#     反斜杠还翻一倍），CompileCache.init() 建目录直接失败、缓存静默失效。
+#     原理见 hxcpp-cache.yml 顶部。
+
+on:
+  workflow_call:
+    inputs:
+      name:
+        description: '目标显示名，同时用于 job 名、缓存 key 的 slug、以及 release 附件名'
+        required: true
+        type: string
+      os:
+        required: true
+        type: string
+      buildArgs:
+        description: '传给 lime build 的参数'
+        required: true
+        type: string
+      artifactName:
+        description: 'actions/upload-artifact 的 name，releaser 按它下载'
+        required: true
+        type: string
+      artifactPath:
+        description: '原始产物路径（目录或 glob），本 worker 原样上传，不压缩'
+        required: true
+        type: string
+      use_cache:
+        description: '是否启用 hxcpp 编译缓存 + haxelib 依赖缓存'
+        required: false
+        type: boolean
+        default: false
+      dependencies_to_update:
+        description: '输入 "all" 强制重装所有 haxelib；留空则完全依赖缓存；也可指定库名'
+        required: false
+        type: string
+        default: ''
+
+env:
+  HAXE_VERSION: 4.3.7
+  PROJECT_NAME: NovaFlareEngine
+
+jobs:
+  build:
+    name: ${{ inputs.name }}
+    runs-on: ${{ inputs.os }}
+    timeout-minutes: 180
+    environment: ${{ github.repository == 'IceTheAxe/FNF-NovaFlare-Engine' && 'private-build' || 'public-build' }}
+
+    env:
+      # 设了它 hxcpp 才会用内容 hash 给 .obj 命名（跨机器命中就跳过编译）。
+      # 机制与"两族 key"的说明见 .github/workflows/hxcpp-cache.yml 顶部。
+      HXCPP_COMPILE_CACHE: ${{ github.workspace }}/.hxcpp_cache
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@main
+
+      # haxelib 的根目录在三个地方被用到（依赖缓存的 path、Install Libraries、
+      # 诊断输出），先定下来再往下走。
+      # Windows 上刻意用 C:/haxelib 这种正斜杠形式：Install Libraries 跑在 git bash 里，
+      # 写成 C:\haxelib 的话 bash 会把 \h 当转义、haxelib 收到的是个错路径，
+      # 依赖会装到别处，而依赖缓存仍然按 C:\haxelib 存取 —— 两边对不上，
+      # 缓存看着命中了其实等于没命中。Windows 的 API 认正斜杠，这里没有理由用反斜杠。
+      - name: Resolve haxelib root
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            HAXELIB_ROOT="C:/haxelib"
+          else
+            HAXELIB_ROOT="$HOME/haxelib"
+          fi
+          echo "HAXELIB_ROOT=$HAXELIB_ROOT" >> "$GITHUB_ENV"
+          echo "haxelib root: $HAXELIB_ROOT"
+
+      - name: Setup Haxe
+        uses: krdlab/setup-haxe@master
+        with:
+          haxe-version: ${{ env.HAXE_VERSION }}
+
+      - name: Setup Android NDK
+        if: inputs.name == 'Android'
+        id: setup-ndk
+        uses: nttld/setup-ndk@main
+        with:
+          ndk-version: r28c
+          # 不让 action 往 PATH 里塞工具链：NDK 路径统一由下面的 Export/Configure
+          # 显式传给 hxcpp 和 lime，避免 runner 预装的 r27d 混进来。
+          add-to-path: false
+
+      # hxcpp 从**进程环境**读 ANDROID_NDK_ROOT：BuildTool.hx:1522 把整个 env 灌进
+      # defines，Setup.hx:417 见它已存在就直接用、不再探测。而 runner 镜像预置了
+      # ANDROID_NDK_ROOT=.../ndk/27.3.13750724（r27d），r27 及以下默认链接出 4 KB
+      # 对齐的 .so，在 16 KB 页大小的 Android 15+ 设备上 dlopen 会失败。
+      # 这里把它覆盖成 setup-ndk 装的 r28c（16 KB 对齐是 r28 起的默认值）。
+      - name: Export Android NDK
+        if: inputs.name == 'Android'
+        run: |
+          echo "ANDROID_NDK_ROOT=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
+          echo "ANDROID_NDK_HOME=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
+          echo "ANDROID_NDK=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
+
+      # 光靠 r28 的默认还不够。实测 NDK r28c 只默认设了 max-page-size（决定 LOAD 段的
+      # p_align），没有设 common-page-size（决定 GNU_RELRO 段末端是否落在 16 KB 边界）。
+      # 官方对 RELRO 的规则是 (VirtAddr + MemSiz) % 0x4000 == 0，不满足会在运行时段错误。
+      # hxcpp 没有传链接参数的命令行入口，唯一的注入点是 $HOME/.hxcpp_config.xml。
+      - name: Force 16 KB linker flags for hxcpp
+        if: inputs.name == 'Android'
+        run: |
+          printf '%s\n' \
+            '<xml>' \
+            '  <section id="exes">' \
+            '    <linker id="dll" if="android">' \
+            '      <flag value="-Wl,-z,max-page-size=16384"/>' \
+            '      <flag value="-Wl,-z,common-page-size=16384"/>' \
+            '    </linker>' \
+            '  </section>' \
+            '</xml>' > "$HOME/.hxcpp_config.xml"
+          cat "$HOME/.hxcpp_config.xml"
+
+      - name: Setup Java JDK
+        if: inputs.name == 'Android'
+        uses: actions/setup-java@main
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      # NovaFlare 的 Windows 版产物落在很深的长路径下，explorer 和部分 IO 层
+      # 在未开启长路径支持时会失败。旧 WindowsBuild.yml 就有这一步，保留。
+      - name: Enable Windows long path support
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1 -Type DWord -Force
+          $check = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled"
+          Write-Output "LongPathsEnabled = $($check.LongPathsEnabled)"
+
+      - name: Install libVLC
+        if: contains(inputs.name, 'Linux')
+        run: sudo apt-get update && sudo apt-get install -y libvlc-dev libvlccore-dev
+
+      - name: Restore private GameAnalytics
+        if: github.repository == 'IceTheAxe/FNF-NovaFlare-Engine' && github.event_name != 'pull_request_target' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        shell: pwsh
+        env:
+          NOVA_GA_IMPL_B64: ${{ secrets.NOVA_GA_IMPL_B64 }}
+          NOVA_GA_TYPES_B64: ${{ secrets.NOVA_GA_TYPES_B64 }}
+          NOVA_GA_CONFIG_B64: ${{ secrets.NOVA_GA_CONFIG_B64 }}
+        run: ./tools/restore-private-gameanalytics.ps1 -Required
+
+      # ---------- 缓存 ----------
+      # 两条独立的线：
+      #   nf-hxcpp-<os>-<arch>-<slug>-<run_id>   滚动 key，去掉末尾 run_id 是一条线
+      #   nf-deps-<os>-<slug>-<hmm.json hash>   内容 key，依赖没变就不重复上传
+      #
+      # key 里必须带 slug：Android / iOS / macOS ARM64 都跑在 macos-latest 上，
+      # 而 runner.arch 对它们是同一个值（宿主架构），光靠 os+arch 区分不开 ——
+      # 几个目标会抢同一个 key，只有一个 save 得进去，其余的全白编。
+      # macOS x86_64 虽然换了 runner（macos-26，最后一个 Intel 镜像），slug 同样
+      # 保证它和 macOS ARM64 分属两条线。
+      # 宿主架构相同不代表目标相同：mac -64 与 mac -arm64 的编译参数不同，
+      # hxcpp 算出来的 hash 也不同，拿对方的缓存没有意义。restore 也只认自己那条线。
+      # slug 由目标名生成（小写、空格转连字符）：Windows / linux / linux-arm64 /
+      # macos-arm64 / macos-x86_64 / android / ios。
+      #
+      # 另有一条"绕过"规则：dependencies_to_update 里点名了当前 target（或 all）时
+      # 必须跳过依赖缓存 —— 缓存里的 export/release/android/ 就是上一次编出来的中间产物，
+      # 依赖都变了还复用它，编出来的是新旧混合体。
+      - name: Decide cache strategy
+        id: cache_strategy
+        shell: bash
+        env:
+          USE_CACHE: ${{ inputs.use_cache }}
+          DEPS_TO_UPDATE: ${{ inputs.dependencies_to_update }}
+          TARGET_SLUG: ${{ inputs.name }}
+        run: |
+          slug=$(echo "$TARGET_SLUG" | tr ' A-Z__' '-a-z--' | tr -cd '[:alnum:]-')
+          echo "slug=$slug" >> $GITHUB_OUTPUT
+
+          if [ "$USE_CACHE" != "true" ]; then
+            echo "use_cache=false" >> $GITHUB_OUTPUT
+            echo "skip_deps_cache=true" >> $GITHUB_OUTPUT
+            echo "::notice::发布链：全量重编，不使用任何缓存"
+            exit 0
+          fi
+
+          echo "use_cache=true" >> $GITHUB_OUTPUT
+          requested=$(echo "$DEPS_TO_UPDATE" | tr '[:upper:]' '[:lower:]' | tr ',' ' ')
+          if [ -z "$requested" ]; then
+            echo "skip_deps_cache=false" >> $GITHUB_OUTPUT
+            echo "update_libs=false" >> $GITHUB_OUTPUT
+          elif [ "$requested" = "all" ] || echo " $requested " | grep -q " $slug "; then
+            echo "skip_deps_cache=true" >> $GITHUB_OUTPUT
+            echo "update_libs=true" >> $GITHUB_OUTPUT
+            echo "::notice::$TARGET_SLUG：依赖被点名更新，跳过依赖缓存"
+          else
+            echo "skip_deps_cache=false" >> $GITHUB_OUTPUT
+            echo "update_libs=true" >> $GITHUB_OUTPUT
+            echo "libs_to_update=$requested" >> $GITHUB_OUTPUT
+          fi
+
+      # 依赖（hmm 装的库）落在 ~/haxelib（或 Windows 的 C:\haxelib）——
+      # 依赖 key 取 hmm.json 的内容 hash：依赖没变就精确命中、也不会重复上传；
+      # 变了自然换 key（固定 key 存不进第二遍，缓存会永远冻在第一份）。
+      - name: Restore dependency cache
+        if: steps.cache_strategy.outputs.skip_deps_cache == 'false'
+        uses: actions/cache/restore@v4
+        with:
+          key: nf-deps-${{ runner.os }}-${{ steps.cache_strategy.outputs.slug }}-${{ hashFiles('hmm.json') }}
+          restore-keys: |
+            nf-deps-${{ runner.os }}-${{ steps.cache_strategy.outputs.slug }}-
+          path: |
+            .haxelib/
+            ${{ env.HAXELIB_ROOT }}
+            ~/.gradle
+
+      - name: Restore hxcpp cache
+        if: inputs.use_cache
+        uses: actions/cache/restore@v4
+        with:
+          key: nf-hxcpp-${{ runner.os }}-${{ runner.arch }}-${{ steps.cache_strategy.outputs.slug }}-${{ github.run_id }}
+          restore-keys: |
+            nf-hxcpp-${{ runner.os }}-${{ runner.arch }}-${{ steps.cache_strategy.outputs.slug }}-
+          path: .hxcpp_cache
+
+      # 装依赖的逻辑对所有目标其实是一样的（hmm + hmm.json），按平台分叉的只有
+      # "haxelib 装在哪"（上面 Resolve haxelib root 已经统一了），所以这里不再让
+      # matrix 传 setupCommand 进来 —— 传了就得在每个目标上重复写一遍一样的命令，
+      # 改依赖安装方式时还得记得改 N 处。FE 那边沿用 setupCommand 是因为它每个平台
+      # 确实跑不同的脚本（windows.bat / unix.sh），NovaFlare 没有这层脚本。
+      - name: Install Libraries
+        if: steps.cache_strategy.outputs.skip_deps_cache == 'true' || steps.cache_strategy.outputs.update_libs == 'true'
+        shell: bash
+        run: |
+          set -e
+          haxelib setup "$HAXELIB_ROOT"
+          haxelib --global install hmm --quiet
+          haxelib --global run hmm install
+
+          # 缓存的 haxelib git checkout 会漂到上游默认分支，即使 hmm.json 钉了 commit。
+          # 这四个库 NovaFlare 打过兼容补丁（polymod 的加载器、thx 的运行时改写、
+          # FlxPartialSound 的部分混音），必须回到钉住的那个版本，否则编出来能跑、
+          # 运行时才炸。所以**每次**装完都无条件钉一遍，不看缓存。
+          for library in polymod thx.core thx.semver FlxPartialSound; do
+            haxelib --global run hmm reinstall --force "$library"
+          done
+
+          if [ "${{ steps.cache_strategy.outputs.update_libs }}" = "true" ] && \
+             [ "${{ steps.cache_strategy.outputs.skip_deps_cache }}" = "false" ]; then
+            echo "更新指定依赖: ${{ steps.cache_strategy.outputs.libs_to_update }}"
+            haxelib --global run hmm reinstall --force ${{ steps.cache_strategy.outputs.libs_to_update }}
+          fi
+
+          # 库在 haxelib 根目录，不是工作区里的 .haxelib/。
+          echo "lime revision: $(git -C "$HAXELIB_ROOT/lime/git" rev-parse HEAD 2>/dev/null || echo 'n/a')"
+          echo "openfl revision: $(git -C "$HAXELIB_ROOT/openfl/git" rev-parse HEAD 2>/dev/null || echo 'n/a')"
+
+      - name: Configure Android
+        if: inputs.name == 'Android'
+        run: |
+          haxelib run lime config ANDROID_SDK $ANDROID_HOME
+          # 必须写 setup-ndk 的输出，不能写 $ANDROID_NDK_HOME —— 镜像预置的那个是 r27d。
+          # lime 会把这个值经 project.environment 回灌进进程环境（HXProject.hx:501），
+          # 而 hxcpp 正是从进程环境取 ANDROID_NDK_ROOT 的；写错这里等于用 r27d 链接，
+          # 编出来的 libApplicationMain.so 只有 4 KB 段对齐。
+          haxelib run lime config ANDROID_NDK_ROOT ${{ steps.setup-ndk.outputs.ndk-path }}
+          haxelib run lime config JAVA_HOME $JAVA_HOME
+          haxelib run lime config ANDROID_SETUP true
+
+      - name: Extract current version
+        id: get_version
+        shell: bash
+        run: |
+          CURRENT_VERSION=$(sed -n 's/.*build-number="\([^"]*\)".*/\1/p' Project.xml)
+          if [ -z "$CURRENT_VERSION" ]; then
+            echo "::error::在 Project.xml 中未找到 build-number 属性"
+            exit 1
+          fi
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
+      # -always 让 hxcpp 每轮都去查内容 hash，而不是先按 mtime 判断"这个 .obj 是不是新的"。
+      # 已编过的文件由 hash 命中、直接跳过，压根不调编译器。
+      # CI 上 mtime 那条路必然失效：checkout 完源文件 mtime 全是"刚刚"，
+      # 缓存里的 .obj 怎么比都是过期的。
+      - name: Compile
+        shell: bash
+        env:
+          BUILD_NUMBER: ${{ steps.get_version.outputs.current_version }}
+        run: |
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+
+          # 发布链跑在 workflow_dispatch 之下：把 -dev 换成 commit，产出可追溯的版本号。
+          # CI（push / pull_request）保持 Project.xml 里的原值。
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            BUILD_NUMBER="${BUILD_NUMBER/-dev/-$COMMIT_SHA}"
+          fi
+
+          EXTRA=""
+          if [ "${{ inputs.use_cache }}" = "true" ]; then
+            EXTRA="-always"
+          fi
+
+          haxelib run lime build ${{ inputs.buildArgs }} $EXTRA \
+            -Dcommit_sha=$COMMIT_SHA -Dbuild_number="$BUILD_NUMBER"
+
+      # 编译失败也存：hxcpp 是并行编的，报错时大部分 .obj 已经编完了，下次照样命中。
+      # 失败那个文件不会留在缓存里（Compiler.compile() 在编译器返回非 0 时会删掉自己产出的 obj）。
+      # key 必须和上面 restore 的**同形**，只差末尾的 run_id：restore 命中靠 restore-keys
+      # 前缀匹配，save 这边少一段就永远匹配不上 —— 缓存存了，但没人读得到。
+      - name: Save hxcpp cache
+        if: always() && inputs.use_cache
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          key: nf-hxcpp-${{ runner.os }}-${{ runner.arch }}-${{ steps.cache_strategy.outputs.slug }}-${{ github.run_id }}
+          path: .hxcpp_cache
+
+      # 依赖没变时 key 和上面 restore 一样、缓存已存在，save 会报"已存在"——
+      # 那属于正常情况（该缓存的正是那份），continue-on-error 兜住。
+      - name: Save dependency cache
+        if: steps.cache_strategy.outputs.skip_deps_cache == 'false'
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          key: nf-deps-${{ runner.os }}-${{ steps.cache_strategy.outputs.slug }}-${{ hashFiles('hmm.json') }}
+          path: |
+            .haxelib/
+            ${{ env.HAXELIB_ROOT }}
+            ~/.gradle
+
+      # 16 KB 页大小的 Android 15+ 设备要求每个 .so 的 ELF LOAD 段按 16384 对齐，
+      # 否则装载时直接报 "program alignment (4096) cannot be smaller than system
+      # page size (16384)"。链接用的 NDK 一旦回退到 r27 及以下就会复现，所以在这里
+      # 拦住，不要留到装真机的时候才发现。
+      - name: Verify 16 KB page alignment
+        if: inputs.name == 'Android'
+        shell: bash
+        run: |
+          set -e
+          shopt -s nullglob
+
+          APK=$(ls export/release/android/bin/app/build/outputs/apk/release/*.apk | head -1)
+          READELF=$(ls "$ANDROID_NDK_ROOT"/toolchains/llvm/prebuilt/*/bin/llvm-readelf | head -1)
+          echo "APK: $APK"
+          echo "NDK: $ANDROID_NDK_ROOT"
+
+          rm -rf /tmp/so-check && mkdir -p /tmp/so-check
+          unzip -o -q "$APK" 'lib/arm64-v8a/*.so' -d /tmp/so-check
+
+          files=(/tmp/so-check/lib/arm64-v8a/*.so)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::APK 里没有 lib/arm64-v8a/*.so"
+            exit 1
+          fi
+
+          status=0
+          for so in "${files[@]}"; do
+            name=$(basename "$so")
+            dump=$("$READELF" -Wl "$so")
+
+            # LOAD 段的 p_align 必须 >= 2**14，否则 16 KB 设备上 dlopen 直接失败。
+            # 四个 .so 里只有 libApplicationMain.so 是这次构建自己链出来的，其余三个
+            # （liblime / libvlc / libc++_shared）都是随 haxelib 和 NDK 发下来的预编译
+            # 产物；一起查是为了别人换了预编译包时也能发现。
+            loads=$(echo "$dump" | awk '/^  LOAD/{print $NF}' | sort -u)
+            echo "$name  LOAD align: $(echo $loads)"
+            for a in $loads; do
+              if [ "$((a))" -lt 16384 ]; then
+                echo "::error::$name 的 LOAD 段对齐 $a < 16384，16 KB 设备上会 dlopen 失败"
+                status=1
+              fi
+            done
+
+            # GNU_RELRO 的官方要求是 (VirtAddr + MemSiz) % 0x4000 == 0，不满足会在运行时
+            # 段错误。这里只告警不拦截：同门的 Frozen Engine Mobile 产出的
+            # libApplicationMain.so 余数是 12288，实测能跑，说明这条在实机上不总是致命，
+            # 不该因为它挡住发布。上面 .hxcpp_config.xml 里的 common-page-size 就是冲它
+            # 去的，正常情况下这里不该有输出。
+            relro=$(echo "$dump" | awk '/GNU_RELRO/{print $3, $6}')
+            if [ -n "$relro" ]; then
+              set -- $relro
+              rem=$(( ($(( $1 )) + $(( $2 ))) % 16384 ))
+              if [ "$rem" -ne 0 ]; then
+                echo "::warning::$name 的 RELRO 末端未落在 16 KB 边界（余 $rem）"
+              fi
+            fi
+          done
+          exit $status
+
+      # iOS：.ipa 本身就是 zip（Payload/xxx.app），这一步是**唯一**一次压缩。
+      # 旧的 MobileBuild 在这之后还会 `zip -r ios.zip *.ipa` 再套一层 ——
+      # 同一份字节压两遍，用户还得解两次才能装。现在只产 .ipa，releaser 直接当附件发。
+      - name: Make IPA
+        if: inputs.name == 'iOS'
+        shell: bash
+        run: |
+          set -e
+          cd export/release/ios/build/Release-iphoneos
+          rm -rf Payload
+          mkdir Payload
+          mv *.app Payload
+          # -X 去掉 zip 里的扩展属性（macOS 资源叉），装的时候少一堆 __MACOSX/ 垃圾
+          zip -r -X "${{ env.PROJECT_NAME }}.ipa" Payload
+
+      - name: Upload raw artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifactName }}
+          path: ${{ inputs.artifactPath }}
+          if-no-files-found: error
+          # 产物已经压过（zip/apk/ipa）或本来就是二进制，再压一遍纯浪费 CPU。
+          # 真正的压缩在 releaser 统一做。
+          compression-level: 0
+          retention-days: 14
