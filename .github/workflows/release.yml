@@ -153,7 +153,11 @@ jobs:
             buildArgs: ios -arm64 -nosign
             artifactName: ios-arm64
             artifactPath: export/release/ios/build/Release-iphoneos/*.ipa
-    continue-on-error: true
+    # 这里不能写 continue-on-error。它在 uses: 型 job 上是**非法字段** ——
+    # reusable workflow job 的键白名单只有
+    # name / uses / with / secrets / strategy / needs / if / concurrency / permissions。
+    # 写上去会让 GitHub 整块解析失败，报 "Unexpected value 'uses'" 加
+    # "Required property is missing: runs-on"（它把这段当成普通 job 在解析）。
     uses: ./.github/workflows/build.yml
     with:
       name: ${{ matrix.name }}

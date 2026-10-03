@@ -23,7 +23,11 @@ permissions:
 jobs:
   build:
     name: ${{ matrix.name }}
-    runs-on: ${{ matrix.os }}
+    # 注意：这里不能有 runs-on。job 调的是 uses:（reusable workflow），
+    # runner 由 build.yml 内部的 `runs-on: ${{ inputs.os }}` 决定，
+    # 平台只通过 matrix 传进去。reusable workflow job 的键白名单里没有 runs-on /
+    # continue-on-error / steps / container —— 写上去 GitHub 会报
+    # "Invalid workflow file / Unexpected value 'uses'"。
     strategy:
       fail-fast: false
       matrix:
