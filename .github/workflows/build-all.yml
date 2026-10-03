@@ -1,16 +1,5 @@
 name: Build All
 
-# 日常 CI 入口：push / PR 时把所有目标编一遍。
-#
-# 旧版只有 MobileBuild.yml 挂了 push/PR 触发器，桌面三端（Windows/Linux/macOS）
-# 是纯 workflow_dispatch —— 意味着改一行 Haxe 代码推上去，只有 Android 和 iOS 会告诉你
-# 编不编得过，桌面端的编译错误要等有人手动点才发现。现在桌面端也进 CI。
-#
-# 和 release.yml 的区别只有两处：
-#   use_cache: true   走 hxcpp 编译缓存 + haxelib 依赖缓存（发布链宁可全量重编）
-#   有 pack/release   只上传原始产物，不打包、不发布
-# 打包逻辑仍然只在 release.yml 的 releaser 里存在一份。
-
 on:
   push:
     branches: [main]
@@ -28,6 +17,9 @@ on:
         required: false
         default: ''
 
+permissions:
+  contents: read
+
 jobs:
   build:
     name: ${{ matrix.name }}
@@ -36,10 +28,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # ---------- 桌面 ----------
-          # 与 release.yml 的矩阵保持同构：改一个目标时不用记得改另一个文件。
-          # 架构由 buildArgs 里的 -arm64 / -64 表达；macOS x86_64 显式用 macos-26
-          # （最后一个 Intel runner，macos-latest 已经是 Apple Silicon 独占）。
           - name: Windows
             os: windows-latest
             buildArgs: windows
@@ -70,7 +58,6 @@ jobs:
             artifactName: ci-macos-x86_64
             artifactPath: export/release/macos/bin/*
 
-          # ---------- 移动端 ----------
           - name: Android
             os: macos-latest
             buildArgs: android
@@ -89,6 +76,5 @@ jobs:
       buildArgs: ${{ matrix.buildArgs }}
       artifactName: ${{ matrix.artifactName }}
       artifactPath: ${{ matrix.artifactPath }}
-      # CI 链走缓存。桌面端此前完全没有 hxcpp 缓存，全量重编每次要几十分钟。
       use_cache: true
-      dependencies_to_update: ${{ inputs.dependencies_to_update }}
+      dependencies_to_update: ${{ inputs.dependencies_to_update || '' }}
