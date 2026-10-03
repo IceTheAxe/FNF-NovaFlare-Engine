@@ -302,6 +302,55 @@ jobs:
           fi
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
 
+      # ★ macOS SDK 版本必须显式告诉 hxcpp，不能让它自己猜。
+      #
+      # hxcpp 的 toolchain/mac-toolchain.xml 用 `xcrun --sdk macosx${MACOSX_VER} clang++`
+      # 取编译器，而 MACOSX_VER 由 BuildTool.hx:2198 那段代码扫描
+      # $DEVELOPER_DIR/Platforms/MacOSX.platform/Developer/SDKs/ 得出。NF 用的
+      # hxcpp-4.3.2-new 里那段比较是：
+      #
+      #     if (major_ver > major_best || minor_ver > minor_best) best = ver;
+      #
+      # 这个 || 是错的：主版本更小但次版本更大的旧 SDK 也会被选中。Xcode 26.6 的
+      # SDKs/ 下同时存在多个目录，循环顺序一变就可能算出 "26" 而不是 "26.0"，
+      # 于是 xcrun 报 `SDK "macosx26" cannot be located`，
+      # 接着 `unable to find utility "clang++"` → `Error: Could not create PCH`。
+      #
+      # 同门的 FrozenEngine 用的是 TieGao/hxcpp fork，那边已改成
+      # "主版本更大才取，主版本相同再比次版本"（并对 NaN 做了保护），所以它没这个坑。
+      # 与其等上游 hxcpp 发版，不如在这里把答案直接给它 ——
+      # BuildTool.hx:2198 的条件是 `!defines.exists("MACOSX_VER")`，
+      # 只要外部定义了它，hxcpp 就会跳过那段猜测。
+      #
+      # 覆盖所有 macOS 目标（macOS 两档 + iOS）：它们都要链 clang++，
+      # 都要走 toolchain/mac-toolchain.xml。
+      - name: Resolve macOS SDK version
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -e
+          SDK_PATH=$(xcrun --sdk macosx --show-sdk-path)
+          SDK_VER=$(basename "$SDK_PATH" | sed -e 's/^MacOSX//' -e 's/\.sdk$//')
+          echo "SDK_PATH=$SDK_PATH"
+          echo "SDK_VER=$SDK_VER"
+
+          if [ -z "$SDK_VER" ]; then
+            echo "::error::无法从 $SDK_PATH 解析出 SDK 版本"
+            exit 1
+          fi
+
+          # 拼出的 SDK 名先验一次，别等编到一半才发现 hxcpp 拼错了。
+          if ! xcrun --sdk "macosx$SDK_VER" clang++ --version >/dev/null 2>&1; then
+            echo "::error::xcrun 不认 SDK 'macosx$SDK_VER'（xcodebuild 当前选中的是 $(xcode-select -p)）"
+            xcrun --sdk "macosx$SDK_VER" clang++ --version || true
+            exit 1
+          fi
+
+          # hxcpp 从进程环境读 defines（BuildTool.runMain() 开头灌入 Sys.environment()），
+          # 所以用环境变量传，不用 -D —— 后者在部分平台上会被上游拼坏。
+          echo "MACOSX_VER=$SDK_VER" >> "$GITHUB_ENV"
+          echo "hxcpp will use SDK: macosx$SDK_VER"
+
       # -always 让 hxcpp 每轮都去查内容 hash，而不是先按 mtime 判断"这个 .obj 是不是新的"。
       # 已编过的文件由 hash 命中、直接跳过，压根不调编译器。
       # CI 上 mtime 那条路必然失效：checkout 完源文件 mtime 全是"刚刚"，
