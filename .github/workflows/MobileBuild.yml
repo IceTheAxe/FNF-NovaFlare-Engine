@@ -165,6 +165,7 @@ jobs:
           if-no-files-found: error
 
       - name: Clear old Android cache
+        if: steps.android_cache.outputs.skip_cache == 'false'
         uses: actions/github-script@v9
         with:
           script: |
@@ -185,6 +186,7 @@ jobs:
             }
           
       - name: Save Android cache
+        if: steps.android_cache.outputs.skip_cache == 'false'
         uses: actions/cache/save@v4
         with:
           key: cache-build-Android
@@ -302,6 +304,7 @@ jobs:
           if-no-files-found: error
 
       - name: Clear old iOS cache
+        if: steps.ios_cache.outputs.skip_cache == 'false'
         uses: actions/github-script@v9
         with:
           script: |
@@ -322,6 +325,7 @@ jobs:
             }
           
       - name: Save iOS cache
+        if: steps.iOS_cache.outputs.skip_cache == 'false'
         uses: actions/cache/save@v4
         with:
           key: cache-build-iOS
