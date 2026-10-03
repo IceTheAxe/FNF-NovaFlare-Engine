@@ -77,5 +77,5 @@ jobs:
         uses: actions/upload-artifact@main
         with:
           name: windowsBuild
-          path: export\legacy-gc\windows\bin\windows.zip
+          path: export\release\windows\bin\windows.zip
           if-no-files-found: error
