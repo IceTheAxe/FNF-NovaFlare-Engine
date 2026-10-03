@@ -2,6 +2,11 @@ name: MobileBuild
 on:
   workflow_call:
     inputs:
+      build_ref:
+        description: 'Exact commit to build when called by Release'
+        required: false
+        type: string
+        default: ''
       dependencies_to_update:
         description: '输入 "all" 更新所有haxelib, 或指定库名 (e.g. "lime,openfl")不输入即不给haxelib做任何更新'
         required: false
@@ -39,6 +44,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@main
+        with:
+          ref: ${{ inputs.build_ref || github.sha }}
         
       - name: Setup Android NDK
         uses: nttld/setup-ndk@main
@@ -210,6 +217,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@main
+        with:
+          ref: ${{ inputs.build_ref || github.sha }}
         
       - name: Select Xcode 16.4
         uses: maxim-lobanov/setup-xcode@v1

@@ -12,6 +12,11 @@ on:
         required: false
         type: boolean
         default: false
+      original_release_metadata:
+        description: '重建已删除的 Release 时，传入此前备份的元数据 JSON'
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: write
@@ -23,7 +28,7 @@ jobs:
       version_name: ${{ steps.parse-version.outputs.version_name }}
       version_number: ${{ steps.parse-version.outputs.version_number }}
       version_number_int_with_timestamp: ${{ steps.parse-version.outputs.version_number_int_with_timestamp }}
-      commit_sha: ${{ steps.parse-version.outputs.commit_sha }}
+      commit_sha: ${{ steps.commit-version.outputs.sha }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -80,6 +85,7 @@ jobs:
           echo "Updated MainMenuState.hx version variables"
 
       - name: Commit all changes
+        id: commit-version
         run: |
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
@@ -91,6 +97,7 @@ jobs:
             git commit -m "chore: Release version ${{ steps.parse-version.outputs.version_name }} ${{ steps.parse-version.outputs.version_number_int_with_timestamp }}"
             git push
           fi
+          echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
           
   mobile-build:
     name: "Mobile Build (macOS 14)"
@@ -98,24 +105,31 @@ jobs:
     uses: ./.github/workflows/MobileBuild.yml
     with:
       dependencies_to_update: 'all'
+      build_ref: ${{ needs.update-versions.outputs.commit_sha }}
     secrets: inherit
 
   macos-build:
     name: "macOS Build"
-    needs: mobile-build
+    needs: [update-versions, mobile-build]
     uses: ./.github/workflows/MacBuild.yml
+    with:
+      build_ref: ${{ needs.update-versions.outputs.commit_sha }}
     secrets: inherit
 
   windows-build:
     name: "Windows Build"
     needs: update-versions
     uses: ./.github/workflows/WindowsBuild.yml
+    with:
+      build_ref: ${{ needs.update-versions.outputs.commit_sha }}
     secrets: inherit
 
   linux-build:
     name: "Linux Build"
     needs: update-versions
     uses: ./.github/workflows/LinuxBuild.yml
+    with:
+      build_ref: ${{ needs.update-versions.outputs.commit_sha }}
     secrets: inherit
 
   releaser:
@@ -173,6 +187,7 @@ jobs:
         env:
           RELEASE_TAG: "V${{ needs.update-versions.outputs.version_name }}"
           REPLACE_EXISTING: "${{ inputs.replace_existing_release }}"
+          ORIGINAL_RELEASE_METADATA: ${{ inputs.original_release_metadata }}
         with:
           script: |
             const fs = require('fs');
@@ -189,17 +204,27 @@ jobs:
                 throw new Error(`Missing or empty replacement asset: ${name}`);
               }
             }
-            const {data: release} = await github.rest.repos.getReleaseByTag({...context.repo, tag});
+            let release;
+            let isLatest = false;
+            if (process.env.ORIGINAL_RELEASE_METADATA) {
+              const backup = JSON.parse(process.env.ORIGINAL_RELEASE_METADATA);
+              release = backup.release;
+              isLatest = backup.isLatest === true;
+            } else {
+              ({data: release} = await github.rest.repos.getReleaseByTag({...context.repo, tag}));
+              try {
+                const {data: latest} = await github.rest.repos.getLatestRelease(context.repo);
+                isLatest = latest.id === release.id;
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+            }
+            if (release?.tag_name !== tag || typeof release.draft !== 'boolean' || typeof release.prerelease !== 'boolean') {
+              throw new Error('Original release metadata does not match the requested tag');
+            }
             if (release.immutable) throw new Error('Cannot replace an immutable release');
             for (const asset of release.assets) {
               if (!expected.includes(asset.name)) throw new Error(`No replacement for existing asset: ${asset.name}`);
-            }
-            let isLatest = false;
-            try {
-              const {data: latest} = await github.rest.repos.getLatestRelease(context.repo);
-              isLatest = latest.id === release.id;
-            } catch (error) {
-              if (error.status !== 404) throw error;
             }
             fs.writeFileSync('release-original.json', JSON.stringify({release, isLatest}, null, 2));
             core.setOutput('name', release.name ?? tag);
@@ -219,16 +244,30 @@ jobs:
       - name: Recreate replacement release as a draft
         if: inputs.replace_existing_release
         uses: actions/github-script@v9
+        env:
+          BUILD_SHA: ${{ needs.update-versions.outputs.commit_sha }}
         with:
           script: |
             const fs = require('fs');
             const {release} = JSON.parse(fs.readFileSync('release-original.json', 'utf8'));
-            await github.rest.repos.deleteRelease({...context.repo, release_id: release.id});
-            await github.rest.git.updateRef({
-              ...context.repo, ref: `tags/${release.tag_name}`, sha: context.sha, force: true
+            try {
+              await github.rest.repos.deleteRelease({...context.repo, release_id: release.id});
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+            let tagExists = true;
+            try {
+              await github.rest.git.getRef({...context.repo, ref: `tags/${release.tag_name}`});
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              tagExists = false;
+            }
+            if (tagExists) await github.rest.git.deleteRef({...context.repo, ref: `tags/${release.tag_name}`});
+            await github.rest.git.createRef({
+              ...context.repo, ref: `refs/tags/${release.tag_name}`, sha: process.env.BUILD_SHA
             });
             const {data: replacement} = await github.rest.repos.createRelease({
-              ...context.repo, tag_name: release.tag_name, target_commitish: release.target_commitish,
+              ...context.repo, tag_name: release.tag_name, target_commitish: process.env.BUILD_SHA,
               name: release.name, body: release.body, draft: true, prerelease: release.prerelease,
               generate_release_notes: false, make_latest: 'false'
             });
@@ -241,6 +280,7 @@ jobs:
           prerelease: ${{ steps.release-metadata.outputs.prerelease == 'true' }}
           draft: ${{ inputs.replace_existing_release || steps.release-metadata.outputs.draft == 'true' }}
           tag_name: "V${{ needs.update-versions.outputs.version_name }}"
+          target_commitish: ${{ needs.update-versions.outputs.commit_sha }}
           name: ${{ steps.release-metadata.outputs.name }}
           body: ${{ steps.release-metadata.outputs.body }}
           files: |
@@ -250,6 +290,8 @@ jobs:
       - name: Restore replacement release publication state
         if: inputs.replace_existing_release
         uses: actions/github-script@v9
+        env:
+          BUILD_SHA: ${{ needs.update-versions.outputs.commit_sha }}
         with:
           script: |
             const fs = require('fs');
@@ -259,6 +301,10 @@ jobs:
             const expected = ['android.zip', 'ios.zip', 'linux.zip', 'macOS-14.zip', 'macOS-15.zip', 'windows.zip'];
             if (expected.some(name => !replacement.assets.some(asset => asset.name === name && asset.size > 0 && asset.state === 'uploaded'))) {
               throw new Error('Replacement assets are incomplete; leaving the release as a draft');
+            }
+            const {data: tagRef} = await github.rest.git.getRef({...context.repo, ref: `tags/${release.tag_name}`});
+            if (tagRef.object.sha !== process.env.BUILD_SHA) {
+              throw new Error('Release tag does not point to the build commit; leaving the release as a draft');
             }
             await github.rest.repos.updateRelease({
               ...context.repo, release_id: id, name: release.name, body: release.body,
