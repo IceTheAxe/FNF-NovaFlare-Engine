@@ -167,6 +167,18 @@ jobs:
       artifactPath: ${{ matrix.artifactPath }}
       use_cache: false
       dependencies_to_update: ${{ inputs.dependencies_to_update }}
+    # ★ 必须有这一行。secrets 不会自动穿透 uses: —— 少了它，内层 build.yml 读到的
+    # NOVA_GA_*_B64 全是空串，restore-private-gameanalytics.ps1 -Required 直接抛错。
+    # 旧版 release.yml 调 MobileBuild.yml 时就带着 secrets: inherit，我重构时漏了。
+    #
+    # 另有 environment 优先级这一层（GitHub 文档明确警告）：workflow_call 不支持
+    # environment 关键字，被调 workflow 的 job 上如果写了 environment，
+    # **environment 的 secret 优先，调用方传来的会被忽略**。build.yml 里正是这样
+    # 写的（environment: private-build），所以这行 inherit 在私有仓库上可能仍被
+    # environment secret 覆盖 —— 两者取的都是本仓 private-build，同一份数据，
+    # 行为一致；但如果哪天 private-build environment 被清空，会看到
+    # "secret 是空的"而不是"没传进来"，排查时别误判方向。
+    secrets: inherit
 
   releaser:
     name: Package and Publish
