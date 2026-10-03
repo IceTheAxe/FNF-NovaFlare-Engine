@@ -7,6 +7,11 @@ on:
         description: '输入格式为"版本名 版本号"，例如：1.2.0-Dev 2.7'
         required: true
         default: ''
+      replace_existing_release:
+        description: '替换同版本的 Release 和附件，保留原有标题、说明及发布状态'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -162,13 +167,100 @@ jobs:
           echo "Total files found:"
           find artifacts/ -type f -name "*" | wc -l
 
+      - name: Prepare release metadata
+        id: release-metadata
+        uses: actions/github-script@v9
+        env:
+          RELEASE_TAG: "V${{ needs.update-versions.outputs.version_name }}"
+          REPLACE_EXISTING: "${{ inputs.replace_existing_release }}"
+        with:
+          script: |
+            const fs = require('fs');
+            const tag = process.env.RELEASE_TAG;
+            const replace = process.env.REPLACE_EXISTING === 'true';
+            core.setOutput('name', tag);
+            core.setOutput('draft', 'false');
+            core.setOutput('prerelease', 'false');
+            if (!replace) return;
+
+            const expected = ['android.zip', 'ios.zip', 'linux.zip', 'macOS-14.zip', 'macOS-15.zip', 'windows.zip'];
+            for (const name of expected) {
+              if (!fs.existsSync(`artifacts/${name}`) || fs.statSync(`artifacts/${name}`).size === 0) {
+                throw new Error(`Missing or empty replacement asset: ${name}`);
+              }
+            }
+            const {data: release} = await github.rest.repos.getReleaseByTag({...context.repo, tag});
+            if (release.immutable) throw new Error('Cannot replace an immutable release');
+            for (const asset of release.assets) {
+              if (!expected.includes(asset.name)) throw new Error(`No replacement for existing asset: ${asset.name}`);
+            }
+            let isLatest = false;
+            try {
+              const {data: latest} = await github.rest.repos.getLatestRelease(context.repo);
+              isLatest = latest.id === release.id;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+            fs.writeFileSync('release-original.json', JSON.stringify({release, isLatest}, null, 2));
+            core.setOutput('name', release.name ?? tag);
+            core.setOutput('body', release.body ?? '');
+            core.setOutput('draft', String(release.draft));
+            core.setOutput('prerelease', String(release.prerelease));
+
+      - name: Back up original release metadata
+        if: inputs.replace_existing_release
+        uses: actions/upload-artifact@v4
+        with:
+          name: original-release-metadata
+          path: release-original.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Recreate replacement release as a draft
+        if: inputs.replace_existing_release
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs');
+            const {release} = JSON.parse(fs.readFileSync('release-original.json', 'utf8'));
+            await github.rest.repos.deleteRelease({...context.repo, release_id: release.id});
+            await github.rest.git.updateRef({
+              ...context.repo, ref: `tags/${release.tag_name}`, sha: context.sha, force: true
+            });
+            const {data: replacement} = await github.rest.repos.createRelease({
+              ...context.repo, tag_name: release.tag_name, target_commitish: release.target_commitish,
+              name: release.name, body: release.body, draft: true, prerelease: release.prerelease,
+              generate_release_notes: false, make_latest: 'false'
+            });
+            fs.writeFileSync('release-replacement.json', JSON.stringify({id: replacement.id}));
+
       - name: Publish The Release
         uses: softprops/action-gh-release@v3
         with:
           token: "${{ secrets.GITHUB_TOKEN }}"
-          prerelease: false
+          prerelease: ${{ steps.release-metadata.outputs.prerelease == 'true' }}
+          draft: ${{ inputs.replace_existing_release || steps.release-metadata.outputs.draft == 'true' }}
           tag_name: "V${{ needs.update-versions.outputs.version_name }}"
-          name: "V${{ needs.update-versions.outputs.version_name }}"
+          name: ${{ steps.release-metadata.outputs.name }}
+          body: ${{ steps.release-metadata.outputs.body }}
           files: |
             artifacts/*.zip
-          allowUpdates: true
+          fail_on_unmatched_files: true
+
+      - name: Restore replacement release publication state
+        if: inputs.replace_existing_release
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs');
+            const {release, isLatest} = JSON.parse(fs.readFileSync('release-original.json', 'utf8'));
+            const {id} = JSON.parse(fs.readFileSync('release-replacement.json', 'utf8'));
+            const {data: replacement} = await github.rest.repos.getRelease({...context.repo, release_id: id});
+            const expected = ['android.zip', 'ios.zip', 'linux.zip', 'macOS-14.zip', 'macOS-15.zip', 'windows.zip'];
+            if (expected.some(name => !replacement.assets.some(asset => asset.name === name && asset.size > 0 && asset.state === 'uploaded'))) {
+              throw new Error('Replacement assets are incomplete; leaving the release as a draft');
+            }
+            await github.rest.repos.updateRelease({
+              ...context.repo, release_id: id, name: release.name, body: release.body,
+              draft: release.draft, prerelease: release.prerelease, make_latest: isLatest ? 'true' : 'false'
+            });
