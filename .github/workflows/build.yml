@@ -316,11 +316,13 @@ jobs:
       # 于是 xcrun 报 `SDK "macosx26" cannot be located`，
       # 接着 `unable to find utility "clang++"` → `Error: Could not create PCH`。
       #
-      # 同门的 FrozenEngine 用的是 TieGao/hxcpp fork，那边已改成
-      # "主版本更大才取，主版本相同再比次版本"（并对 NaN 做了保护），所以它没这个坑。
-      # 与其等上游 hxcpp 发版，不如在这里把答案直接给它 ——
-      # BuildTool.hx:2198 的条件是 `!defines.exists("MACOSX_VER")`，
-      # 只要外部定义了它，hxcpp 就会跳过那段猜测。
+      # 实测 TieGao/hxcpp-4.3.2-new 与 NovaFlare-Engine-haxelib/hxcpp-4.3.2-new
+      # 在 HEAD(3f50506) 是同一份代码，那段 || 比较都还在 —— 所以“合并 TieGao 的修复”
+      # 实际上没有可合并的内容。正确做法是把扫描改成
+      # "主版本更大才取，主版本相同再比次版本" 并兜底补 .0，已直接修进 NovaFlare 的 fork。
+      # 这里作为更稳的一道保险：BuildTool.hx:2198 的条件是 `!defines.exists("MACOSX_VER")`，
+      # 只要外部定义了它，hxcpp 就会跳过那段猜测 —— 但本步传入的值必须是规范全版本
+      # （如 26.0），不能是 26，否则 xcodebuild -sdk macosx26 照样报 cannot be located。
       #
       # 覆盖所有 macOS 目标（macOS 两档 + iOS）：它们都要链 clang++，
       # 都要走 toolchain/mac-toolchain.xml。
@@ -329,15 +331,38 @@ jobs:
         shell: bash
         run: |
           set -e
-          SDK_PATH=$(xcrun --sdk macosx --show-sdk-path)
-          SDK_VER=$(basename "$SDK_PATH" | sed -e 's/^MacOSX//' -e 's/\.sdk$//')
-          echo "SDK_PATH=$SDK_PATH"
+          # 用 xcodebuild -showsdks 拿“规范 SDK 名”（例如 macosx26.0），这是 xcodebuild
+          # 自己认可的写法。hxcpp 拼的是 `xcodebuild -sdk macosx${MACOSX_VER}`，
+          # 而 xcodebuild 对 -sdk 是“精确匹配”的：传 macosx26（缺次版本）就会报
+          # `SDK "macosx26" cannot be located`。SDKs 目录里常有个 MacOSX26.sdk 软链
+          # 指向 MacOSX26.0.sdk，单看目录名会解析成 "26" —— 所以这里必须以 showsdks
+          # 的规范名为准，并且保证带次版本。
+          SDK_VER=$(xcodebuild -showsdks 2>/dev/null \
+            | grep -iE '\-sdk macosx' \
+            | grep -oE 'macosx[0-9]+(\.[0-9]+)?' \
+            | sort -V | tail -1 | sed 's/^macosx//')
+
+          # 兜底：showsdks 拿不到，就扫 SDKs 目录取版本号最高的（realpath 解析软链）。
+          if [ -z "$SDK_VER" ]; then
+            DEV=$(xcode-select -p)
+            SDK_VER=$(ls "$DEV/Platforms/MacOSX.platform/Developer/SDKs" 2>/dev/null \
+              | grep -E '^MacOSX[0-9.]+' \
+              | sed -E 's/^MacOSX([0-9.]+)\.sdk$/\1/' \
+              | sort -V | tail -1)
+          fi
+
           echo "SDK_VER=$SDK_VER"
 
           if [ -z "$SDK_VER" ]; then
-            echo "::error::无法从 $SDK_PATH 解析出 SDK 版本"
+            echo "::error::无法解析 macOS SDK 版本（xcodebuild -showsdks 与 SDKs 目录都拿不到）"
             exit 1
           fi
+
+          # 必须带次版本：xcodebuild -sdk macosx<major> 严格匹配会失败。
+          case "$SDK_VER" in
+            *.*) ;;
+            *) SDK_VER="$SDK_VER.0" ;;
+          esac
 
           # 拼出的 SDK 名先验一次，别等编到一半才发现 hxcpp 拼错了。
           if ! xcrun --sdk "macosx$SDK_VER" clang++ --version >/dev/null 2>&1; then
