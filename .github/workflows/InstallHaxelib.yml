@@ -51,11 +51,11 @@ jobs:
           haxelib setup ~/haxelib
           if [ "${{ steps.install_strategy.outputs.force_install }}" == "true" ]; then
             echo "强制重新安装所有haxelib依赖..."
-            haxelib install hmm 
+            haxelib git hmm https://github.com/NovaFlare-Engine-haxelib/hmm-3.1.0 70aca779a9d374a6e6b83c18715a3991a147ca37 --skip-dependencies
             haxelib run hmm install
           else
             echo "按需安装haxelib依赖..."
-            haxelib install hmm 
+            haxelib git hmm https://github.com/NovaFlare-Engine-haxelib/hmm-3.1.0 70aca779a9d374a6e6b83c18715a3991a147ca37 --skip-dependencies
             haxelib run hmm install
           fi
           

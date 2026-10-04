@@ -159,6 +159,15 @@ class CrashHandler
 				'\n[haxe_call_stack]\n${haxe.CallStack.toString(callStack)}\n' +
 				'\n[native_hxcpp_exception_stack]\n$nativeExceptionStack\n' +
 				'\n[heap]\n$heapSnapshot\n';
+			#if CODENAME_ENGINE_COMPAT
+			try
+			{
+				var codenameContext = codenamechain.CodeNameCrashContext.capture();
+				if (codenameContext.length > 0) saveError += '\n$codenameContext\n';
+			}
+			catch (contextError:Dynamic)
+				saveError += '\n[codename_context_failed]\n${Std.string(contextError)}\n';
+			#end
 			var fileName = Date.now().toString()
 				.replace(' ', '-')
 				.replace(':', "'") + '.txt';
@@ -205,7 +214,16 @@ class CrashHandler
 		{
 			if (openfl.Lib.current != null && flixel.FlxG.state != null)
 			{
-				flixel.FlxG.state.openSubState(new substates.ErrorSubState(errorText));
+				var failedState = flixel.FlxG.state;
+				var screen = new substates.ErrorSubState(errorText);
+				// Emergency UI must not call the mod's onSubstateOpen hooks: they
+				// can fail too, leaving the broken state running and logging forever.
+				failedState.persistentUpdate = false;
+				failedState.persistentDraw = false;
+				@:privateAccess {
+					failedState._requestedSubState = screen;
+					failedState._requestSubStateReset = true;
+				}
 				shown = true;
 			}
 		}

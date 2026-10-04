@@ -60,7 +60,7 @@ echo Setting haxelib path to: !HAXE_DIR!\lib
 haxelib setup "!HAXE_DIR!\lib"
 
 echo Installing hmm...
-haxelib install hmm
+haxelib git hmm https://github.com/NovaFlare-Engine-haxelib/hmm-3.1.0 70aca779a9d374a6e6b83c18715a3991a147ca37 --skip-dependencies
 
 echo.
 echo ========================================

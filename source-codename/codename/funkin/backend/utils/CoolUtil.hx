@@ -764,7 +764,15 @@ final class CoolUtil
 	 * @param path Path to the graphic
 	 */
 	public static function loadAnimatedGraphic(spr:FlxSprite, path:String, fps:Float = 24.0) {
-		spr.frames = Paths.getFrames(path, true);
+		var frames = Paths.getFrames(path, true);
+		if (frames == null) {
+			// FlxSprite.frames = null releases the previous graphic, but its
+			// copied render frame can still point at that destroyed graphic.
+			// Replace both together when an asset is missing on a recycled sprite.
+			spr.loadGraphic("flixel/images/logo/default.png");
+			return spr;
+		}
+		spr.frames = frames;
 
 		if (spr.frames != null && spr.frames.frames != null) {
 			spr.animation.add("idle", [for(i in 0...spr.frames.frames.length) i], fps, true);

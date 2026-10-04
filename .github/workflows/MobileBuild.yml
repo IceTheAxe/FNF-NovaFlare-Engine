@@ -96,7 +96,7 @@ jobs:
       - name: Install Android Libraries
         run: |
           haxelib setup ~/haxelib
-          haxelib --global install hmm --quiet
+          haxelib --global git hmm https://github.com/NovaFlare-Engine-haxelib/hmm-3.1.0 70aca779a9d374a6e6b83c18715a3991a147ca37 --skip-dependencies --quiet
           haxelib --global run hmm install
           # A cached haxelib git checkout can drift to the upstream default
           # branch even when hmm.json pins a commit. Restore every immutable
@@ -110,7 +110,7 @@ jobs:
               echo "强制重新安装所有Android依赖..."
             elif [ -n "${{ steps.android_cache.outputs.libs_to_update }}" ]; then
               echo "更新指定Android依赖: ${{ steps.android_cache.outputs.libs_to_update }}"
-              haxelib --global install hmm
+              haxelib --global git hmm https://github.com/NovaFlare-Engine-haxelib/hmm-3.1.0 70aca779a9d374a6e6b83c18715a3991a147ca37 --skip-dependencies
               haxelib --global run hmm reinstall --force $(echo "${{ steps.android_cache.outputs.libs_to_update }}")
             fi
           else
@@ -260,7 +260,7 @@ jobs:
       - name: Install iOS Libraries
         run: |
           haxelib setup ~/haxelib
-          haxelib --global install hmm --quiet
+          haxelib --global git hmm https://github.com/NovaFlare-Engine-haxelib/hmm-3.1.0 70aca779a9d374a6e6b83c18715a3991a147ca37 --skip-dependencies --quiet
           haxelib --global run hmm install
           # Restore pinned commits after haxelib has touched cached git clones.
           for library in polymod thx.core thx.semver FlxPartialSound; do
@@ -272,7 +272,7 @@ jobs:
               echo "强制重新安装所有iOS依赖..."
             elif [ -n "${{ steps.ios_cache.outputs.libs_to_update }}" ]; then
               echo "更新指定iOS依赖: ${{ steps.ios_cache.outputs.libs_to_update }}"
-              haxelib --global install hmm
+              haxelib --global git hmm https://github.com/NovaFlare-Engine-haxelib/hmm-3.1.0 70aca779a9d374a6e6b83c18715a3991a147ca37 --skip-dependencies
               haxelib --global run hmm reinstall --force $(echo "${{ steps.ios_cache.outputs.libs_to_update }}")
             fi
           else
