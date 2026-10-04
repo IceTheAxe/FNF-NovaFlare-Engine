@@ -135,7 +135,7 @@ class PreferencesMenu extends Page<OptionsState.OptionsMenuPageName>
     {
       Preferences.downscroll = value;
     },
-      Preferences.downscroll, #if mobile ControlsHandler.hasExternalInputDevice #end);
+      Preferences.downscroll);
     createPrefItemCheckbox('Middle Scroll',
       "When enabled, the player's arrows are centered.",
       function(value:Bool):Void
