@@ -9,7 +9,7 @@ haxelib run hmm install
 
 Use this HMM mirror for installs and reinstalls. It includes the precompiled Neko runner and passes `--skip-dependencies` to Git installs. The manifest explicitly lists indirect dependencies, including `hxjsonast`, `tink_core` and Lime's build tool `hxp`. This avoids implicit dependency downloads from lib.haxe.org, including fixed-version dependencies.
 
-The libraries previously downloaded from haxelib are imported from the installed distributions, with their original versions, package files, licenses and attribution preserved. The HMM runner is rebuilt from the included source with the Git installation change described in its `MIRROR.md`. All dependencies are pinned to commits rather than moving branches. Git checkouts are pinned to the versions selected in the local project for this release.
+The libraries previously downloaded from haxelib are imported from the installed distributions, with their original versions, package files, licenses and attribution preserved. The HMM runner is rebuilt from the included source with the Git installation change described in its `MIRROR.md`. All dependencies are pinned to commits rather than moving branches. Git checkouts are pinned to the versions selected for this release. Lime retains commit `e4adfed089eacf9e6eb1bc3ed306eb2e68336256` from the last successful release; the newer native binaries at `e988b54` fail during iOS launch-image generation.
 
 The table below lists the distribution mirrors. The active `haxeui-flixel` dependency uses the existing [NovaFlare fork](https://github.com/NovaFlare-Engine-haxelib/haxeui-flixel), which includes the local `include.xml` fix; its exact commit is recorded in `hmm.json`.
 
