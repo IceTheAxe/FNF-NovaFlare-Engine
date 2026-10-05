@@ -17,6 +17,10 @@ on:
         required: false
         type: string
         default: ''
+      dependencies_to_update:
+        description: '留空 = 全部走缓存；输入 "all" 强制重装所有 haxelib。发布链默认建议留空'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -160,11 +164,6 @@ jobs:
             buildArgs: ios -arm64 -nosign
             artifactName: ios-arm64
             artifactPath: export/release/ios/build/Release-iphoneos/*.ipa
-    # 这里不能写 continue-on-error。它在 uses: 型 job 上是**非法字段** ——
-    # reusable workflow job 的键白名单只有
-    # name / uses / with / secrets / strategy / needs / if / concurrency / permissions。
-    # 写上去会让 GitHub 整块解析失败，报 "Unexpected value 'uses'" 加
-    # "Required property is missing: runs-on"（它把这段当成普通 job 在解析）。
     uses: ./.github/workflows/build.yml
     with:
       name: ${{ matrix.name }}
@@ -174,23 +173,11 @@ jobs:
       artifactPath: ${{ matrix.artifactPath }}
       use_cache: false
       dependencies_to_update: ${{ inputs.dependencies_to_update }}
-    # ★ 必须有这一行。secrets 不会自动穿透 uses: —— 少了它，内层 build.yml 读到的
-    # NOVA_GA_GAME_KEY / NOVA_GA_SECRET_KEY 全是空串，check-gameanalytics-env.ps1
-    # -Required 直接抛错。
-    # 旧版 release.yml 调 MobileBuild.yml 时就带着 secrets: inherit，我重构时漏了。
-    #
-    # 另有 environment 优先级这一层（GitHub 文档明确警告）：workflow_call 不支持
-    # environment 关键字，被调 workflow 的 job 上如果写了 environment，
-    # **environment 的 secret 优先，调用方传来的会被忽略**。build.yml 里正是这样
-    # 写的（environment: private-build），所以这行 inherit 在私有仓库上可能仍被
-    # environment secret 覆盖 —— 两者取的都是本仓 private-build，同一份数据，
-    # 行为一致；但如果哪天 private-build environment 被清空，会看到
-    # "secret 是空的"而不是"没传进来"，排查时别误判方向。
     secrets: inherit
 
   releaser:
     name: Package and Publish
-    needs: [update-versions, build]
+    needs: [update-versions, mobile-build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -252,6 +239,48 @@ jobs:
           set -euo pipefail
           mkdir -p dist
 
+          pack() {
+            local dir="$GITHUB_WORKSPACE/artifacts/$1"
+            local out="$GITHUB_WORKSPACE/dist/$2"
+            if [ ! -d "$dir" ]; then
+              echo "::error::缺少产物目录: $dir"
+              return 1
+            fi
+            local count=$(ls -A "$dir" | wc -l)
+            if [ "$count" -eq 0 ]; then
+              echo "::error::$dir 是空的，产物上传失败了"
+              return 1
+            fi
+            echo "packing $1 -> $2 ($count entries)"
+            (cd "$dir" && zip -r -X -9 "$out" .)
+          }
+
+          pack windows-x86_64    "${{ env.PROJECT_NAME }}-Windows-x86_64-V$VERSION_NAME.zip"
+          pack linux-x86_64      "${{ env.PROJECT_NAME }}-Linux-x86_64-V$VERSION_NAME.zip"
+          pack linux-arm64       "${{ env.PROJECT_NAME }}-Linux-arm64-V$VERSION_NAME.zip"
+          pack macos-arm64       "${{ env.PROJECT_NAME }}-macOS-arm64-V$VERSION_NAME.zip"
+          pack macos-x86_64      "${{ env.PROJECT_NAME }}-macOS-x86_64-V$VERSION_NAME.zip"
+
+          shopt -s nullglob
+          apks=(artifacts/android/*.apk)
+          ipas=(artifacts/ios/*.ipa)
+          shopt -u nullglob
+
+          if [ ${#apks[@]} -eq 0 ]; then
+            echo "::error::没有找到 apk（Android 构建可能失败了）"
+            exit 1
+          fi
+          if [ ${#ipas[@]} -eq 0 ]; then
+            echo "::error::没有找到 ipa（iOS 构建可能失败了）"
+            exit 1
+          fi
+
+          cp "${apks[0]}" "dist/${{ env.PROJECT_NAME }}-Android-arm64-V$VERSION_NAME.apk"
+          cp "${ipas[0]}" "dist/${{ env.PROJECT_NAME }}-iOS-arm64-nosign-V$VERSION_NAME.ipa"
+
+          echo "---- release files ----"
+          ls -lh dist/
+
       - name: Prepare release metadata
         id: release-metadata
         uses: actions/github-script@v9
@@ -269,12 +298,17 @@ jobs:
             core.setOutput('prerelease', 'false');
             if (!replace) return;
 
-            const expected = ['android.zip', 'ios.zip', 'linux.zip', 'macOS-14.zip', 'macOS-15.zip', 'windows.zip'];
+            // 新的资产命名规则：NovaFlareEngine-<平台>-V<版本名>.(zip|apk|ipa)
+            const files = fs.readdirSync('dist');
+            if (files.length === 0) throw new Error('dist 目录为空，无法替换发布');
+            const expected = files.sort();
             for (const name of expected) {
-              if (!fs.existsSync(`artifacts/${name}`) || fs.statSync(`artifacts/${name}`).size === 0) {
+              const full = `dist/${name}`;
+              if (!fs.existsSync(full) || fs.statSync(full).size === 0) {
                 throw new Error(`Missing or empty replacement asset: ${name}`);
               }
             }
+
             let release;
             let isLatest = false;
             if (process.env.ORIGINAL_RELEASE_METADATA) {
@@ -355,8 +389,9 @@ jobs:
           name: ${{ steps.release-metadata.outputs.name }}
           body: ${{ steps.release-metadata.outputs.body }}
           files: |
-            artifacts/*.zip
+            dist/*
           fail_on_unmatched_files: true
+          allowUpdates: true
 
       - name: Restore replacement release publication state
         if: inputs.replace_existing_release
@@ -369,7 +404,7 @@ jobs:
             const {release, isLatest} = JSON.parse(fs.readFileSync('release-original.json', 'utf8'));
             const {id} = JSON.parse(fs.readFileSync('release-replacement.json', 'utf8'));
             const {data: replacement} = await github.rest.repos.getRelease({...context.repo, release_id: id});
-            const expected = ['android.zip', 'ios.zip', 'linux.zip', 'macOS-14.zip', 'macOS-15.zip', 'windows.zip'];
+            const expected = fs.readdirSync('dist').sort();
             if (expected.some(name => !replacement.assets.some(asset => asset.name === name && asset.size > 0 && asset.state === 'uploaded'))) {
               throw new Error('Replacement assets are incomplete; leaving the release as a draft');
             }
