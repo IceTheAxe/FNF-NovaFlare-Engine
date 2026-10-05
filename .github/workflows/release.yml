@@ -116,8 +116,8 @@ jobs:
           fi
           echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
 
-  mobile-build:
-    name: "Mobile Build (macOS 14)"
+  build:
+    name: ${{ matrix.name }}
     needs: update-versions
     strategy:
       fail-fast: false
