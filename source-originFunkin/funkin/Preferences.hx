@@ -549,6 +549,8 @@ class Preferences
     setDebugDisplayMode(Preferences.debugDisplay);
     setDebugDisplayBGOpacity(Preferences.debugDisplayBGOpacity / 100);
 
+    originfunkin.OriginFpsDisplay.applySavedScale();
+
     toggleFramerateCap(Preferences.unlockedFramerate);
 
     #if mobile

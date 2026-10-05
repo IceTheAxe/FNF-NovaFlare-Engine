@@ -26,9 +26,6 @@ import funkin.util.SwipeUtil;
 #end
 import funkin.util.HapticUtil;
 import originfunkin.OriginVSyncMode;
-import originfunkin.OriginFunkinConfig;
-import originfunkin.OriginFunkinDialog;
-import originfunkin.OriginFunkinMode;
 
 class PreferencesMenu extends Page<OptionsState.OptionsMenuPageName>
 {
@@ -41,6 +38,9 @@ class PreferencesMenu extends Page<OptionsState.OptionsMenuPageName>
   var menuCamera:FlxCamera;
   var hudCamera:FlxCamera;
   var camFollow:FlxObject;
+  #if FEATURE_TOUCH_CONTROLS
+  var touchController:originfunkin.input.OptionsTouchController;
+  #end
 
   public function new()
   {
@@ -78,10 +78,20 @@ class PreferencesMenu extends Page<OptionsState.OptionsMenuPageName>
     items.onChange.add(function(selected)
     {
       itemDesc.text = preferenceDesc[items.selectedIndex];
+      #if FEATURE_TOUCH_CONTROLS
+      resizeDescriptionBox();
+      #end
     });
 
     #if FEATURE_TOUCH_CONTROLS
-    var backButton:FunkinBackButton = new FunkinBackButton(FlxG.width - 230, FlxG.height - 200, exit, 1.0);
+    touchController = new originfunkin.input.OptionsTouchController(items, menuCamera, FlxG.height - 190);
+    var hint = new FlxText(20, FlxG.height - 28, FlxG.width - 260,
+      'Tap to select, tap again to change | Selected value: swipe left/right', 16);
+    hint.cameras = [hudCamera];
+    add(hint);
+    var backButton:FunkinBackButton = new FunkinBackButton(FlxG.width - 230, FlxG.height - 200, FlxColor.WHITE, exit, 1.0);
+    backButton.cameras = [hudCamera];
+    backButton.requireFreshPress = true;
     add(backButton);
     #end
   }
@@ -101,7 +111,18 @@ class PreferencesMenu extends Page<OptionsState.OptionsMenuPageName>
     itemDesc.screenCenter();
     itemDesc.y += 270;
 
+    #if FEATURE_TOUCH_CONTROLS
+    itemDesc.size = 24;
+    itemDesc.fieldWidth = FlxG.width - 300;
+    itemDesc.setPosition(30, FlxG.height - 170);
+    #end
+
     // Create the box around the text.
+    resizeDescriptionBox();
+  }
+
+  function resizeDescriptionBox():Void
+  {
     itemDescBox.setPosition(itemDesc.x - 10, itemDesc.y - 10);
     itemDescBox.setGraphicSize(Std.int(itemDesc.width + 20), Std.int(itemDesc.height + 25));
     itemDescBox.updateHitbox();
@@ -245,35 +266,6 @@ class PreferencesMenu extends Page<OptionsState.OptionsMenuPageName>
     }, Preferences.enabledDiscordRPC);
     #end
 
-    #if sys
-    OriginFunkinConfig.load();
-    var modSupportCheckbox:CheckboxPreferenceItem = null;
-    modSupportCheckbox = createPrefItemCheckbox('V-SLICE MOD SUPPORT',
-	      'Load compatible FNF 0.8.7 mods from the mods-vslice folder beside OriginFunkin/assets. Takes effect after restarting.',
-      function(value:Bool):Void
-      {
-        if (value && !OriginFunkinConfig.modWarningAcknowledged)
-        {
-          items.enabled = false;
-          OriginFunkinDialog.showModWarning(OriginFunkinMode.getModRoot(), function():Void
-          {
-            OriginFunkinConfig.setModSupportEnabled(true, true);
-            funkin.modding.PolymodHandler.createModRoot();
-            modSupportCheckbox.currentValue = true;
-            items.enabled = true;
-          }, function():Void
-          {
-            OriginFunkinConfig.setModSupportEnabled(false);
-            modSupportCheckbox.currentValue = false;
-            items.enabled = true;
-          });
-        }
-        else
-        {
-          OriginFunkinConfig.setModSupportEnabled(value);
-        }
-      }, OriginFunkinConfig.modSupportEnabled);
-    #end
   }
 
   override function update(elapsed:Float):Void
@@ -281,7 +273,11 @@ class PreferencesMenu extends Page<OptionsState.OptionsMenuPageName>
     super.update(elapsed);
 
     // Positions the camera to the selected item.
+    #if FEATURE_TOUCH_CONTROLS
+    touchController.update(elapsed, enabled && exists && visible && FlxG.state.subState == null);
+    #else
     if (items != null) camFollow.y = items.selectedItem.y;
+    #end
 
     // Indent the selected item.
     items.forEach(function(daItem:TextMenuItem)
@@ -403,8 +399,20 @@ class PreferencesMenu extends Page<OptionsState.OptionsMenuPageName>
 
   override function exit():Void
   {
+    #if FEATURE_TOUCH_CONTROLS
+    touchController.reset();
+    #else
     camFollow.setPosition(640, 30);
     menuCamera.snapToTarget();
+    #end
     super.exit();
+  }
+
+  override function destroy():Void
+  {
+    #if FEATURE_TOUCH_CONTROLS
+    touchController.destroy();
+    #end
+    super.destroy();
   }
 }

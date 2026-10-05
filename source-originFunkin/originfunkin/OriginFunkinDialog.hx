@@ -20,8 +20,6 @@ class OriginFunkinDialog
 		+ "This build is based on FNF 0.8.7, but it differs from the official game. "
 		+ "If something breaks here, please do not report it to the Funkin' Crew.";
 
-	static inline final MOD_TITLE:String = "Mod compatibility warning";
-
 	public static function showOriginNotice(onContinue:Void->Void):Void
 	{
 		#if android
@@ -35,25 +33,4 @@ class OriginFunkinDialog
 		#end
 	}
 
-	public static function showModWarning(modRoot:String, onEnable:Void->Void, onCancel:Void->Void):Void
-	{
-		var message:String =
-			"This build uses NovaFlare Engine's haxelib set, which differs from the official FNF build. "
-			+ "Compatible mods are not guaranteed to run perfectly.\n\n"
-			+ "Mod folder:\n"
-			+ modRoot;
-
-		#if android
-		Tools.showAlertDialog(MOD_TITLE, message, {
-			name: "ENABLE",
-			func: onEnable
-		}, {
-			name: "CANCEL",
-			func: onCancel
-		});
-		#else
-		SUtil.showPopUp(message, MOD_TITLE);
-		onEnable();
-		#end
-	}
 }

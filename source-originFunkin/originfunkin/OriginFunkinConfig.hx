@@ -27,8 +27,6 @@ class OriginFunkinConfig
 	public static var preferredMode(default, null):String = MODE_AUTO;
 	public static var hasEnteredOrigin(default, null):Bool = false;
 	public static var originNoticeAcknowledged(default, null):Bool = false;
-	public static var modSupportEnabled(default, null):Bool = false;
-	public static var modWarningAcknowledged(default, null):Bool = false;
 	public static var configPath(default, null):Null<String>;
 
 	static var loadedPath:Null<String>;
@@ -60,8 +58,6 @@ class OriginFunkinConfig
 			}
 			hasEnteredOrigin = readBool(data, "hasEnteredOrigin");
 			originNoticeAcknowledged = readBool(data, "originNoticeAcknowledged");
-			modSupportEnabled = readBool(data, "modSupportEnabled");
-			modWarningAcknowledged = readBool(data, "modWarningAcknowledged");
 		}
 		catch (error:Dynamic)
 		{
@@ -121,14 +117,6 @@ class OriginFunkinConfig
 		save();
 	}
 
-	public static function setModSupportEnabled(value:Bool, acknowledgeWarning:Bool = false):Void
-	{
-		load();
-		modSupportEnabled = value;
-		if (acknowledgeWarning) modWarningAcknowledged = true;
-		save();
-	}
-
 	public static function getModRoot(originAssetsRoot:String):String
 	{
 		return Path.join([Path.directory(originAssetsRoot), MOD_FOLDER_NAME]);
@@ -154,9 +142,6 @@ class OriginFunkinConfig
 				preferredMode: preferredMode,
 				hasEnteredOrigin: hasEnteredOrigin,
 				originNoticeAcknowledged: originNoticeAcknowledged,
-				modSupportEnabled: modSupportEnabled,
-				modWarningAcknowledged: modWarningAcknowledged,
-
 			}, null, "  "));
 			return true;
 		}
@@ -214,8 +199,6 @@ class OriginFunkinConfig
 		preferredMode = MODE_AUTO;
 		hasEnteredOrigin = false;
 		originNoticeAcknowledged = false;
-		modSupportEnabled = false;
-		modWarningAcknowledged = false;
 	}
 
 	static function readBool(data:Dynamic, field:String):Bool

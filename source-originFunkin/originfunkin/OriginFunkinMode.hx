@@ -39,8 +39,6 @@ class OriginFunkinMode
 	static inline final NOVAFLARE_INTRO_ASSET:String = "assets/videos/menuExtend/titleIntro.mp4";
 	static inline final NOVAFLARE_INTRO_LIBRARY_ASSET:String = "videos:assets/videos/menuExtend/titleIntro.mp4";
 	static inline final NOVAFLARE_NOTICE_FONT_ASSET:String = "assets/fonts/Lang-ZH.ttf";
-	static inline final OFFICIAL_ASSET_FILE_COUNT:Int = 2390;
-	static inline final OFFICIAL_ASSET_MIN_BYTES:Float = 1330000000.0;
 
 	static final NAMED_LIBRARIES:Array<String> = [
 		"shared",
@@ -74,7 +72,7 @@ class OriginFunkinMode
 			var candidate:Null<String> = locateAssetsRoot();
 			if (candidate != null)
 			{
-				validateLayout(candidate);
+				validateRequiredPaths(candidate);
 				assetsRoot = candidate;
 				assetsAvailable = true;
 				active = OriginFunkinConfig.shouldStartOrigin();
@@ -104,7 +102,7 @@ class OriginFunkinMode
 				throw 'The "$FOLDER_NAME" folder does not exist beside the runtime.';
 			}
 
-			validateLayout(candidate);
+			validateRequiredPaths(candidate);
 			assetsRoot = candidate;
 			assetsAvailable = true;
 			preparationError = null;
@@ -133,21 +131,14 @@ class OriginFunkinMode
 		{
 			novaFlareIntroVideoPath = resolveNovaFlareIntroVideoPath();
 			noticeFontName = resolveNoticeFontName();
-			validateLayout(assetsRoot);
+			validateRequiredPaths(assetsRoot);
 			mountedAssetCount = mountAssetLibraries(assetsRoot);
 			registeredFontCount = registerExternalFonts();
 
 			haxe.Log.trace = funkin.util.logging.AnsiTrace.trace;
 			funkin.util.logging.AnsiTrace.traceBF();
 
-			if (OriginFunkinConfig.modSupportEnabled)
-			{
-				funkin.modding.PolymodHandler.loadAllMods();
-			}
-			else
-			{
-				funkin.modding.PolymodHandler.loadModsByDir([]);
-			}
+			funkin.modding.PolymodHandler.loadAllMods();
 
 			debugDisplay = new FunkinDebugDisplay(10, 10, 0xFFFFFF);
 			final save = funkin.save.Save.load();
@@ -166,9 +157,7 @@ class OriginFunkinMode
 
 			trace('[originFunkin] Mounted $mountedAssetCount static assets from "$assetsRoot".');
 			trace('[originFunkin] Registered $registeredFontCount external fonts.');
-			trace(OriginFunkinConfig.modSupportEnabled
-				? '[originFunkin] Official core scripts and external mods enabled from "${getModRoot()}".'
-				: '[originFunkin] Official core scripts enabled; external mods disabled.');
+			trace('[originFunkin] Official core scripts and external mods enabled from "${getModRoot()}".');
 			return true;
 		}
 		catch (error:Dynamic)
@@ -292,7 +281,7 @@ class OriginFunkinMode
 		return null;
 	}
 
-	static function validateLayout(root:String):Void
+	static function validateRequiredPaths(root:String):Void
 	{
 		#if sys
 		var requiredPaths:Array<String> = [
@@ -330,41 +319,7 @@ class OriginFunkinMode
 
 		if (missing.length > 0)
 		{
-			throw 'originFunkin does not contain a complete FNF $VERSION asset layout.\nMissing: ${missing.join(", ")}';
-		}
-
-		var assetDirectories:Array<String> = ["fonts", "preload"].concat(NAMED_LIBRARIES);
-		var totalFiles:Int = 0;
-		var totalBytes:Float = 0.0;
-		for (relativeDirectory in assetDirectories)
-		{
-			var directoryPath:String = Path.join([root, relativeDirectory]);
-			if (!FileSystem.exists(directoryPath) || !FileSystem.isDirectory(directoryPath)) continue;
-
-			var pending:Array<String> = [directoryPath];
-			while (pending.length > 0)
-			{
-				var currentDirectory:String = pending.pop();
-				for (entry in FileSystem.readDirectory(currentDirectory))
-				{
-					var entryPath:String = Path.join([currentDirectory, entry]);
-					if (FileSystem.isDirectory(entryPath))
-					{
-						pending.push(entryPath);
-					}
-					else
-					{
-						totalFiles++;
-						totalBytes += FileSystem.stat(entryPath).size;
-					}
-				}
-			}
-		}
-
-		if (totalFiles < OFFICIAL_ASSET_FILE_COUNT || totalBytes < OFFICIAL_ASSET_MIN_BYTES)
-		{
-			throw 'originFunkin assets are incomplete for FNF $VERSION.\n'
-				+ 'Found $totalFiles/$OFFICIAL_ASSET_FILE_COUNT files and $totalBytes/$OFFICIAL_ASSET_MIN_BYTES bytes.';
+			throw 'originFunkin required paths are missing.\nMissing: ${missing.join(", ")}';
 		}
 		#else
 		throw "originFunkin runtime mounting is only available on desktop sys targets.";

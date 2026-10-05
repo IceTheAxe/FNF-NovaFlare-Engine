@@ -22,6 +22,7 @@ class EnumPreferenceItem<T> extends TextMenuItem
   public var onChangeCallback:Null<String->T->Void>;
   public var map:Map<String, T>;
   public var keys:Array<String> = [];
+  public var touchControlsEnabled:Bool = true;
 
   var index = 0;
 
@@ -59,24 +60,23 @@ class EnumPreferenceItem<T> extends TextMenuItem
     // var fancyTextFancyColor:Color;
     if (selected)
     {
-      var shouldDecrease:Bool = controls().UI_LEFT_P #if mobile || SwipeUtil.justSwipedLeft #end;
-      var shouldIncrease:Bool = controls().UI_RIGHT_P #if mobile || SwipeUtil.justSwipedRight #end;
-
-      if (shouldDecrease) index -= 1;
-      if (shouldIncrease) index += 1;
-
-      if (index > keys.length - 1) index = 0;
-      if (index < 0) index = keys.length - 1;
-
-      currentKey = keys[index];
-      if (onChangeCallback != null && (shouldIncrease || shouldDecrease))
-      {
-        var value = map.get(currentKey);
-        onChangeCallback(currentKey, value);
-      }
+      var shouldDecrease:Bool = controls().UI_LEFT_P #if mobile || (touchControlsEnabled && SwipeUtil.justSwipedLeft) #end;
+      var shouldIncrease:Bool = controls().UI_RIGHT_P #if mobile || (touchControlsEnabled && SwipeUtil.justSwipedRight) #end;
+      if (shouldDecrease != shouldIncrease) changeBySteps(shouldDecrease ? -1 : 1);
     }
 
     lefthandText.text = formatted(currentKey);
+  }
+
+  public function changeBySteps(count:Int):Void
+  {
+    if (keys.length == 0) return;
+    var nextIndex = ((index + count) % keys.length + keys.length) % keys.length;
+    if (nextIndex == index) return;
+    index = nextIndex;
+    currentKey = keys[index];
+    lefthandText.text = formatted(currentKey);
+    if (onChangeCallback != null) onChangeCallback(currentKey, map.get(currentKey));
   }
 
   function formatted(key:String):String

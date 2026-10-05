@@ -2246,12 +2246,12 @@ class ChartingState extends MusicBeatState
 				undo();
 			}
 
-			if (FlxG.keys.justPressed.Z || virtualPad.buttonZ.justPressed && curZoom > 0 && !FlxG.keys.pressed.CONTROL)
+			if ((FlxG.keys.justPressed.Z || virtualPad.buttonZ.justPressed) && curZoom > 0 && !FlxG.keys.pressed.CONTROL)
 			{
 				--curZoom;
 				updateZoom();
 			}
-			if (FlxG.keys.justPressed.X || virtualPad.buttonD.justPressed && curZoom < zoomList.length - 1)
+			else if ((FlxG.keys.justPressed.X || virtualPad.buttonD.justPressed) && curZoom < zoomList.length - 1)
 			{
 				curZoom++;
 				updateZoom();
@@ -2661,6 +2661,7 @@ class ChartingState extends MusicBeatState
 
 	function updateZoom()
 	{
+		curZoom = Std.int(FlxMath.bound(curZoom, 0, zoomList.length - 1));
 		var daZoom:Float = zoomList[curZoom];
 		var zoomThing:String = '1 / ' + daZoom;
 		if (daZoom < 1)

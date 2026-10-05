@@ -159,6 +159,7 @@ class OptionsMenu extends Page<OptionsMenuPageName>
   #if FEATURE_TOUCH_CONTROLS
   var backButton:FunkinBackButton;
   var goingBack:Bool = false;
+  var touchController:originfunkin.input.OptionsTouchController;
   #end
 
   /**
@@ -262,7 +263,7 @@ class OptionsMenu extends Page<OptionsMenuPageName>
 
     items.selectItem(OptionsState.rememberedSelectedIndex);
     #if FEATURE_TOUCH_CONTROLS
-    FlxG.touches.swipeThreshold.y = 100;
+    touchController = new originfunkin.input.OptionsTouchController(items, FlxG.camera, FlxG.height - 200, 100);
     #end
   }
 
@@ -287,7 +288,9 @@ class OptionsMenu extends Page<OptionsMenuPageName>
     #if NO_FEATURE_TOUCH_CONTROLS
     createItem("EXIT", exit);
     #else
-    backButton = new FunkinBackButton(FlxG.width - 230, FlxG.height - 200, exit, 1.0);
+    backButton = new FunkinBackButton(FlxG.width - 230, FlxG.height - 200, FlxColor.WHITE, exit, 1.0);
+    backButton.scrollFactor.set(0, 0);
+    backButton.requireFreshPress = true;
     backButton.onConfirmStart.add(function()
     {
       items.busy = true;
@@ -347,6 +350,25 @@ class OptionsMenu extends Page<OptionsMenuPageName>
     backButton.active = (!goingBack) ? !items.busy : true;
     #end
     super.update(elapsed);
+    #if FEATURE_TOUCH_CONTROLS
+    touchController.update(elapsed, enabled && exists && visible && FlxG.state.subState == null);
+    #end
+  }
+
+  override function exit():Void
+  {
+    #if FEATURE_TOUCH_CONTROLS
+    touchController.reset();
+    #end
+    super.exit();
+  }
+
+  override function destroy():Void
+  {
+    #if FEATURE_TOUCH_CONTROLS
+    touchController.destroy();
+    #end
+    super.destroy();
   }
 
   override function set_enabled(value:Bool):Bool
