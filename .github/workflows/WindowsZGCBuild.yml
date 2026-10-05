@@ -18,7 +18,7 @@ jobs:
     env:
       NOVA_GA_GAME_KEY: ${{ github.repository == 'IceTheAxe/FNF-NovaFlare-Engine' && github.event_name != 'pull_request' && github.event_name != 'pull_request_target' && secrets.NOVA_GA_GAME_KEY || '' }}
       NOVA_GA_SECRET_KEY: ${{ github.repository == 'IceTheAxe/FNF-NovaFlare-Engine' && github.event_name != 'pull_request' && github.event_name != 'pull_request_target' && secrets.NOVA_GA_SECRET_KEY || '' }}
-      NOVA_GA_REQUIRED: ${{ github.repository == 'IceTheAxe/FNF-NovaFlare-Engine' && github.event_name != 'pull_request' && github.event_name != 'pull_request_target' && '1' || '' }}
+      NOVA_GA_REQUIRED: ''
       HXCPP_COMPILE_JOBS: 4
       NOVAGC_HAXE_ARCHIVE_URL: https://github.com/NovaFlare-Engine-haxelib/haxe-novagc/releases/download/novagc-precise-70c1245e/haxe-novagc-windows-x64.zip
       NOVAGC_HAXE_ARCHIVE_SHA256: f344f1911fccb75b925cf96b0d0468f9b4e967bc8218909d02d4d6f84dc25540
@@ -123,7 +123,7 @@ jobs:
       - name: Check GameAnalytics credentials
         if: github.repository == 'IceTheAxe/FNF-NovaFlare-Engine' && github.event_name != 'pull_request' && github.event_name != 'pull_request_target'
         shell: pwsh
-        run: ./tools/check-gameanalytics-env.ps1 -Required
+        run: ./tools/check-gameanalytics-env.ps1
 
       - name: Install project libraries
         shell: pwsh

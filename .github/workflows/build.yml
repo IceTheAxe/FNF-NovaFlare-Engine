@@ -80,9 +80,13 @@ jobs:
       # （见 Project.xml 的 --macro gameanalytics.GACompileConfig.configure()）。
       # BuildTool.runMain() 开头会把 Sys.environment() 整个灌进 defines，所以这里
       # 只需保证变量在进程环境里可达。
+      #
+      # 凭据是可选的：没有 key 时 GAMEANALYTICS_ENABLED 不会被定义，
+      # GABridge 的方法体编译为空实现，构建照常出包。
+      # 要强制"缺 key 即失败"，把下面 NOVA_GA_REQUIRED 改成 '1'。
       NOVA_GA_GAME_KEY: ${{ github.repository == 'IceTheAxe/FNF-NovaFlare-Engine' && github.event_name != 'pull_request_target' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && secrets.NOVA_GA_GAME_KEY || '' }}
       NOVA_GA_SECRET_KEY: ${{ github.repository == 'IceTheAxe/FNF-NovaFlare-Engine' && github.event_name != 'pull_request_target' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && secrets.NOVA_GA_SECRET_KEY || '' }}
-      NOVA_GA_REQUIRED: ${{ github.repository == 'IceTheAxe/FNF-NovaFlare-Engine' && github.event_name != 'pull_request_target' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && '1' || '' }}
+      NOVA_GA_REQUIRED: ''
 
     steps:
       - name: Checkout
@@ -134,7 +138,7 @@ jobs:
       - name: Check GameAnalytics credentials
         if: github.repository == 'IceTheAxe/FNF-NovaFlare-Engine' && github.event_name != 'pull_request_target' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         shell: pwsh
-        run: ./tools/check-gameanalytics-env.ps1 -Required
+        run: ./tools/check-gameanalytics-env.ps1
 
       # ---------- 缓存 ----------
       # 两条独立的线：

@@ -44,6 +44,7 @@ jobs:
       artifactPath: ${{ matrix.artifactPath }}
       use_cache: true
       dependencies_to_update: ${{ inputs.dependencies_to_update }}
-    # 移动端必须要 analytics（它是 GameAnalytics 的主要使用方），所以这里必须传。
-    # 漏了会让 check-gameanalytics-env.ps1 -Required 在内层失败。
+    # 仍然要显式传：secrets 不会自动穿透 uses:。
+    # GameAnalytics 现在是可选的 —— 没有 key 时内层自动禁用 analytics，构建照常出包。
+    # 但配了 key 的正式发布构建要能把凭据送进去，漏了这一行会静默退化成"analytics 未启用"。
     secrets: inherit

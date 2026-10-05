@@ -84,5 +84,5 @@ jobs:
       dependencies_to_update: ${{ inputs.dependencies_to_update || '' }}
     # 同样要显式传。CI 跑在 PR 上时本来就没有 secret（GitHub 不给 fork PR 发 secret），
     # 写了这一行也不会有值 —— 但它让"没有 secret"和"忘了传 secret"在日志里长得不一样：
-    # 忘传时内层读到空串，restore 步骤会因 -Required 而失败。
+    # 忘传时内层读到空串，GameAnalytics 会自动禁用（不再像以前那样 -Required 直接失败）。
     secrets: inherit

@@ -17,9 +17,18 @@ as build environment variables. Existing `private-build` environment protections
 are preserved. Environment secrets with the same names take precedence over
 repository secrets.
 
-Official builds require both keys; a missing key fails the build with a message
-containing only the missing variable names. Fork builds without credentials keep
-analytics disabled. Reusable release workflows already pass `secrets: inherit`.
+Credentials are optional. When either key is missing the build still succeeds:
+`GAMEANALYTICS_ENABLED` is left undefined, so every `GABridge` method compiles to
+an empty body and no analytics data is sent. This applies equally to official and
+fork builds, and to the case where only one of the two keys is set — a partial
+configuration degrades to "disabled" rather than failing the build. The build log
+prints `GameAnalytics is disabled for this build; no credentials were supplied.`
+so a silently disabled build is still visible in the log.
+
+Reusable release workflows already pass `secrets: inherit`.
+
+To make a missing key fail the build instead, set `NOVA_GA_REQUIRED=1` in the
+build environment (see below).
 
 The old `NOVA_GA_IMPL_B64`, `NOVA_GA_TYPES_B64` and `NOVA_GA_CONFIG_B64` Secrets
 are no longer read and may be removed after migration.
@@ -40,9 +49,10 @@ Alternatively set Windows user environment variables and restart VS Code or the
 terminal so new processes inherit them. Never commit real keys to source files.
 
 `NOVA_GA_BUILD_VERSION` optionally overrides the analytics build label.
-`NOVA_GA_REQUIRED=1` requires keys for a local build as well.
-With neither key set, local builds succeed with analytics disabled. Setting only
-one key is an error. Debug logging and sandbox defaults retain their previous
+`NOVA_GA_REQUIRED=1` turns a missing key into a compile error, for local builds as
+well as CI. It is currently unset in all workflows, so keys are optional everywhere.
+With neither key set, builds succeed with analytics disabled; setting only one key
+also just disables analytics. Debug logging and sandbox defaults retain their previous
 behavior.
 
 The compiler embeds credentials in the executable. Secrets protect source

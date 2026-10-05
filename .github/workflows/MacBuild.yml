@@ -15,7 +15,7 @@ jobs:
     env:
       NOVA_GA_GAME_KEY: ${{ github.repository == 'IceTheAxe/FNF-NovaFlare-Engine' && github.event_name != 'pull_request' && github.event_name != 'pull_request_target' && secrets.NOVA_GA_GAME_KEY || '' }}
       NOVA_GA_SECRET_KEY: ${{ github.repository == 'IceTheAxe/FNF-NovaFlare-Engine' && github.event_name != 'pull_request' && github.event_name != 'pull_request_target' && secrets.NOVA_GA_SECRET_KEY || '' }}
-      NOVA_GA_REQUIRED: ${{ github.repository == 'IceTheAxe/FNF-NovaFlare-Engine' && github.event_name != 'pull_request' && github.event_name != 'pull_request_target' && '1' || '' }}
+      NOVA_GA_REQUIRED: ''
 
     steps:
       - name: Checkout
@@ -29,7 +29,7 @@ jobs:
       - name: Check GameAnalytics credentials
         if: github.repository == 'IceTheAxe/FNF-NovaFlare-Engine' && github.event_name != 'pull_request' && github.event_name != 'pull_request_target'
         shell: pwsh
-        run: ./tools/check-gameanalytics-env.ps1 -Required
+        run: ./tools/check-gameanalytics-env.ps1
 
       - name: Determine cache strategy
         id: cache_strategy

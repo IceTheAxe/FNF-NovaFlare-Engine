@@ -177,7 +177,7 @@ jobs:
 
   releaser:
     name: Package and Publish
-    needs: [update-versions, mobile-build]
+    needs: [update-versions, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write

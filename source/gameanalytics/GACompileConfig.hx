@@ -54,8 +54,10 @@ class GACompileConfig
 	{
 		final gameKey = environment('NOVA_GA_GAME_KEY');
 		final secretKey = environment('NOVA_GA_SECRET_KEY');
-		if ((gameKey == '') != (secretKey == '') ||
-			((gameKey == '' || secretKey == '') && environment('NOVA_GA_REQUIRED') == '1'))
+		// 凭据是可选的：缺失或只配一个都降级为 analytics 禁用
+		// （GABridge 的方法体在 #if GAMEANALYTICS_ENABLED 里，宏未定义时编译为空实现）。
+		// 需要强制校验时在 CI 里把 NOVA_GA_REQUIRED 设为 1。
+		if (environment('NOVA_GA_REQUIRED') == '1' && (gameKey == '' || secretKey == ''))
 			Context.error('Set both NOVA_GA_GAME_KEY and NOVA_GA_SECRET_KEY in the build environment.', Context.currentPos());
 		return {gameKey: gameKey, secretKey: secretKey};
 	}
