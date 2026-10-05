@@ -7,9 +7,15 @@ on:
         description: '输入格式为"版本名 版本号"，例如：1.2.0-Dev 2.7'
         required: true
         default: ''
-      dependencies_to_update:
-        description: '留空 = 全部走缓存；输入 "all" 强制重装所有 haxelib。发布链默认建议留空'
+      replace_existing_release:
+        description: '替换同版本的 Release 和附件，保留原有标题、说明及发布状态'
         required: false
+        type: boolean
+        default: false
+      original_release_metadata:
+        description: '重建已删除的 Release 时，传入此前备份的元数据 JSON'
+        required: false
+        type: string
         default: ''
 
 permissions:
@@ -25,7 +31,7 @@ jobs:
       version_name: ${{ steps.parse-version.outputs.version_name }}
       version_number: ${{ steps.parse-version.outputs.version_number }}
       version_number_int_with_timestamp: ${{ steps.parse-version.outputs.version_number_int_with_timestamp }}
-      commit_sha: ${{ steps.parse-version.outputs.commit_sha }}
+      commit_sha: ${{ steps.commit-version.outputs.sha }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -73,7 +79,6 @@ jobs:
         run: |
           set -euo pipefail
           echo "Updating Project.xml..."
-          sed -i "s/\(<app title=\"NovaFlare Engine\".* version=\"\)[^\"]*\(\"\)/\1${{ steps.parse-version.outputs.version_name }}\2/" Project.xml
           if grep -q 'build-number="[0-9]*"' Project.xml; then
             sed -i "s/\(<app title=\"NovaFlare Engine\".* build-number=\"\)[0-9]*\(\"\)/\1${{ steps.parse-version.outputs.version_number_int_with_timestamp }}\2/" Project.xml
             echo "Updated existing build-number attribute with integer version and timestamp"
@@ -92,6 +97,7 @@ jobs:
           echo "Updated MainMenuState.hx version variables"
 
       - name: Commit all changes
+        id: commit-version
         run: |
           set -euo pipefail
           git config --local user.email "actions@github.com"
@@ -104,9 +110,10 @@ jobs:
             git commit -m "chore: Release version ${{ steps.parse-version.outputs.version_name }} ${{ steps.parse-version.outputs.version_number_int_with_timestamp }}"
             git push
           fi
+          echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
 
-  build:
-    name: ${{ matrix.name }}
+  mobile-build:
+    name: "Mobile Build (macOS 14)"
     needs: update-versions
     strategy:
       fail-fast: false
@@ -168,7 +175,8 @@ jobs:
       use_cache: false
       dependencies_to_update: ${{ inputs.dependencies_to_update }}
     # ★ 必须有这一行。secrets 不会自动穿透 uses: —— 少了它，内层 build.yml 读到的
-    # NOVA_GA_*_B64 全是空串，restore-private-gameanalytics.ps1 -Required 直接抛错。
+    # NOVA_GA_GAME_KEY / NOVA_GA_SECRET_KEY 全是空串，check-gameanalytics-env.ps1
+    # -Required 直接抛错。
     # 旧版 release.yml 调 MobileBuild.yml 时就带着 secrets: inherit，我重构时漏了。
     #
     # 另有 environment 优先级这一层（GitHub 文档明确警告）：workflow_call 不支持
@@ -244,56 +252,132 @@ jobs:
           set -euo pipefail
           mkdir -p dist
 
-          pack() {
-            local dir="$GITHUB_WORKSPACE/artifacts/$1"
-            local out="$GITHUB_WORKSPACE/dist/$2"
-            if [ ! -d "$dir" ]; then
-              echo "::error::缺少产物目录: $dir"
-              return 1
-            fi
-            local count=$(ls -A "$dir" | wc -l)
-            if [ "$count" -eq 0 ]; then
-              echo "::error::$dir 是空的，产物上传失败了"
-              return 1
-            fi
-            echo "packing $1 -> $2 ($count entries)"
-            (cd "$dir" && zip -r -X -9 "$out" .)
-          }
+      - name: Prepare release metadata
+        id: release-metadata
+        uses: actions/github-script@v9
+        env:
+          RELEASE_TAG: "V${{ needs.update-versions.outputs.version_name }}"
+          REPLACE_EXISTING: "${{ inputs.replace_existing_release }}"
+          ORIGINAL_RELEASE_METADATA: ${{ inputs.original_release_metadata }}
+        with:
+          script: |
+            const fs = require('fs');
+            const tag = process.env.RELEASE_TAG;
+            const replace = process.env.REPLACE_EXISTING === 'true';
+            core.setOutput('name', tag);
+            core.setOutput('draft', 'false');
+            core.setOutput('prerelease', 'false');
+            if (!replace) return;
 
-          pack windows-x86_64    "${{ env.PROJECT_NAME }}-Windows-x86_64-V$VERSION_NAME.zip"
-          pack linux-x86_64      "${{ env.PROJECT_NAME }}-Linux-x86_64-V$VERSION_NAME.zip"
-          pack linux-arm64       "${{ env.PROJECT_NAME }}-Linux-arm64-V$VERSION_NAME.zip"
-          pack macos-arm64       "${{ env.PROJECT_NAME }}-macOS-arm64-V$VERSION_NAME.zip"
-          pack macos-x86_64      "${{ env.PROJECT_NAME }}-macOS-x86_64-V$VERSION_NAME.zip"
+            const expected = ['android.zip', 'ios.zip', 'linux.zip', 'macOS-14.zip', 'macOS-15.zip', 'windows.zip'];
+            for (const name of expected) {
+              if (!fs.existsSync(`artifacts/${name}`) || fs.statSync(`artifacts/${name}`).size === 0) {
+                throw new Error(`Missing or empty replacement asset: ${name}`);
+              }
+            }
+            let release;
+            let isLatest = false;
+            if (process.env.ORIGINAL_RELEASE_METADATA) {
+              const backup = JSON.parse(process.env.ORIGINAL_RELEASE_METADATA);
+              release = backup.release;
+              isLatest = backup.isLatest === true;
+            } else {
+              ({data: release} = await github.rest.repos.getReleaseByTag({...context.repo, tag}));
+              try {
+                const {data: latest} = await github.rest.repos.getLatestRelease(context.repo);
+                isLatest = latest.id === release.id;
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+            }
+            if (release?.tag_name !== tag || typeof release.draft !== 'boolean' || typeof release.prerelease !== 'boolean') {
+              throw new Error('Original release metadata does not match the requested tag');
+            }
+            if (release.immutable) throw new Error('Cannot replace an immutable release');
+            for (const asset of release.assets) {
+              if (!expected.includes(asset.name)) throw new Error(`No replacement for existing asset: ${asset.name}`);
+            }
+            fs.writeFileSync('release-original.json', JSON.stringify({release, isLatest}, null, 2));
+            core.setOutput('name', release.name ?? tag);
+            core.setOutput('body', release.body ?? '');
+            core.setOutput('draft', String(release.draft));
+            core.setOutput('prerelease', String(release.prerelease));
 
-          shopt -s nullglob
-          apks=(artifacts/android/*.apk)
-          ipas=(artifacts/ios/*.ipa)
-          shopt -u nullglob
+      - name: Back up original release metadata
+        if: inputs.replace_existing_release
+        uses: actions/upload-artifact@v4
+        with:
+          name: original-release-metadata
+          path: release-original.json
+          if-no-files-found: error
+          retention-days: 30
 
-          if [ ${#apks[@]} -eq 0 ]; then
-            echo "::error::没有找到 apk（Android 构建可能失败了）"
-            exit 1
-          fi
-          if [ ${#ipas[@]} -eq 0 ]; then
-            echo "::error::没有找到 ipa（iOS 构建可能失败了）"
-            exit 1
-          fi
+      - name: Recreate replacement release as a draft
+        if: inputs.replace_existing_release
+        uses: actions/github-script@v9
+        env:
+          BUILD_SHA: ${{ needs.update-versions.outputs.commit_sha }}
+        with:
+          script: |
+            const fs = require('fs');
+            const {release} = JSON.parse(fs.readFileSync('release-original.json', 'utf8'));
+            try {
+              await github.rest.repos.deleteRelease({...context.repo, release_id: release.id});
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+            let tagExists = true;
+            try {
+              await github.rest.git.getRef({...context.repo, ref: `tags/${release.tag_name}`});
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              tagExists = false;
+            }
+            if (tagExists) await github.rest.git.deleteRef({...context.repo, ref: `tags/${release.tag_name}`});
+            await github.rest.git.createRef({
+              ...context.repo, ref: `refs/tags/${release.tag_name}`, sha: process.env.BUILD_SHA
+            });
+            const {data: replacement} = await github.rest.repos.createRelease({
+              ...context.repo, tag_name: release.tag_name, target_commitish: process.env.BUILD_SHA,
+              name: release.name, body: release.body, draft: true, prerelease: release.prerelease,
+              generate_release_notes: false, make_latest: 'false'
+            });
+            fs.writeFileSync('release-replacement.json', JSON.stringify({id: replacement.id}));
 
-          cp "${apks[0]}" "dist/${{ env.PROJECT_NAME }}-Android-arm64-V$VERSION_NAME.apk"
-          cp "${ipas[0]}" "dist/${{ env.PROJECT_NAME }}-iOS-arm64-nosign-V$VERSION_NAME.ipa"
-
-          echo "---- release files ----"
-          ls -lh dist/
-
-      - name: Publish the release
+      - name: Publish The Release
         uses: softprops/action-gh-release@v3
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          prerelease: false
+          token: "${{ secrets.GITHUB_TOKEN }}"
+          prerelease: ${{ steps.release-metadata.outputs.prerelease == 'true' }}
+          draft: ${{ inputs.replace_existing_release || steps.release-metadata.outputs.draft == 'true' }}
           tag_name: "V${{ needs.update-versions.outputs.version_name }}"
-          name: "V${{ needs.update-versions.outputs.version_name }}"
+          target_commitish: ${{ needs.update-versions.outputs.commit_sha }}
+          name: ${{ steps.release-metadata.outputs.name }}
+          body: ${{ steps.release-metadata.outputs.body }}
           files: |
-            dist/*
+            artifacts/*.zip
           fail_on_unmatched_files: true
-          allowUpdates: true
+
+      - name: Restore replacement release publication state
+        if: inputs.replace_existing_release
+        uses: actions/github-script@v9
+        env:
+          BUILD_SHA: ${{ needs.update-versions.outputs.commit_sha }}
+        with:
+          script: |
+            const fs = require('fs');
+            const {release, isLatest} = JSON.parse(fs.readFileSync('release-original.json', 'utf8'));
+            const {id} = JSON.parse(fs.readFileSync('release-replacement.json', 'utf8'));
+            const {data: replacement} = await github.rest.repos.getRelease({...context.repo, release_id: id});
+            const expected = ['android.zip', 'ios.zip', 'linux.zip', 'macOS-14.zip', 'macOS-15.zip', 'windows.zip'];
+            if (expected.some(name => !replacement.assets.some(asset => asset.name === name && asset.size > 0 && asset.state === 'uploaded'))) {
+              throw new Error('Replacement assets are incomplete; leaving the release as a draft');
+            }
+            const {data: tagRef} = await github.rest.git.getRef({...context.repo, ref: `tags/${release.tag_name}`});
+            if (tagRef.object.sha !== process.env.BUILD_SHA) {
+              throw new Error('Release tag does not point to the build commit; leaving the release as a draft');
+            }
+            await github.rest.repos.updateRelease({
+              ...context.repo, release_id: id, name: release.name, body: release.body,
+              draft: release.draft, prerelease: release.prerelease, make_latest: isLatest ? 'true' : 'false'
+            });

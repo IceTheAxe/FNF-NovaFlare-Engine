@@ -191,6 +191,7 @@ class CrashHandler
 			stack:Array<haxe.CallStack.StackItem>, callStack:Array<haxe.CallStack.StackItem>):String
 	{
 		var savedCrashPath:String = null;
+		var saveFailure:String = null;
 		try
 		{
 			var now:Float = haxe.Timer.stamp() * 1000;
@@ -253,6 +254,15 @@ class CrashHandler
 				'\n[haxe_call_stack]\n${haxe.CallStack.toString(callStack)}\n' +
 				'\n[native_hxcpp_exception_stack]\n$nativeExceptionStack\n' +
 				'\n[heap]\n$heapSnapshot\n';
+			#if CODENAME_ENGINE_COMPAT
+			try
+			{
+				var codenameContext = codenamechain.CodeNameCrashContext.capture();
+				if (codenameContext.length > 0) saveError += '\n$codenameContext\n';
+			}
+			catch (contextError:Dynamic)
+				saveError += '\n[codename_context_failed]\n${Std.string(contextError)}\n';
+			#end
 			var fileName = Date.now().toString()
 				.replace(' ', '-')
 				.replace(':', "'") + '.txt';
@@ -263,18 +273,68 @@ class CrashHandler
 			try Sys.println('haxe:$kind message=$message') catch (_:Dynamic) {}
 			try Sys.println(saveError) catch (_:Dynamic) {}
 		}
-		catch (_:Dynamic)
+		catch (saveErrorValue:Dynamic)
 		{
-			// 报告写盘失败。吞掉：调用方不允许抛异常。
+			saveFailure = Std.string(saveErrorValue);
+			trace('Couldn\'t save error message. ($saveFailure)');
 		}
+
 		return savedCrashPath;
 	}
 
-	/**
-	 * 尝试在游戏内展示崩溃报告，返回 true 表示"已经处理，不要再弹原生对话框"。
-	 *
-	 * 本函数永不抛异常，任何一步失败都返回 false，让调用方退回原生弹窗兜底。
-	 */
+	private static function buildErrorText(message:String, stackLines:Array<String>):String
+	{
+		var lines:Array<String> = [];
+		if (message != null && StringTools.trim(message).length > 0)
+			lines.push(StringTools.trim(message));
+
+		if (stackLines != null)
+		{
+			for (line in stackLines)
+			{
+				if (line != null && line.length > 0)
+					lines.push(line);
+			}
+		}
+
+		return lines.length > 0 ? lines.join("\n") : "Unknown error";
+	}
+
+	private static function showError(errorText:String):Void
+	{
+		var shown:Bool = false;
+		try
+		{
+			if (openfl.Lib.current != null && flixel.FlxG.state != null)
+			{
+				var failedState = flixel.FlxG.state;
+				var screen = new substates.ErrorSubState(errorText);
+				// Emergency UI must not call the mod's onSubstateOpen hooks: they
+				// can fail too, leaving the broken state running and logging forever.
+				failedState.persistentUpdate = false;
+				failedState.persistentDraw = false;
+				@:privateAccess {
+					failedState._requestedSubState = screen;
+					failedState._requestSubStateReset = true;
+				}
+				shown = true;
+			}
+		}
+		catch (_:Dynamic) {}
+
+		if (shown)
+			return;
+
+		#if sys
+		try
+			mobile.backend.SUtil.showPopUp(errorText, "NovaFlare Engine - Error")
+		catch (_:Dynamic)
+			Sys.println(errorText);
+		#else
+		trace(errorText);
+		#end
+	}
+
 	private static function showInGameErrorReport(savedCrashPath:String, message:String, stackLabel:String):Bool
 	{
 		// 防重入。错误界面自身再触发异常时会重新进入本函数，必须抑制：

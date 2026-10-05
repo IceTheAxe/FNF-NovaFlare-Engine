@@ -45,5 +45,5 @@ jobs:
       use_cache: true
       dependencies_to_update: ${{ inputs.dependencies_to_update }}
     # 移动端必须要 analytics（它是 GameAnalytics 的主要使用方），所以这里必须传。
-    # 漏了会让 restore-private-gameanalytics.ps1 -Required 在内层失败。
+    # 漏了会让 check-gameanalytics-env.ps1 -Required 在内层失败。
     secrets: inherit

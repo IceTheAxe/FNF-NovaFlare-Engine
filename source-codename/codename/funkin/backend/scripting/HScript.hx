@@ -4,9 +4,6 @@ import hscript.*;
 import hscript.Expr.Error;
 import hscript.Parser;
 import openfl.Assets;
-#if mobile
-import codename.funkin.backend.utils.NativeAPI.MessageBoxIcon;
-#end
 
 class HScript extends Script {
 	public var interp:Interp;
@@ -143,10 +140,6 @@ class HScript extends Script {
 			Logs.logText(fn, GREEN),
 			Logs.logText(err, RED)
 		], ERROR);
-
-		#if mobile
-		codename.funkin.backend.utils.NativeAPI.showMessageBox("HScript Error", fn + err, MSG_ERROR);
-		#end
 	}
 
 	private function _warnHandler(error:Error) {
@@ -169,6 +162,7 @@ class HScript extends Script {
 
 	public override function setParent(parent:Dynamic) {
 		interp.scriptObject = parent;
+		interp.invalidateCache();
 	}
 
 	public override function onLoad() {
@@ -207,6 +201,7 @@ class HScript extends Script {
 
 		for(k=>e in savedVariables)
 			interp.variables.set(k, e);
+		interp.invalidateCache();
 
 		interp.allowStaticVariables = interp.allowPublicVariables = true;
 	}
@@ -241,6 +236,7 @@ class HScript extends Script {
 
 	public override function setPublicMap(map:Map<String, Dynamic>) {
 		this.interp.publicVariables = map;
+		interp.invalidateCache();
 	}
 
 	override public function destroy() {

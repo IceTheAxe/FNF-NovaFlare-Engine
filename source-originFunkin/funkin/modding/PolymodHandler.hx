@@ -117,7 +117,6 @@ class PolymodHandler
    */
   public static function createModRoot():Void
   {
-    if (originfunkin.OriginFunkinMode.active && !originfunkin.OriginFunkinConfig.modSupportEnabled) return;
     FileUtil.createDirIfNotExists(getModFolder());
   }
 
@@ -284,7 +283,7 @@ class PolymodHandler
     polymod.Polymod.onError = PolymodErrorHandler.onPolymodError;
     return new ZipFileSystem({
       modRoot: getModFolder(),
-      autoScan: !originfunkin.OriginFunkinMode.active || originfunkin.OriginFunkinConfig.modSupportEnabled
+      autoScan: true
     });
   }
 
@@ -632,22 +631,8 @@ class PolymodHandler
 
     // Forcibly reload Polymod so it finds any new files.
     // This will also register all scripts.
-    if (originfunkin.OriginFunkinMode.active)
-    {
-      if (originfunkin.OriginFunkinConfig.modSupportEnabled)
-      {
-        funkin.modding.PolymodHandler.loadAllMods();
-      }
-      else
-      {
-        funkin.modding.PolymodHandler.loadModsByDir([]);
-      }
-    }
-    else
-    {
-      // TODO: Replace this with loadEnabledMods().
-      funkin.modding.PolymodHandler.loadAllMods();
-    }
+    // TODO: Replace this with loadEnabledMods().
+    funkin.modding.PolymodHandler.loadAllMods();
 
     // Reload everything that is cached.
     // Currently this freezes the game for a second but I guess that's tolerable?

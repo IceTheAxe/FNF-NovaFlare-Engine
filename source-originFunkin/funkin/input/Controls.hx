@@ -1366,17 +1366,25 @@ class Controls extends FlxActionSet
   public function getInputsFor(control:Control, device:Device, ?list:Array<Int>):Array<Int>
   {
     if (list == null) list = [];
+    if (control == null || device == null) return list;
+
+    // An action that has been torn down has a null inputs array. The binding
+    // menu must treat it as unbound rather than dereference it in native builds.
+    var action = getActionFromControl(control);
+    if (action == null || action.inputs == null) return list;
 
     switch (device)
     {
       case Keys:
-        for (input in getActionFromControl(control).inputs)
+        for (input in action.inputs)
         {
+          if (input == null || input.destroyed) continue;
           if (input.device == KEYBOARD) list.push(input.inputID);
         }
       case Gamepad(id):
-        for (input in getActionFromControl(control).inputs)
+        for (input in action.inputs)
         {
+          if (input == null || input.destroyed) continue;
           if (isGamepad(input, id)) list.push(input.inputID);
         }
     }

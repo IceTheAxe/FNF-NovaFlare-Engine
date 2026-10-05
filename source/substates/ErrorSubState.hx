@@ -5,8 +5,11 @@ import flixel.FlxSubState;
 import states.freeplayState.FreeplayState;
 import states.mainMenuState.MainMenuState;
 
-class ErrorSubState extends MusicBeatSubstate
+class ErrorSubState extends FlxSubState
 {
+	var failedState:flixel.FlxState;
+	var exitTimer:FlxTimer;
+	var exiting:Bool = false;
 	var errorText:FlxText;
 	var tips:FlxText;
 	var error:String = "Oh Shit!";
@@ -29,7 +32,9 @@ class ErrorSubState extends MusicBeatSubstate
 	override function create()
 	{
 		super.create();
-		FlxG.state.persistentUpdate = false; // 停止更新state
+		failedState = FlxG.state;
+		failedState.persistentUpdate = false;
+		failedState.persistentDraw = false;
 
 		subcameras = new FlxCamera();
 
@@ -56,7 +61,7 @@ class ErrorSubState extends MusicBeatSubstate
 		FlxG.cameras.add(subcameras, false);
 		subcameras.bgColor.alpha = 0;
 
-		new FlxTimer().start(10, function(tmr:FlxTimer)
+		exitTimer = new FlxTimer().start(10, function(tmr:FlxTimer)
 		{
 			close();
 		});
@@ -74,13 +79,8 @@ class ErrorSubState extends MusicBeatSubstate
 
 		if (pressas >= 1)
 		{
-			FlxG.state.persistentUpdate = true; // 恢复更新
-			if (Type.getClass(FlxG.state) == PlayState)
-				MusicBeatState.switchState(new FreeplayState());
-			else
-				MusicBeatState.switchState(new MainMenuState());
-
 			close();
+			return;
 		}
 
 		if (FlxG.mouse.pressed)
@@ -103,11 +103,41 @@ class ErrorSubState extends MusicBeatSubstate
 		super.update(elapsed);
 	}
 
+	override function close()
+	{
+		if (exiting) return;
+		exiting = true;
+		if (exitTimer != null) exitTimer.cancel();
+
+		// Leave the failed state frozen until the replacement is ready. Both
+		// timeout and keyboard dismissal follow the same engine-specific route.
+		#if CODENAME_ENGINE_COMPAT
+		if (codenamechain.CodeNameMode.active)
+		{
+			codename.funkin.backend.MusicBeatState.skipTransOut = true;
+			codename.funkin.backend.MusicBeatState.skipTransIn = true;
+			FlxG.switchState(Std.isOfType(failedState, codename.funkin.game.PlayState)
+				? new codename.funkin.menus.FreeplayState()
+				: new codename.funkin.menus.MainMenuState());
+			return;
+		}
+		#end
+		flixel.addons.transition.FlxTransitionableState.skipNextTransOut = true;
+		flixel.addons.transition.FlxTransitionableState.skipNextTransIn = true;
+		FlxG.switchState(Std.isOfType(failedState, PlayState) ? new FreeplayState() : new MainMenuState());
+	}
+
 	override function destroy()
 	{
-		bg = FlxDestroyUtil.destroy(bg);
-		errorText = FlxDestroyUtil.destroy(errorText);
+		exitTimer = FlxDestroyUtil.destroy(exitTimer);
+		if (subcameras != null && FlxG.cameras.list.contains(subcameras))
+			FlxG.cameras.remove(subcameras);
+		subcameras = null;
+		failedState = null;
 		FlxG.mouse.visible = false;
 		super.destroy();
+		bg = null;
+		errorText = null;
+		tips = null;
 	}
 }

@@ -34,6 +34,9 @@ class MenuTypedList<T:MenuListItem> extends FlxTypedGroup<T>
   /** Set to false to disable nav control */
   public var enabled:Bool = true;
 
+  /** Settings pages own their touch gestures; keyboard/gamepad navigation still runs. */
+  public var touchNavigationEnabled:Bool = true;
+
   /**  */
   public var wrapMode:WrapMode = Both;
 
@@ -118,10 +121,10 @@ class MenuTypedList<T:MenuListItem> extends FlxTypedGroup<T>
     var newIndex = 0;
 
     // Define unified input handlers
-    final inputUp:Bool = controls.UI_UP_P || (!_isMainMenuState && SwipeUtil.swipeUp);
-    final inputDown:Bool = controls.UI_DOWN_P || (!_isMainMenuState && SwipeUtil.swipeDown);
-    final inputLeft:Bool = controls.UI_LEFT_P || (!_isMainMenuState && SwipeUtil.swipeLeft);
-    final inputRight:Bool = controls.UI_RIGHT_P || (!_isMainMenuState && SwipeUtil.swipeRight);
+    final inputUp:Bool = controls.UI_UP_P || (touchNavigationEnabled && !_isMainMenuState && SwipeUtil.swipeUp);
+    final inputDown:Bool = controls.UI_DOWN_P || (touchNavigationEnabled && !_isMainMenuState && SwipeUtil.swipeDown);
+    final inputLeft:Bool = controls.UI_LEFT_P || (touchNavigationEnabled && !_isMainMenuState && SwipeUtil.swipeLeft);
+    final inputRight:Bool = controls.UI_RIGHT_P || (touchNavigationEnabled && !_isMainMenuState && SwipeUtil.swipeRight);
 
     // Keepin' these for keyboard/controller support on mobile platforms
     newIndex = switch (navControls)
@@ -146,7 +149,7 @@ class MenuTypedList<T:MenuListItem> extends FlxTypedGroup<T>
       touchBuddy.setPosition(TouchUtil.touch.x, TouchUtil.touch.y);
     }
 
-    if (funkin.mobile.input.ControlsHandler.usingExternalInputDevice)
+    if (!touchNavigationEnabled || funkin.mobile.input.ControlsHandler.usingExternalInputDevice)
     {
       if (newIndex != selectedIndex)
       {
@@ -308,6 +311,16 @@ class MenuTypedList<T:MenuListItem> extends FlxTypedGroup<T>
   {
     FlxFlicker.stopFlickering(members[selectedIndex]);
     busy = false;
+  }
+
+  /** Confirm a selected touch option without the keyboard's flicker delay. */
+  public function acceptInstantly():Void
+  {
+    var menuItem:T = members[selectedIndex];
+    if (!menuItem.available) return;
+    onAcceptPress.dispatch(menuItem);
+    FunkinSound.playOnce(Paths.sound('confirmMenu'));
+    menuItem.callback();
   }
 
   /**

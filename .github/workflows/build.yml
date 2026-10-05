@@ -76,6 +76,14 @@ jobs:
       # 机制与"两族 key"的说明见 .github/workflows/hxcpp-cache.yml 顶部。
       HXCPP_COMPILE_CACHE: ${{ github.workspace }}/.hxcpp_cache
 
+      # GameAnalytics 凭据在编译期由 gameanalytics.GACompileConfig 宏从环境变量读取
+      # （见 Project.xml 的 --macro gameanalytics.GACompileConfig.configure()）。
+      # BuildTool.runMain() 开头会把 Sys.environment() 整个灌进 defines，所以这里
+      # 只需保证变量在进程环境里可达。
+      NOVA_GA_GAME_KEY: ${{ github.repository == 'IceTheAxe/FNF-NovaFlare-Engine' && github.event_name != 'pull_request_target' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && secrets.NOVA_GA_GAME_KEY || '' }}
+      NOVA_GA_SECRET_KEY: ${{ github.repository == 'IceTheAxe/FNF-NovaFlare-Engine' && github.event_name != 'pull_request_target' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && secrets.NOVA_GA_SECRET_KEY || '' }}
+      NOVA_GA_REQUIRED: ${{ github.repository == 'IceTheAxe/FNF-NovaFlare-Engine' && github.event_name != 'pull_request_target' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && '1' || '' }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@main
@@ -163,14 +171,10 @@ jobs:
         if: contains(inputs.name, 'Linux')
         run: sudo apt-get update && sudo apt-get install -y libvlc-dev libvlccore-dev
 
-      - name: Restore private GameAnalytics
+      - name: Check GameAnalytics credentials
         if: github.repository == 'IceTheAxe/FNF-NovaFlare-Engine' && github.event_name != 'pull_request_target' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         shell: pwsh
-        env:
-          NOVA_GA_IMPL_B64: ${{ secrets.NOVA_GA_IMPL_B64 }}
-          NOVA_GA_TYPES_B64: ${{ secrets.NOVA_GA_TYPES_B64 }}
-          NOVA_GA_CONFIG_B64: ${{ secrets.NOVA_GA_CONFIG_B64 }}
-        run: ./tools/restore-private-gameanalytics.ps1 -Required
+        run: ./tools/check-gameanalytics-env.ps1 -Required
 
       # ---------- 缓存 ----------
       # 两条独立的线：

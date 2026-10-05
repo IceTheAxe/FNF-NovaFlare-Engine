@@ -61,11 +61,14 @@ class Main extends Sprite
 		codename.funkin.backend.system.Main.fixWorkingDirectory();
 	}
 
-	public function new()
+	public function new(initializeGame:Bool = true)
 	{
 		super();
 
 		instance = this;
+		// NovaFlare embeds this display root around its own FunkinGame. Keep
+		// Main.instance as a real CNE Main without booting a second game.
+		if (!initializeGame) return;
 
 		CrashHandler.init();
 

@@ -117,6 +117,7 @@ class FunkinCamera extends FlxCamera
 
   var _cameraTexture:FixedBitmapData;
   var _cameraMatrix:FlxMatrix;
+  var _destroyed:Bool = false;
 
   @:nullSafety(Off)
   public function new(id:String = 'unknown', x:Int = 0, y:Int = 0, width:Int = 0, height:Int = 0, zoom:Float = 0)
@@ -298,6 +299,13 @@ class FunkinCamera extends FlxCamera
 
   override function destroy():Void
   {
+    if (_destroyed) return;
+    _destroyed = true;
+
+    // Direct script/group destruction must also unregister this camera.
+    // CameraFrontEnd.remove() normally unregisters before invoking destroy().
+    if (FlxG.cameras.list.contains(this)) FlxG.cameras.remove(this, false);
+
     super.destroy();
 
     _blendRenderTexture.destroy();

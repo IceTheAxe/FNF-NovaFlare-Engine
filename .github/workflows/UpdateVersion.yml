@@ -52,6 +52,18 @@ jobs:
           echo "Updated gitVersion.txt content:"
           cat gitVersion.txt
 
+      - name: Update Project.xml
+        run: |
+          echo "Updating Project.xml..."
+          if grep -q 'build-number="[0-9]*"' Project.xml; then
+            sed -i "s/\(<app title=\"NovaFlare Engine\".* build-number=\"\)[0-9]*\(\"\)/\1${{ steps.parse-version.outputs.version_number_int_with_timestamp }}\2/" Project.xml
+            echo "Updated existing build-number attribute with integer version and timestamp"
+          else
+            sed -i "s/\(<app title=\"NovaFlare Engine\".* version=\"[^\"]*\"\)/\1 build-number=\"${{ steps.parse-version.outputs.version_number_int_with_timestamp }}\"/" Project.xml
+            echo "Added build-number attribute with integer version and timestamp"
+          fi
+          echo "Updated Project.xml build-number attribute (version left unchanged)"
+
       - name: Update MainMenuState.hx
         run: |
           echo "Updating MainMenuState.hx..."
@@ -63,6 +75,6 @@ jobs:
         run: |
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
-          git add gitVersion.txt source/states/mainMenuState/MainMenuState.hx
+          git add gitVersion.txt Project.xml source/states/mainMenuState/MainMenuState.hx
           git commit -m "chore: Release version ${{ steps.parse-version.outputs.version_name }} ${{ steps.parse-version.outputs.version_number_int_with_timestamp }}"
           git push

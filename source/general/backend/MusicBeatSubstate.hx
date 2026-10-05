@@ -143,7 +143,9 @@ class MusicBeatSubstate extends FlxSubState
 	override function close()
 	{
 		super.close();
-		controls.isInSubstate = false;
+		var currentControls = controls;
+		if (currentControls != null)
+			currentControls.isInSubstate = false;
 	}
 
 	override function update(elapsed:Float)

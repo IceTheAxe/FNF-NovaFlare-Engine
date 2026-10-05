@@ -33,6 +33,7 @@ class NumberPreferenceItem extends TextMenuItem
   public var onChangeCallback:Null<Float->Void>;
   public var valueFormatter:Null<Float->String>;
   public var dragStepMultiplier:Float;
+  public var touchControlsEnabled:Bool = true;
 
   // Variables
   var holdDelayTimer:Float = HOLD_DELAY; // seconds
@@ -82,8 +83,8 @@ class NumberPreferenceItem extends TextMenuItem
       changeRateTimer -= elapsed;
     }
 
-    var jpLeft:Bool = controls().UI_LEFT_P #if FEATURE_TOUCH_CONTROLS || SwipeUtil.justSwipedLeft #end;
-    var jpRight:Bool = controls().UI_RIGHT_P #if FEATURE_TOUCH_CONTROLS || SwipeUtil.justSwipedRight #end;
+    var jpLeft:Bool = controls().UI_LEFT_P #if FEATURE_TOUCH_CONTROLS || (touchControlsEnabled && SwipeUtil.justSwipedLeft) #end;
+    var jpRight:Bool = controls().UI_RIGHT_P #if FEATURE_TOUCH_CONTROLS || (touchControlsEnabled && SwipeUtil.justSwipedRight) #end;
 
     if (jpLeft || jpRight)
     {
@@ -98,7 +99,7 @@ class NumberPreferenceItem extends TextMenuItem
     #if FEATURE_TOUCH_CONTROLS
     final dragThreshold:Float = 24 / elapsed / 100;
 
-    if (TouchUtil.touch != null && (TouchUtil.touch.deltaViewX <= -dragThreshold || TouchUtil.touch.deltaViewX >= dragThreshold))
+    if (touchControlsEnabled && TouchUtil.touch != null && (TouchUtil.touch.deltaViewX <= -dragThreshold || TouchUtil.touch.deltaViewX >= dragThreshold))
     {
       valueChangeMultiplier = dragStepMultiplier;
     }
@@ -106,12 +107,12 @@ class NumberPreferenceItem extends TextMenuItem
 
     if (holdDelayTimer <= 0.0 && changeRateTimer <= 0.0)
     {
-      if (controls().UI_LEFT #if FEATURE_TOUCH_CONTROLS || (TouchUtil.touch != null && TouchUtil.touch.deltaX <= -dragThreshold) #end)
+      if (controls().UI_LEFT #if FEATURE_TOUCH_CONTROLS || (touchControlsEnabled && TouchUtil.touch != null && TouchUtil.touch.deltaX <= -dragThreshold) #end)
       {
         shouldDecrease = true;
         changeRateTimer = CHANGE_RATE;
       }
-      else if (controls().UI_RIGHT #if FEATURE_TOUCH_CONTROLS || (TouchUtil.touch != null && TouchUtil.touch.deltaX >= dragThreshold) #end)
+      else if (controls().UI_RIGHT #if FEATURE_TOUCH_CONTROLS || (touchControlsEnabled && TouchUtil.touch != null && TouchUtil.touch.deltaX >= dragThreshold) #end)
       {
         shouldIncrease = true;
         changeRateTimer = CHANGE_RATE;
@@ -119,22 +120,17 @@ class NumberPreferenceItem extends TextMenuItem
     }
 
     // Actually increasing/decreasing the value
-    if (shouldDecrease)
-    {
-      var isBelowMin:Bool = currentValue - step * valueChangeMultiplier < min;
-      currentValue = (currentValue - step * valueChangeMultiplier).clamp(min, max);
-      if (precision != 0) currentValue = FlxMath.roundDecimal(currentValue, precision);
+    if (shouldDecrease) changeBySteps(-valueChangeMultiplier);
+    else if (shouldIncrease) changeBySteps(valueChangeMultiplier);
+  }
 
-      if (onChangeCallback != null && !isBelowMin) onChangeCallback(currentValue);
-    }
-    else if (shouldIncrease)
-    {
-      var isAboveMax:Bool = currentValue + step * valueChangeMultiplier > max;
-      currentValue = (currentValue + step * valueChangeMultiplier).clamp(min, max);
-      if (precision != 0) currentValue = FlxMath.roundDecimal(currentValue, precision);
-
-      if (onChangeCallback != null && !isAboveMax) onChangeCallback(currentValue);
-    }
+  public function changeBySteps(count:Float):Void
+  {
+    var value = FlxMath.bound(FlxMath.roundDecimal(currentValue + step * count, precision), min, max);
+    if (value == currentValue) return;
+    currentValue = value;
+    lefthandText.text = formatted(currentValue);
+    if (onChangeCallback != null) onChangeCallback(currentValue);
   }
 
   /** Turns the float into a string */

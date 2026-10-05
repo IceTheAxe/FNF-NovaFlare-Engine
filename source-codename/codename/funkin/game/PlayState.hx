@@ -958,8 +958,10 @@ class PlayState extends MusicBeatState
 				FlxG.sound.load(Paths.sound(s));
 
 		if (chartingMode) {
-			WindowUtils.prefix = Charter.undos.unsaved ? Flags.UNDO_PREFIX : "";
-			WindowUtils.suffix = TU.translate("playtesting.chartPlaytesting");
+			if (Flags.CHANGE_WINDOW_TITLE_PLAYSTATE) {
+				WindowUtils.prefix = Charter.undos.unsaved ? Flags.UNDO_PREFIX : "";
+				WindowUtils.suffix = TU.translate("playtesting.chartPlaytesting");
+			}
 
 			SaveWarning.showWarning = Charter.undos.unsaved;
 			SaveWarning.selectionClass = CharterSelection;
@@ -1159,7 +1161,7 @@ class PlayState extends MusicBeatState
 
 		super.destroy();
 
-		WindowUtils.resetAffixes();
+		if (Flags.CHANGE_WINDOW_TITLE_PLAYSTATE) WindowUtils.resetAffixes();
 		SaveWarning.reset();
 
 		instance = null;

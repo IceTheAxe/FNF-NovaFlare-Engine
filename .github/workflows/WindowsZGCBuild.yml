@@ -16,6 +16,9 @@ jobs:
     environment: ${{ github.repository == 'IceTheAxe/FNF-NovaFlare-Engine' && 'private-build' || 'public-build' }}
     timeout-minutes: 180
     env:
+      NOVA_GA_GAME_KEY: ${{ github.repository == 'IceTheAxe/FNF-NovaFlare-Engine' && github.event_name != 'pull_request' && github.event_name != 'pull_request_target' && secrets.NOVA_GA_GAME_KEY || '' }}
+      NOVA_GA_SECRET_KEY: ${{ github.repository == 'IceTheAxe/FNF-NovaFlare-Engine' && github.event_name != 'pull_request' && github.event_name != 'pull_request_target' && secrets.NOVA_GA_SECRET_KEY || '' }}
+      NOVA_GA_REQUIRED: ${{ github.repository == 'IceTheAxe/FNF-NovaFlare-Engine' && github.event_name != 'pull_request' && github.event_name != 'pull_request_target' && '1' || '' }}
       HXCPP_COMPILE_JOBS: 4
       NOVAGC_HAXE_ARCHIVE_URL: https://github.com/NovaFlare-Engine-haxelib/haxe-novagc/releases/download/novagc-precise-70c1245e/haxe-novagc-windows-x64.zip
       NOVAGC_HAXE_ARCHIVE_SHA256: f344f1911fccb75b925cf96b0d0468f9b4e967bc8218909d02d4d6f84dc25540
@@ -117,20 +120,16 @@ jobs:
           }
           Write-Output "NovaGC native dependency probe passed with $compiler"
 
-      - name: Restore private GameAnalytics
+      - name: Check GameAnalytics credentials
         if: github.repository == 'IceTheAxe/FNF-NovaFlare-Engine' && github.event_name != 'pull_request' && github.event_name != 'pull_request_target'
         shell: pwsh
-        env:
-          NOVA_GA_IMPL_B64: ${{ secrets.NOVA_GA_IMPL_B64 }}
-          NOVA_GA_TYPES_B64: ${{ secrets.NOVA_GA_TYPES_B64 }}
-          NOVA_GA_CONFIG_B64: ${{ secrets.NOVA_GA_CONFIG_B64 }}
-        run: ./tools/restore-private-gameanalytics.ps1 -Required
+        run: ./tools/check-gameanalytics-env.ps1 -Required
 
       - name: Install project libraries
         shell: pwsh
         run: |
           haxelib setup C:\haxelib
-          haxelib install hmm --quiet
+          haxelib git hmm https://github.com/NovaFlare-Engine-haxelib/hmm-3.1.0 70aca779a9d374a6e6b83c18715a3991a147ca37 --skip-dependencies --quiet
           haxelib run hmm install
           haxelib dev hxcpp "$env:GITHUB_WORKSPACE\hxcpp"
 

@@ -91,6 +91,9 @@ class FunkinButton extends FunkinSprite implements IFlxInput
    */
   public var limitToBounds:Bool = true;
 
+  /** Menu buttons can reject a finger that started scrolling elsewhere. */
+  public var requireFreshPress:Bool = false;
+
   /**
    * A radius for circular buttons.
    * If this radius is larger than 0 then the overlap check will look if the touch point is inside this radius.
@@ -216,6 +219,7 @@ class FunkinButton extends FunkinSprite implements IFlxInput
     for (candidate in touches)
     {
       if (candidate == null || candidate.released) continue;
+      if (requireFreshPress && status == FunkinButtonStatus.NORMAL && !candidate.justPressed) continue;
 
       // Once a button has captured a touch, other fingers must not replace it.
       // Rebinding currentInput every frame was the source of the four-finger

@@ -65,11 +65,7 @@ final class WindowUtils {
 	public static inline function setWindow(?title:String, ?image:String)
 	{
 		// TODO: Implement ICON SIZES in Flags.
-		#if CODENAME_ENGINE_COMPAT
-		WindowUtils.title = "NovaFlare Engine";
-		#else
 		WindowUtils.title = title != null ? title : (Flags.WINDOW_TITLE_USE_MOD_NAME ? Flags.MOD_NAME : Flags.TITLE);
-		#end
 
 		var iconPath = image != null ? image : Flags.MOD_ICON;
 		#if !mobile
@@ -81,11 +77,7 @@ final class WindowUtils {
 	 * Updates the window title to have the current title and prefix/suffix.
 	**/
 	public static inline function updateTitle()
-		#if CODENAME_ENGINE_COMPAT
-		Lib.application.window.title = "NovaFlare Engine";
-		#else
 		Lib.application.window.title = '$prefix$title$suffix';
-		#end
 
 	// backwards compat
 	@:noCompletion public static var endfix(get, set):String;
