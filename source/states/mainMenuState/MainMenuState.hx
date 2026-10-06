@@ -38,8 +38,8 @@ import cpp.Lib;
 class MainMenuState extends MusicBeatState
 {
 	public static var psychEngineVersion:String = '0.7.3'; // This is also used for Discord RPC
-	public static var novaFlareEngineDataVersion:Float = 4.0;
-	public static var novaFlareEngineVersion:String = '1.2.1-Coldfix-2';
+	public static var novaFlareEngineDataVersion:Float = 4.1;
+	public static var novaFlareEngineVersion:String = '1.2.1-Coldfix-Extra-2';
 	public static var novaFlareEngineCommit:String = 
 	    #if commit_sha
             haxe.macro.Compiler.getDefine("commit_sha");
