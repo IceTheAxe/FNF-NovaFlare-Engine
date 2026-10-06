@@ -4,7 +4,7 @@ import openfl.utils.Assets;
 
 import flixel.util.FlxStringUtil;
 
-import developer.editors.ChartingState;
+import developer.editors.pe.PEChartingState;
 
 import states.freeplayState.FreeplayState;
 import states.storyMenuState.StoryMenuState;
@@ -685,7 +685,7 @@ class PauseSubState extends MusicBeatSubstate
 					FlxG.camera.followLerp = 0;
 				case 'Editor':
 					PlayState.replayMode = false; Replay.restoreSettings();
-					MusicBeatState.switchState(new ChartingState());
+					PEChartingState.openChartEditor();
 					PlayState.chartingMode = true;
 			}
 		}

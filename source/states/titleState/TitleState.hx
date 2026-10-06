@@ -133,7 +133,7 @@ class TitleState extends MusicBeatState
 		#if FREEPLAY
 		MusicBeatState.switchState(new FreeplayState());
 		#elseif CHARTING
-		MusicBeatState.switchState(new ChartingState());
+		developer.editors.pe.PEChartingState.openChartEditor();
 		#else
 		if(FlxG.save.data.flashing == null && !FlashingState.leftState) {
 			controls.isInSubstate = false; //idfk what's wrong

@@ -3,6 +3,8 @@ package developer.editors;
 import states.mainMenuState.MainMenuState;
 import states.freeplayState.FreeplayState;
 
+import developer.editors.pe.PEChartingState;
+
 import games.backend.WeekData;
 import games.objects.Character;
 
@@ -10,13 +12,14 @@ class MasterEditorMenu extends MusicBeatState
 {
 	var options:Array<String> = [
 		'Chart Editor',
+		'PE Chart Editor',
 		'Character Editor',
 		'Stage Editor',
 		'Week Editor',
 		'Menu Character Editor',
 		'Dialogue Editor',
 		'Dialogue Portrait Editor',
-		'Note Splash Debug'
+		'Note Splash Editor'
 	];
 	private var grpTexts:FlxTypedGroup<Alphabet>;
 	private var directories:Array<String> = [null];
@@ -114,7 +117,9 @@ class MasterEditorMenu extends MusicBeatState
 			switch (options[curSelected])
 			{
 				case 'Chart Editor': // felt it would be cool maybe
-					MusicBeatState.switchState(new ChartingState());
+					PEChartingState.openChartEditor();
+				case 'PE Chart Editor':
+					LoadingState.loadAndSwitchState(new PEChartingState(), false);
 				case 'Character Editor':
 					MusicBeatState.switchState(new CharacterEditorState(Character.DEFAULT_CHARACTER));
 				case 'Stage Editor':
@@ -127,8 +132,8 @@ class MasterEditorMenu extends MusicBeatState
 					MusicBeatState.switchState(new DialogueEditorState());
 				case 'Dialogue Portrait Editor':
 					MusicBeatState.switchState(new DialogueCharacterEditorState());
-				case 'Note Splash Debug':
-					MusicBeatState.switchState(new NoteSplashDebugState());
+				case 'Note Splash Editor':
+					MusicBeatState.switchState(new NoteSplashEditorState());
 			}
 			FlxG.sound.music.volume = 0;
 			FreeplayState.destroyFreeplayVocals();

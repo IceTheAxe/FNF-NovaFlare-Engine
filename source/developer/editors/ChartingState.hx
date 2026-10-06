@@ -19,7 +19,6 @@ import flixel.FlxObject;
 import flixel.addons.display.FlxGridOverlay;
 import flixel.addons.ui.FlxUI;
 import flixel.addons.ui.FlxUICheckBox;
-import flixel.addons.ui.FlxUIInputText;
 import flixel.addons.ui.FlxUIDropDownMenu;
 import flixel.addons.ui.FlxUINumericStepper;
 import flixel.addons.ui.FlxUISlider;
@@ -177,8 +176,8 @@ class ChartingState extends MusicBeatState
 	var leftIcon:HealthIcon;
 	var rightIcon:HealthIcon;
 
-	var value1InputText:FlxUIInputText;
-	var value2InputText:FlxUIInputText;
+	var value1InputText:PsychUIInputText;
+	var value2InputText:PsychUIInputText;
 	var currentSongName:String;
 
 	var zoomTxt:FlxText;
@@ -186,7 +185,7 @@ class ChartingState extends MusicBeatState
 	var zoomList:Array<Float> = [0.25, 0.5, 1, 2, 3, 4, 6, 8, 12, 16, 24];
 	var curZoom:Int = 2;
 
-	private var blockPressWhileTypingOn:Array<FlxUIInputText> = [];
+	private var blockPressWhileTypingOn:Array<PsychUIInputText> = [];
 	private var blockPressWhileTypingOnStepper:Array<FlxUINumericStepper> = [];
 	private var blockPressWhileScrolling:Array<FlxUIDropDownMenu> = [];
 
@@ -426,7 +425,7 @@ class ChartingState extends MusicBeatState
 			if (group != null) {
 				var inputs:Array<FlxSprite> = [];
 				for (member in group.members) {
-					if (Std.isOfType(member, FlxUIInputText) || Std.isOfType(member, FlxUINumericStepper)) {
+					if (Std.isOfType(member, PsychUIInputText) || Std.isOfType(member, FlxUINumericStepper)) {
 						inputs.push(member);
 					}
 				}
@@ -449,7 +448,7 @@ class ChartingState extends MusicBeatState
 	var check_warnings:FlxUICheckBox = null;
 	var playSoundBf:FlxUICheckBox = null;
 	var playSoundDad:FlxUICheckBox = null;
-	var UI_songTitle:FlxUIInputText;
+	var UI_songTitle:PsychUIInputText;
 	var stageDropDown:FlxUIDropDownMenu;
 	#if FLX_PITCH
 	var sliderRate:FlxUISlider;
@@ -457,7 +456,7 @@ class ChartingState extends MusicBeatState
 
 	function addSongUI():Void
 	{
-		UI_songTitle = new FlxUIInputText(10, 10, 70, _song.song, 8);
+		UI_songTitle = new PsychUIInputText(10, 10, 70, _song.song, 8);
 
 		var check_voices = new FlxUICheckBox(10, 25, null, null, "Has voice track", 100);
 		check_voices.checked = _song.needsVoices;
@@ -1014,7 +1013,7 @@ class ChartingState extends MusicBeatState
 	}
 
 	var stepperSusLength:FlxUINumericStepper;
-	var strumTimeInputText:FlxUIInputText; // I wanted to use a stepper but we can't scale these as far as i know :(
+	var strumTimeInputText:PsychUIInputText; // I wanted to use a stepper but we can't scale these as far as i know :(
 	var noteTypeDropDown:FlxUIDropDownMenu;
 	var currentType:Int = 0;
 
@@ -1028,7 +1027,7 @@ class ChartingState extends MusicBeatState
 		stepperSusLength.name = 'note_susLength';
 		blockPressWhileTypingOnStepper.push(stepperSusLength);
 
-		strumTimeInputText = new FlxUIInputText(10, 65, 180, "0");
+		strumTimeInputText = new PsychUIInputText(10, 65, 180, "0");
 		blockPressWhileTypingOn.push(strumTimeInputText);
 		tab_group_note.add(strumTimeInputText);
 
@@ -1157,12 +1156,12 @@ class ChartingState extends MusicBeatState
 
 		var text:FlxText = new FlxText(20, 90, 0, "Value 1:");
 		tab_group_event.add(text);
-		value1InputText = new FlxUIInputText(20, 110, 100, "");
+		value1InputText = new PsychUIInputText(20, 110, 100, "");
 		blockPressWhileTypingOn.push(value1InputText);
 
 		var text:FlxText = new FlxText(20, 130, 0, "Value 2:");
 		tab_group_event.add(text);
-		value2InputText = new FlxUIInputText(20, 150, 100, "");
+		value2InputText = new PsychUIInputText(20, 150, 100, "");
 		blockPressWhileTypingOn.push(value2InputText);
 
 		// New event buttons
@@ -1493,13 +1492,13 @@ class ChartingState extends MusicBeatState
 		UI_box.addGroup(tab_group_chart);
 	}
 
-	var gameOverCharacterInputText:FlxUIInputText;
-	var gameOverSoundInputText:FlxUIInputText;
-	var gameOverLoopInputText:FlxUIInputText;
-	var gameOverEndInputText:FlxUIInputText;
+	var gameOverCharacterInputText:PsychUIInputText;
+	var gameOverSoundInputText:PsychUIInputText;
+	var gameOverLoopInputText:PsychUIInputText;
+	var gameOverEndInputText:PsychUIInputText;
 
-	var noteSkinInputText:FlxUIInputText;
-	var noteSplashesInputText:FlxUIInputText;
+	var noteSkinInputText:PsychUIInputText;
+	var noteSplashesInputText:PsychUIInputText;
 
 	function addDataUI()
 	{
@@ -1507,16 +1506,16 @@ class ChartingState extends MusicBeatState
 		tab_group_data.name = 'Data';
 
 		//
-		gameOverCharacterInputText = new FlxUIInputText(10, 25, 150, _song.gameOverChar != null ? _song.gameOverChar : '', 8);
+		gameOverCharacterInputText = new PsychUIInputText(10, 25, 150, _song.gameOverChar != null ? _song.gameOverChar : '', 8);
 		blockPressWhileTypingOn.push(gameOverCharacterInputText);
 
-		gameOverSoundInputText = new FlxUIInputText(10, gameOverCharacterInputText.y + 35, 150, _song.gameOverSound != null ? _song.gameOverSound : '', 8);
+		gameOverSoundInputText = new PsychUIInputText(10, gameOverCharacterInputText.y + 35, 150, _song.gameOverSound != null ? _song.gameOverSound : '', 8);
 		blockPressWhileTypingOn.push(gameOverSoundInputText);
 
-		gameOverLoopInputText = new FlxUIInputText(10, gameOverSoundInputText.y + 35, 150, _song.gameOverLoop != null ? _song.gameOverLoop : '', 8);
+		gameOverLoopInputText = new PsychUIInputText(10, gameOverSoundInputText.y + 35, 150, _song.gameOverLoop != null ? _song.gameOverLoop : '', 8);
 		blockPressWhileTypingOn.push(gameOverLoopInputText);
 
-		gameOverEndInputText = new FlxUIInputText(10, gameOverLoopInputText.y + 35, 150, _song.gameOverEnd != null ? _song.gameOverEnd : '', 8);
+		gameOverEndInputText = new PsychUIInputText(10, gameOverLoopInputText.y + 35, 150, _song.gameOverEnd != null ? _song.gameOverEnd : '', 8);
 		blockPressWhileTypingOn.push(gameOverEndInputText);
 		//
 
@@ -1530,10 +1529,10 @@ class ChartingState extends MusicBeatState
 		};
 
 		//
-		noteSkinInputText = new FlxUIInputText(10, 280, 150, _song.arrowSkin != null ? _song.arrowSkin : '', 8);
+		noteSkinInputText = new PsychUIInputText(10, 280, 150, _song.arrowSkin != null ? _song.arrowSkin : '', 8);
 		blockPressWhileTypingOn.push(noteSkinInputText);
 
-		noteSplashesInputText = new FlxUIInputText(noteSkinInputText.x, noteSkinInputText.y + 35, 150, _song.splashSkin != null ? _song.splashSkin : '', 8);
+		noteSplashesInputText = new PsychUIInputText(noteSkinInputText.x, noteSkinInputText.y + 35, 150, _song.splashSkin != null ? _song.splashSkin : '', 8);
 		blockPressWhileTypingOn.push(noteSplashesInputText);
 
 		var reloadNotesButton:FlxButton = new FlxButton(noteSplashesInputText.x + 5, noteSplashesInputText.y + 20, 'Change Notes', function()
@@ -1794,7 +1793,7 @@ class ChartingState extends MusicBeatState
 						opponentVocals.volume = 0;
 			}
 		}
-		else if (id == FlxUIInputText.CHANGE_EVENT && (sender is FlxUIInputText))
+		else if (id == PsychUIInputText.CHANGE_EVENT && (sender is PsychUIInputText))
 		{
 			if (sender == noteSplashesInputText)
 			{
@@ -2126,28 +2125,18 @@ class ChartingState extends MusicBeatState
 		}
 
 		var blockInput:Bool = false;
-		for (inputText in blockPressWhileTypingOn)
+		if (PsychUIInputText.focusOn != null)
 		{
-			if (inputText.hasFocus)
-			{
-				ClientPrefs.toggleVolumeKeys(false);
-				blockInput = true;
-				break;
-			}
+			ClientPrefs.toggleVolumeKeys(false);
+			blockInput = true;
 		}
 
 		if (!blockInput)
 		{
-			for (stepper in blockPressWhileTypingOnStepper)
+			if (PsychUIInputText.focusOn != null)
 			{
-				@:privateAccess
-				var leText:FlxUIInputText = cast(stepper.text_field, FlxUIInputText);
-				if (leText.hasFocus)
-				{
-					ClientPrefs.toggleVolumeKeys(false);
-					blockInput = true;
-					break;
-				}
+				ClientPrefs.toggleVolumeKeys(false);
+				blockInput = true;
 			}
 		}
 
@@ -2224,7 +2213,7 @@ class ChartingState extends MusicBeatState
 				}
 			}
 
-			if (FlxG.keys.justPressed.BACKSPACE || virtualPad.buttonB.justPressed)
+			if ((controls.BACK || virtualPad.buttonB.justPressed) && PsychUIInputText.focusOn == null)
 			{
 				// Protect against lost data when quickly leaving the chart editor.
 				autosaveSong();
@@ -2497,12 +2486,10 @@ class ChartingState extends MusicBeatState
 		}
 		else if (FlxG.keys.justPressed.ENTER)
 		{
-			for (i in 0...blockPressWhileTypingOn.length)
+
+			if (PsychUIInputText.focusOn != null)
 			{
-				if (blockPressWhileTypingOn[i].hasFocus)
-				{
-					blockPressWhileTypingOn[i].hasFocus = false;
-				}
+				PsychUIInputText.focusOn = null;
 			}
 		}
 

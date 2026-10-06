@@ -17,3 +17,4 @@ noteOffsetChangingAllowed => 回放套用 Note Offset
 pauseType_NF => NF
 pauseType_FE => FE
 pauseType_Psych => Psych
+peChartEditor => 使用 PE 谱面编辑器

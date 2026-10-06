@@ -14,3 +14,4 @@ msInErrorBar => Mostre o erro de temporização atual em milissegundos direto na
 pointerType => Escolha o formato do ponteiro na barra de erro de hit.
 guideLineAlpha => Controle a opacidade (transparência) das linhas guia.
 noteOffsetChangingAllowed => Aplique o offset de nota gravado no replay ao reproduzi-lo.
+peChartEditor => Use o editor de chart do Psych Engine 1.0.4 em vez do editor clássico do NovaFlare.

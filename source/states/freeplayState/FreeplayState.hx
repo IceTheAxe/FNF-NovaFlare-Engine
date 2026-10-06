@@ -13,7 +13,7 @@ import openfl.geom.Point;
 import openfl.geom.Rectangle;
 import flixel.graphics.FlxGraphic;
 
-import developer.editors.ChartingState;
+import developer.editors.pe.PEChartingState;
 
 import options.OptionsState;
 
@@ -543,7 +543,7 @@ class FreeplayState extends MusicBeatState
 			case 'editor':
 				return function() { 
 				stopAll = true; 
-				MusicBeatState.switchState(new ChartingState()); 
+				PEChartingState.openChartEditor(); 
 			};
 			case 'reset':
 				return function() { 

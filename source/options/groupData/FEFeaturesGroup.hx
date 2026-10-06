@@ -15,6 +15,9 @@ class FEFeaturesGroup extends OptionCata
 
 		var option:Option = new Option(this, 'coolBackdrop', BOOL);
 		addOption(option);
+
+		var option:Option = new Option(this, 'peChartEditor', BOOL);
+		addOption(option);
 		
 		var option:Option = new Option(this, 'showMS', BOOL);
 		addOption(option);

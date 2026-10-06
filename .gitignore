@@ -23,6 +23,7 @@ artifacts/
 /toolchains/*
 !/toolchains/haxe-novagc/
 .workbuddy-ai/*
+.workbuddy/*
 .vscode/*
 .haxelib/
 # .github/

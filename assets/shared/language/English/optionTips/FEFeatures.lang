@@ -14,3 +14,4 @@ msInErrorBar => Show the current timing error in milliseconds directly on the hi
 pointerType => Choose the shape of the pointer on the hit error bar.
 guideLineAlpha => Control the opacity (transparency) of the guide lines.
 noteOffsetChangingAllowed => Apply the note offset recorded in the replay when playing it back.
+peChartEditor => Use the Psych Engine 1.0.4 chart editor instead of the classic NovaFlare one.

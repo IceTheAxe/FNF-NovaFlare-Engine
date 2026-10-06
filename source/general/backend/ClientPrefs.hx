@@ -187,6 +187,7 @@ import general.shaders.MobileShaderConverter;
 	public var coolBackdrop:Bool = true;
 	public var luaDebugPrint:Bool = true;
 	public var noteOffsetChangingAllowed:Bool = false;
+	public var peChartEditor:Bool = false;
 	// Arrow RGB
 	public var arrowRGB:Array<Array<FlxColor>> = [
 		[0xFFC24B99, 0xFFFFFFFF, 0xFF3C1F56],

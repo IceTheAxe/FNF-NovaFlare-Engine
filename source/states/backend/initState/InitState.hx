@@ -273,7 +273,7 @@ class InitState extends MusicBeatState
 		#if FREEPLAY
 		MusicBeatState.switchState(new FreeplayState());
 		#elseif CHARTING
-		MusicBeatState.switchState(new ChartingState());
+		developer.editors.pe.PEChartingState.openChartEditor();
 		#else
 		if (FlxG.save.data.openedFlash == null)
 		{

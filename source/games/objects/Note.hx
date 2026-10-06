@@ -201,7 +201,7 @@ class Note extends FlxSprite
 
 	private function set_noteType(value:String):String
 	{
-		noteSplashData.texture = PlayState.SONG != null ? PlayState.SONG.splashSkin : 'noteSplashes';
+		noteSplashData.texture = PlayState.SONG != null ? PlayState.SONG.splashSkin : 'noteSplashes/noteSplashes';
 		defaultRGB();
 		if (ClientPrefs.data.noteColorSwap){
 		colorSwap.hue = ClientPrefs.data.arrowHSV[noteData % 4][0] / 360;
@@ -263,6 +263,44 @@ class Note extends FlxSprite
 	public function getAnimSet(index:Int):EKAnimation
 	{
 		return ExtraKeysHandler.instance.data.animations[index];
+	}
+
+	// 单侧轨道数（键数）。优先读 mania（mania+1），其次 keyCount / keycount
+	public static function getColumnsPerPlayer(?song:Dynamic):Int
+	{
+		var columns:Int = 4;
+		var targetSong:Dynamic = (song != null) ? song : PlayState.SONG;
+
+		if (targetSong != null)
+		{
+			var value:Dynamic = Reflect.field(targetSong, 'mania');
+			if (Std.isOfType(value, Int))
+				columns = Std.int(value) + 1;
+			else
+			{
+				value = Reflect.field(targetSong, 'keyCount');
+				if (Std.isOfType(value, Int))
+					columns = Std.int(value);
+				else
+				{
+					value = Reflect.field(targetSong, 'keycount');
+					if (Std.isOfType(value, Int))
+						columns = Std.int(value);
+				}
+			}
+		}
+
+		// 上限由 ExtraKeysHandler 的 mania 模式数决定，超出会在 getIndex 处越界
+		var maxCols:Int = getMaxColumnsPerPlayer();
+		return Std.int(FlxMath.bound(columns, 4, maxCols));
+	}
+
+	public static function getMaxColumnsPerPlayer():Int
+	{
+		var handler = ExtraKeysHandler.instance;
+		if (handler == null || handler.data == null || handler.data.keys == null || handler.data.keys.length < 1)
+			return 4;
+		return handler.data.keys.length;
 	}
 	
 
