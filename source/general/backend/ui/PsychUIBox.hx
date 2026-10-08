@@ -228,6 +228,11 @@ class PsychUIBox extends FlxSpriteGroup
 
 	private function set_selectedTab(v:PsychUITab)
 	{
+		// 只有被选中的标签页会 updateMenu，旧页里的输入框再也收不到"点到别处"那一次 update，
+		// 焦点会一直挂着（编辑器里表现为键盘快捷键全失效），所以换页时在这里强制清掉
+		if (selectedTab != v && PsychUIInputText.focusOn != null)
+			PsychUIInputText.focusOn = null;
+
 		if (v != null)
 		{
 			@:bypassAccessor selectedName = v.name;
