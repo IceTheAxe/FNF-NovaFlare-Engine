@@ -228,6 +228,11 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 
 	override function create()
 	{
+		// FPS 计数器是挂在舞台上的独立 Sprite（Main.fpsVar），不受相机影响，
+		// 位置固定在左上角(10,10)，跟本编辑器左上角的 File/Edit/View 面板叠在一起
+		if (Main.fpsVar != null)
+			Main.fpsVar.visible = false;
+
 		if(Difficulty.list.length < 1) Difficulty.resetList();
 		_keysPressedBuffer.resize(keysArray.length);
 
@@ -1861,6 +1866,16 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 	function loadChart(song:SwagSong)
 	{
 		PlayState.SONG = song;
+		// 编辑器内部统一用 psych_v1 的绝对 lane 语义。Legacy（0.7.x）谱面的 note[1] 是
+		// "相对 lane + mustHitSection 决定归属"，不转的话 note 会全挤到一侧去。
+		// 只动内存，磁盘文件要等 Save / Save (Legacy) 才写。
+		if (Song.chartEngineVersion != 'Pe-1.0.4')
+		{
+			Song.convertNoteLanesToPsychV1(song, Note.getColumnsPerPlayer(song));
+			song.format = 'psych_v1';
+			Song.chartEngineVersion = 'Pe-1.0.4';
+			Song.detectedFormat = 'Pe-1.0.x';
+		}
 		updateColumnConfig(song);
 		if (maniaStepper != null) maniaStepper.value = GRID_COLUMNS_PER_PLAYER;
 		StageData.loadDirectory(PlayState.SONG);
@@ -3698,6 +3713,30 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 		btn.text.alignment = LEFT;
 		tab_group.add(btn);
 
+		btnY += 20;
+		var btn:PsychUIButton = new PsychUIButton(btnX, btnY, '  Save (Legacy)', function()
+		{
+			if(!fileDialog.completed) return;
+			upperBox.isMinimized = true;
+			upperBox.bg.visible = false;
+
+			saveChart(true, true);
+		},btnWid);
+		btn.text.alignment = LEFT;
+		tab_group.add(btn);
+
+		btnY += 20;
+		var btn:PsychUIButton = new PsychUIButton(btnX, btnY, '  Save as (Legacy)...', function()
+		{
+			if(!fileDialog.completed) return;
+			upperBox.isMinimized = true;
+			upperBox.bg.visible = false;
+
+			saveChart(false, true);
+		},btnWid);
+		btn.text.alignment = LEFT;
+		tab_group.add(btn);
+
 		if(SHOW_EVENT_COLUMN)
 		{
 			btnY += 20;
@@ -4114,6 +4153,9 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 					{
 						loadedChart.format = 'psych_v1_convert';
 						Song.convert(loadedChart);
+						// convert() 只归一化 events / noteType，lane 归属要单独转，
+						// 否则文件被标成 psych_v1 却还是老 lane 语义 → 运行期全挤一侧。
+						Song.convertNoteLanesToPsychV1(loadedChart, Note.getColumnsPerPlayer(loadedChart));
 						File.saveContent(fileDialog.path, PsychJsonPrinter.print(loadedChart, ['sectionNotes', 'events']));
 						showOutput('Updated "$filePath" from format "$fmt" to "psych_v1" successfully!');
 					}
@@ -4704,10 +4746,25 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 			PlayState.SONG.events.push(event.songData);
 	}
 
-	function saveChart(canQuickSave:Bool = true)
+	function saveChart(canQuickSave:Bool = true, legacy:Bool = false)
 	{
 		updateChartData();
-		var chartData:String = PsychJsonPrinter.print(PlayState.SONG, ['sectionNotes', 'events']);
+
+		var chartData:String;
+		if(legacy)
+		{
+			// Legacy（0.7.x）输出：lane 转回"相对 + mustHitSection"语义、去掉 format 字段，
+			// 并按老引擎的习惯套一层 {"song": {...}}（parseJSON 靠包裹层认出老格式）。
+			// 深拷贝一份再改，不能动编辑器里那份 psych_v1 数据。
+			var legacySong:Dynamic = haxe.Json.parse(haxe.Json.stringify(PlayState.SONG));
+			Song.convertNoteLanesToLegacy(legacySong, Note.getColumnsPerPlayer(PlayState.SONG));
+			if(Reflect.hasField(legacySong, 'format')) Reflect.deleteField(legacySong, 'format');
+			chartData = PsychJsonPrinter.print({song: legacySong}, ['sectionNotes', 'events']);
+		}
+		else
+		{
+			chartData = PsychJsonPrinter.print(PlayState.SONG, ['sectionNotes', 'events']);
+		}
 		if(canQuickSave && Song.chartPath != null)
 		{
 			File.saveContent(Song.chartPath, chartData);
@@ -4950,6 +5007,10 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 
 	override function destroy()
 	{
+		// 恢复成设置里的值，不要无条件置 true —— 用户可能本来就把 FPS 显示关着
+		if (Main.fpsVar != null)
+			Main.fpsVar.visible = ClientPrefs.data.showFPS;
+
 		Note.globalRgbShaders = [];
 		games.backend.NoteTypesConfig.clearNoteTypesData();
 

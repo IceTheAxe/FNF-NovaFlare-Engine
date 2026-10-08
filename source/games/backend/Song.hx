@@ -124,6 +124,58 @@ class Song
 		}
 	}
 
+	/**
+	 * 把 Legacy（0.7.x）的相对 lane 语义转成 psych_v1 的绝对 lane 语义。
+	 *
+	 * Legacy:  note[1] ∈ 0..cols-1 表示 mustHitSection 那一侧，cols..2*cols-1 表示反侧。
+	 * psych_v1: note[1] ∈ 0..cols-1 = 玩家侧，cols.. = 对手侧。
+	 * 方向与 PE 1.0.4 的 Song.convert 一致，区别是这里按谱面实际列数算（支持 mania），
+	 * 官方那边写死 4 键。
+	 *
+	 * 不能塞进 convert()：parseJSON 无条件调 convert，那样老谱面会被转 lane
+	 * 却仍按 Pe-0.7.3 解释（双重转换）。只在"显式升级到 psych_v1"的路径调用。
+	 */
+	public static function convertNoteLanesToPsychV1(songJson:Dynamic, cols:Int = 4):Void
+	{
+		var sectionsData:Array<SwagSection> = songJson.notes;
+		if (sectionsData == null) return;
+		if (cols < 1) cols = 4;
+
+		for (section in sectionsData)
+		{
+			var mustHit:Bool = (section.mustHitSection == true);
+			for (note in section.sectionNotes)
+			{
+				if (note[1] < 0) continue; // 事件 note 用负数 lane，不参与
+				var gottaHitNote:Bool = (note[1] < cols) ? mustHit : !mustHit;
+				note[1] = (Std.int(note[1]) % cols) + (gottaHitNote ? 0 : cols);
+			}
+		}
+	}
+
+	/**
+	 * convertNoteLanesToPsychV1 的逆运算：psych_v1 绝对 lane → Legacy 相对 lane。
+	 * 供编辑器写 Legacy 谱面用，保证按 mustHitSection 解释的老引擎读出来归属不变。
+	 */
+	public static function convertNoteLanesToLegacy(songJson:Dynamic, cols:Int = 4):Void
+	{
+		var sectionsData:Array<SwagSection> = songJson.notes;
+		if (sectionsData == null) return;
+		if (cols < 1) cols = 4;
+
+		for (section in sectionsData)
+		{
+			var mustHit:Bool = (section.mustHitSection == true);
+			for (note in section.sectionNotes)
+			{
+				if (note[1] < 0) continue;
+				var isPlayerSide:Bool = (note[1] < cols);
+				var sameSide:Bool = (isPlayerSide == mustHit);
+				note[1] = (Std.int(note[1]) % cols) + (sameSide ? 0 : cols);
+			}
+		}
+	}
+
 	private static function fixMissingFields(songJson:Dynamic):Void
 	{
 		if (songJson.song == null) songJson.song = 'Unknown';

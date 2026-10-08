@@ -4002,6 +4002,8 @@ class PlayState extends MusicBeatState
 		NoteMs.push(noteDiff / playbackRate);
 		NoteTime.push(note.strumTime);
 
+		hitErrorBar.registerHit(-noteDiff);
+
 		vocals.volume = 1;
 
 		var score:Int = 350;
@@ -5023,11 +5025,6 @@ class PlayState extends MusicBeatState
 				highestCombo = combo;
 			notesHitArray.unshift(Date.now());
 			popUpScore(note);
-
-			var rawNoteDiff:Float =  note.strumTime - Conductor.songPosition + ClientPrefs.data.ratingOffset;
-
-			var hitTime:Float = -rawNoteDiff;
-			hitErrorBar.registerHit(hitTime);
 		}
 		var gainHealth:Bool = true; // prevent health gain, *if* sustains are treated as a singular note
 		if (guitarHeroSustains && note.isSustainNote)
@@ -5106,10 +5103,6 @@ class PlayState extends MusicBeatState
 
 		if (!note.isSustainNote)
 			invalidateNote(note);
-
-		var rawNoteDiff:Float =  note.strumTime - Conductor.songPosition + ClientPrefs.data.ratingOffset;
-		var hitTime:Float = -rawNoteDiff;
-		hitErrorBar.registerHit(hitTime);
 	}
 
 	public function invalidateNote(note:Note):Void

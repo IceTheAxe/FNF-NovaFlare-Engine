@@ -62,7 +62,9 @@ class FPSViewer extends Sprite
 		// Hit-testing allocates a transformed Point and walks the display matrix.
 		// Only do it for the single update that actually contains a click instead
 		// of doing that work at the full (up to 2000 Hz) update rate.
-		if (canPress && FlxG.mouse.justPressed && isPointInFPSCounter())
+		// visible 必须一起判：getBounds 不看可见性，隐藏着的计数器照样会被点到，
+		// 然后悄悄把内部显示模式（精简/图表）切掉。
+		if (canPress && visible && FlxG.mouse.justPressed && isPointInFPSCounter())
 		{
 			var now:Float = haxe.Timer.stamp();
 			// ENTER_UPDATE can be dispatched more than once while Flixel still
