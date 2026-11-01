@@ -11,8 +11,7 @@ import games.objects.Character;
 class MasterEditorMenu extends MusicBeatState
 {
 	var options:Array<String> = [
-		'Chart Editor',
-		'PE Chart Editor',
+		'Chart Editor', // 已统一为 PE 版谱面编辑器
 		'Character Editor',
 		'Stage Editor',
 		'Week Editor',
@@ -116,10 +115,8 @@ class MasterEditorMenu extends MusicBeatState
 		{
 			switch (options[curSelected])
 			{
-				case 'Chart Editor': // felt it would be cool maybe
+				case 'Chart Editor':
 					PEChartingState.openChartEditor();
-				case 'PE Chart Editor':
-					LoadingState.loadAndSwitchState(new PEChartingState(), false);
 				case 'Character Editor':
 					MusicBeatState.switchState(new CharacterEditorState(Character.DEFAULT_CHARACTER));
 				case 'Stage Editor':

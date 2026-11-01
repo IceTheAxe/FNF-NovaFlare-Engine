@@ -83,4 +83,40 @@ class Input
 		final cam = (camera != null) ? camera : FlxG.camera;
 		return (FlxG.mouse.gameY - cam.y) / cam.zoom + cam.viewMarginY;
 	}
+
+	/** 本次按住指针的独占者（拖数值条这类控件），null = 无人独占。 */
+	static var pointerOwner:FlxBasic = null;
+
+	/**
+	 * 声明"这次按住鼠标归我"（拖数值条这类）。
+	 * 滚动容器（general.backend.mouse.MouseMove）据此让位 —— 否则按住滑块上下拖时，
+	 * 列表会同时被当成"正在拖拽"而跟着滚，画面就是控件带着整页背景一起动。
+	 */
+	public static function capturePointer(own:FlxBasic):Void
+	{
+		pointerOwner = own;
+	}
+
+	/** 撤销 own 的独占（只在它确实持有时动手）。 */
+	public static function releasePointer(own:FlxBasic):Void
+	{
+		if (pointerOwner == own) pointerOwner = null;
+	}
+
+	/**
+	 * 指针是否被控件独占。
+	 * 松开鼠标即失效：控件不一定收得到 `justReleased`（切界面那一帧的输入会被吞掉），
+	 * 不自动清就会让列表永久拖不动。
+	 */
+	public static function isPointerCaptured():Bool
+	{
+		if (pointerOwner == null) return false;
+
+		if (!FlxG.mouse.pressed || !pointerOwner.exists)
+		{
+			pointerOwner = null;
+			return false;
+		}
+		return true;
+	}
 }

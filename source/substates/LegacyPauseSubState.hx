@@ -3,6 +3,7 @@ package substates;
 import games.backend.WeekData;
 import games.backend.Highscore;
 import games.backend.Song;
+import games.backend.SongCredits;
 
 import flixel.util.FlxStringUtil;
 import flixel.addons.display.FlxBackdrop;
@@ -115,10 +116,43 @@ class LegacyPauseSubState extends MusicBeatSubstate
 		blueballedTxt.scrollFactor.set();
 		blueballedTxt.setFormat(font, 32);
 		blueballedTxt.updateHitbox();
-		add(blueballedTxt);
+	add(blueballedTxt);
 
-		// 改为用 'practice_mode' 键
-		practiceText = new FlxText(20, 15 + 101, 0, Language.get('practice_mode', 'pause').toUpperCase(), 32);
+	// 曲师 / 谱师署名（有数据才建；两个槽位固定占位，Practice 行整体下移）
+	var credits = SongCredits.forPlayState();
+	var creditArtist:String = SongCredits.getArtist(credits);
+	var creditCharter:String = SongCredits.getCharter(credits);
+	var hasCredits:Bool = false;
+
+	if(creditArtist != null && creditArtist.length > 0)
+	{
+		var artistText:FlxText = new FlxText(20, 15 + 92, 0, Language.getPhrase('pause_artist', 'Artist: {1}', [creditArtist]), 24);
+		artistText.antialiasing = ClientPrefs.data.antialiasing;
+		artistText.scrollFactor.set();
+		artistText.setFormat(font, 24);
+		artistText.updateHitbox();
+		artistText.x = FlxG.width - (artistText.width + 20);
+		artistText.alpha = 0;
+		add(artistText);
+		FlxTween.tween(artistText, {alpha: 1, y: artistText.y + 5}, 0.4, {ease: FlxEase.quartInOut, startDelay: 0.8});
+		hasCredits = true;
+	}
+	if(creditCharter != null && creditCharter.length > 0)
+	{
+		var charterText:FlxText = new FlxText(20, 15 + 120, 0, Language.getPhrase('pause_charter', 'Charter: {1}', [creditCharter]), 24);
+		charterText.antialiasing = ClientPrefs.data.antialiasing;
+		charterText.scrollFactor.set();
+		charterText.setFormat(font, 24);
+		charterText.updateHitbox();
+		charterText.x = FlxG.width - (charterText.width + 20);
+		charterText.alpha = 0;
+		add(charterText);
+		FlxTween.tween(charterText, {alpha: 1, y: charterText.y + 5}, 0.4, {ease: FlxEase.quartInOut, startDelay: 0.9});
+		hasCredits = true;
+	}
+
+	// 改为用 'practice_mode' 键
+	practiceText = new FlxText(20, hasCredits ? 15 + 152 : 15 + 101, 0, Language.get('practice_mode', 'pause').toUpperCase(), 32);
 		practiceText.antialiasing = ClientPrefs.data.antialiasing;
 		practiceText.scrollFactor.set();
 		practiceText.setFormat(font, 32);

@@ -1,0 +1,83 @@
+{
+    "name": "Official Demo",
+    "list": [
+        {
+            "name": "Bopeebo",
+            "sound": [
+                "playlists/demo/songs/bopeebo-Inst.ogg",
+                "playlists/demo/songs/bopeebo-Voices-Opponent.ogg",
+                "playlists/demo/songs/bopeebo-Voices-Player.ogg"
+            ],
+            "background": ["menuBG"],
+            "lyrics": null,
+            "record": ["playlists/demo/art/demo_bopeebo"],
+            "bpm": 100,
+            "writer": "Kawai Sprite"
+        },
+        {
+            "name": "Spookeez",
+            "sound": [
+                "playlists/demo/songs/spookeez-Inst.ogg",
+                "playlists/demo/songs/spookeez-Voices-Opponent.ogg",
+                "playlists/demo/songs/spookeez-Voices-Player.ogg"
+            ],
+            "background": ["menuBGMagenta"],
+            "lyrics": null,
+            "record": ["playlists/demo/art/demo_spookeez"],
+            "bpm": 150,
+            "writer": "Kawai Sprite"
+        },
+        {
+            "name": "Pico",
+            "sound": [
+                "playlists/demo/songs/pico-Inst.ogg",
+                "playlists/demo/songs/pico-Voices-Opponent.ogg",
+                "playlists/demo/songs/pico-Voices-Player.ogg"
+            ],
+            "background": ["menuBGBlue"],
+            "lyrics": null,
+            "record": ["playlists/demo/art/demo_pico"],
+            "bpm": 150,
+            "writer": "Kawai Sprite"
+        },
+        {
+            "name": "Satin Panties",
+            "sound": [
+                "playlists/demo/songs/satin-panties-Inst.ogg",
+                "playlists/demo/songs/satin-panties-Voices-Opponent.ogg",
+                "playlists/demo/songs/satin-panties-Voices-Player.ogg"
+            ],
+            "background": ["menuBGMagenta"],
+            "lyrics": null,
+            "record": ["playlists/demo/art/demo_satin-panties"],
+            "bpm": 110,
+            "writer": "Kawai Sprite"
+        },
+        {
+            "name": "Cocoa",
+            "sound": [
+                "playlists/demo/songs/cocoa-Inst.ogg",
+                "playlists/demo/songs/cocoa-Voices-Opponent.ogg",
+                "playlists/demo/songs/cocoa-Voices-Player.ogg"
+            ],
+            "background": ["menuBG"],
+            "lyrics": null,
+            "record": ["playlists/demo/art/demo_cocoa"],
+            "bpm": 100,
+            "writer": "Kawai Sprite"
+        },
+        {
+            "name": "Ugh",
+            "sound": [
+                "playlists/demo/songs/ugh-Inst.ogg",
+                "playlists/demo/songs/ugh-Voices-Opponent.ogg",
+                "playlists/demo/songs/ugh-Voices-Player.ogg"
+            ],
+            "background": ["menuDesat"],
+            "lyrics": null,
+            "record": ["playlists/demo/art/demo_ugh"],
+            "bpm": 160,
+            "writer": "Kawai Sprite"
+        }
+    ]
+}

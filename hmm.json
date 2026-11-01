@@ -293,6 +293,13 @@
       "dir": null,
       "ref": "01c63babf2954addb8c2caacb5900b6cc7f4276f",
       "url": "https://github.com/NovaFlare-Engine-haxelib/flixel-animate-1.5.0"
+    },
+    {
+      "name": "moonchart",
+      "type": "git",
+      "dir": null,
+      "ref": "5d9fbc2cb2afed76dd325134c6f9edb757c090a1",
+      "url": "https://github.com/MaybeMaru/moonchart"
     }
   ]
 }

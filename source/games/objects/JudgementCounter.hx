@@ -10,6 +10,7 @@ class JudgementCounter extends FlxSpriteGroup
 
 	public var mainTeam:Array<FlxText> = [];
 	public var judgeTeam:Array<FlxText> = [];
+	public var hitsTotalText:FlxText; // 顶部"当前命中/总note数"
 
 	public function new(x:Float, y:Float)
 	{
@@ -20,6 +21,18 @@ class JudgementCounter extends FlxSpriteGroup
 			judgeName.unshift('Marvelous');
 
 		var runTime:Int = isExtend ? 4 : 3;
+
+		if (ClientPrefs.data.totalNoteHits)
+		{
+			hitsTotalText = new FlxText(0, 0, 0, '0/0', 20);
+			hitsTotalText.setFormat(Paths.font("vcr.ttf"), 20, FlxColor.WHITE, FlxTextAlign.LEFT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
+			hitsTotalText.scrollFactor.set();
+			hitsTotalText.borderSize = 1.25;
+			hitsTotalText.text = game.songHits + '/' + game.playerTotalNotes;
+			hitsTotalText.y = -hitsTotalText.height - 2;
+			add(hitsTotalText);
+		}
+
 		for (num in 0...runTime + 1)
 		{
 			var numText = new FlxText(0, 0, 0, "0", 20);
@@ -61,5 +74,8 @@ class JudgementCounter extends FlxSpriteGroup
 			case 'shit':
 				judgeTeam[3 + dataFix].text = Std.string(game.ratingsData[3].hits);
 		}
+
+		if (hitsTotalText != null)
+			hitsTotalText.text = game.songHits + '/' + game.playerTotalNotes;
 	}
 }

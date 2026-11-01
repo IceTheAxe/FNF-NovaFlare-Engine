@@ -1,0 +1,1115 @@
+package developer.editors.common;
+
+import flixel.FlxG;
+import flixel.FlxSprite;
+import flixel.group.FlxSpriteGroup;
+import flixel.math.FlxMath;
+import flixel.text.FlxText;
+import flixel.util.FlxColor;
+import flixel.util.FlxSave;
+import flixel.util.FlxStringUtil;
+
+import win8.Panel;
+import win8.Panel.PanelEntry;
+import win8.PanelOption;
+import win8.OptionType;
+
+/**
+ * ChartMinimap —— 谱面缩略图 / 密度条（两个谱面编辑器共用的通用组件）。
+ *
+ * 类似 osu! 的进度条：沿轴把整首歌按 section 摊开，每个 section 一个色块，
+ * 颜色按 note 密度（NPS）分挡；点击 / 按住拖拽跳转对应时间点；
+ * 悬浮显示该节的 BPM / note 数 / NPS / 时间点；条一端的齿轮打开 win8.Panel 设置浮出层。
+ *
+ * 色块在厚度方向按轨道数均分，每段单独算 NPS、单独上色：
+ * 第 0 段贴厚度轴低端，与谱面编辑器"从左到右 = player1..playerN"一致。
+ * 轨道数取 sideNotes 的最大长度，宿主给几条就切几段（和编辑器预留轨道数同理）。
+ *
+ * 宿主只需提供数据与跳转的闭包：
+ *   buildSections()  —— 返回每个 section 的 {time, endTime, bpm, noteCount, sideNotes}
+ *   getPosition()    —— 当前播放位置（毫秒）
+ *   onSeek(ms)       —— 跳转到指定毫秒
+ *   openSettings()   —— 齿轮被点击时调用（一般 openSubState(new ChartMinimapPanel(this))）
+ *
+ * 数据每 0.4 秒自动轮询一次 buildSections()，谱面改动无需手动通知。
+ * 组件自身画在屏幕坐标系（scrollFactor = 0），宿主把它挂到不滚动的相机上（PE 用 camUI）。
+ * mouseOver 标志每帧更新，宿主在网格鼠标逻辑里据此屏蔽点击穿透。
+ */
+typedef ChartMinimapSection =
+{
+	var time:Float;      // 节起点（毫秒）
+	var endTime:Float;   // 节终点（毫秒）
+	var bpm:Float;
+	var noteCount:Int;   // 本节总 note 数（所有轨道合并）
+	/** 每条轨道的 note 数，下标顺序 = 编辑器从左到右（0 = player1） */
+	var sideNotes:Array<Int>;
+}
+
+class ChartMinimap extends FlxSpriteGroup
+{
+	// =========================================================
+	// 宿主接口
+	// =========================================================
+	/** 提供每个 section 的数据（每 0.4s 轮询一次） */
+	public var buildSections:Void->Array<ChartMinimapSection>;
+	/** 当前播放位置（毫秒）—— 名字避开 FlxObject.getPosition */
+	public var getPlayheadPos:Void->Float;
+	/** 跳转到指定毫秒 */
+	public var onSeek:Float->Void;
+	/** 齿轮被点击（宿主一般 openSubState(new ChartMinimapPanel(this))） */
+	public var openSettings:Void->Void;
+	/**
+	 * 宿主的编辑器存档（编辑器的 chart_editor_data）。
+	 * 缩略图的设置跟编辑器其它设置存一起，不另开一个 FlxSave；为 null 时退回 FlxG.save.data。
+	 */
+	public var chartSave:FlxSave;
+
+	// =========================================================
+	// 运行状态
+	// =========================================================
+	/** 最近一次轮询拿到的节数据 */
+	public var sections:Array<ChartMinimapSection> = [];
+	/** 鼠标当前是否悬停在本组件上（条 / 齿轮），宿主用来屏蔽网格点击 */
+	public var mouseOver:Bool = false;
+	/** 鼠标是否在条本体上（不含手柄抓取区）—— 宿主用它让滚轮给缩放让路 */
+	public var barHovered:Bool = false;
+
+	/** 轨道层：底板 / 密度色块（永远在最下面） */
+	var trackLayer:FlxSpriteGroup;
+	/** 分隔层：section 之间的 1px 分割线（压在色块上、播放头下） */
+	var dividerLayer:FlxSpriteGroup;
+	/** 前景层：手柄 / 播放头 / 齿轮 / 信息框（永远在上面，图层序不依赖增删顺序） */
+	var frontLayer:FlxSpriteGroup;
+
+	var bgSprite:FlxSprite;
+	/** 白色拖拽手柄：贴在条朝屏幕边缘那侧的外面（竖条右外 / 横条下外），按住可整体挪位置 */
+	var handle:FlxSprite;
+	var cells:Array<FlxSprite> = [];
+	/** 色块在厚度方向切几段 = 轨道数（由 sections[].sideNotes 推导，最少 1） */
+	var sideCount:Int = 1;
+	/** section 边界的分割线池（数量 = section 数 - 1） */
+	var dividers:Array<FlxSprite> = [];
+	var playhead:FlxSprite;
+	var gear:FlxSprite;
+	var tooltip:FlxText;
+
+	var refreshTimer:Float = 0;
+	var scrubbing:Bool = false;
+	var draggingPos:Bool = false;
+
+	// 时间轴窗口（瞬态，不入存档）
+	/** 窗口起点（绝对毫秒） */
+	var viewStart:Float = 0;
+	/** 窗口长度 = 全曲 / zoom */
+	var viewSpan:Float = 0;
+	/** 首次拿到数据时把窗口对准播放头 */
+	var viewInitialized:Bool = false;
+	/** 需要重画（窗口移动 / 缩放 / 数据变化） */
+	var needRender:Bool = false;
+	/** 滚轮缩放后的延迟落盘计时 */
+	var zoomSaveTimer:Float = 0;
+	/** 鼠标在"本组件相机视图空间"里的坐标缓存 */
+	var mousePos:FlxPoint = FlxPoint.get();
+	var lastMouse:FlxPoint = FlxPoint.get();
+	/** 齿轮相对条左上角的偏移（拖拽时保持跟随） */
+	var gearOffX:Float = 0;
+	var gearOffY:Float = 0;
+
+	// 布局缓存（applyLayout 时算好，update 里直接用）
+	var barX:Float = 0;
+	var barY:Float = 0;
+	var barW:Float = 0;
+	var barH:Float = 0;
+	var gearX:Float = 0;
+	var gearY:Float = 0;
+	var gearSize:Int = 18;
+
+	static inline var REFRESH_INTERVAL:Float = 0.4;
+	static inline var GEAR_GAP:Float = 5;
+	/** 拖拽手柄命中区：手柄在条外，向外放宽多少像素；向条内再伸进多少像素兜住贴边抓取（手柄本体只有几像素宽） */
+	static inline var HANDLE_GRAB_OUT:Float = 10;
+	static inline var HANDLE_GRAB_IN:Float = 6;
+	/** 拖动位置时朝屏幕边侧给条外手柄留出的空隙 */
+	static inline var HANDLE_SPACE:Float = 6;
+	/** 本节像素跨度不足这个值就不画分割线（节太密时画了反而糊成一片） */
+	static inline var DIVIDER_MIN_SECTION_PX:Float = 3;
+	/** 时间轴缩放：范围与每档倍率 */
+	static inline var ZOOM_MIN:Float = 1;
+	static inline var ZOOM_MAX:Float = 16;
+	static inline var ZOOM_STEP:Float = 1.25;
+	/** 滚轮缩放后多久落盘（避免每格滚轮都写文件） */
+	static inline var ZOOM_SAVE_DELAY:Float = 0.8;
+	/** 播放头跟随时窗口内保留的安全区比例 */
+	static inline var FOLLOW_LO:Float = 0.15;
+	static inline var FOLLOW_HI:Float = 0.85;
+
+	// NPS 密度分挡配色：5 个阈值切 6 档（阈值在 ChartMinimapSettings 里可调）
+	static inline var COLOR_EMPTY:FlxColor = 0xFF33363B;
+	/** section 之间的 1px 分割线 */
+	static inline var DIVIDER_COLOR:FlxColor = 0xCC0E1013;
+	public static var TIER_COLORS:Array<FlxColor> = [
+		0xFF3ADB5A, // < tier1：绿
+		0xFF9BD83E, // tier1 ~ tier2：黄绿
+		0xFFE8C63E, // tier2 ~ tier3：黄
+		0xFFE8823E, // tier3 ~ tier4：橙
+		0xFFE85A3E, // tier4 ~ tier5：橙红
+		0xFFE83E4E  // > tier5：红
+	];
+
+	var settingsLoaded:Bool = false;
+
+	public function new(?save:FlxSave)
+	{
+		super();
+		chartSave = save;
+
+		if (!settingsLoaded)
+		{
+			settingsLoaded = true;
+			ChartMinimapSettings.load(chartSave);
+		}
+
+		bgSprite = new FlxSprite();
+		bgSprite.makeGraphic(1, 1, FlxColor.BLACK);
+		bgSprite.alpha = 0.45;
+
+		handle = new FlxSprite();
+		handle.makeGraphic(1, 1, FlxColor.WHITE);
+		handle.alpha = 0.7;
+
+		playhead = new FlxSprite();
+		playhead.makeGraphic(1, 1, FlxColor.WHITE);
+		playhead.color = 0xFF66D9FF;
+
+		gear = new FlxSprite();
+		gear.pixels = win8.Icons.draw('settings', gearSize, FlxColor.WHITE);
+		gear.color = 0xFFCCCCCC;
+
+		tooltip = new FlxText(0, 0, 240, '', 14);
+		tooltip.setFormat(null, 14, FlxColor.WHITE, LEFT, FlxColor.BLACK);
+		tooltip.borderSize = 1.5;
+		tooltip.visible = false;
+
+		// 三层结构：底板+色块 < 分割线 < 前景（手柄/播放头/齿轮/信息框）。
+		// 播放头放前景层 —— 它是"现在播到哪"的唯一指示，任何情况下都不能被密度色块或拖拽手柄压住。
+		trackLayer = new FlxSpriteGroup();
+		dividerLayer = new FlxSpriteGroup();
+		frontLayer = new FlxSpriteGroup();
+		trackLayer.add(bgSprite);
+		frontLayer.add(handle);
+		frontLayer.add(playhead);
+		frontLayer.add(gear);
+		frontLayer.add(tooltip);
+		add(trackLayer);
+		add(dividerLayer);
+		add(frontLayer);
+
+		scrollFactor.set(0, 0);
+		for (spr in members) if (spr != null) spr.scrollFactor.set(0, 0);
+
+		applyLayout();
+	}
+
+	// =========================================================
+	// 布局
+	// =========================================================
+	/** 按当前设置重摆整条（设置变化 / 初始化时调用） */
+	public function applyLayout():Void
+	{
+		var s = ChartMinimapSettings;
+		var margin:Float = Math.max(8, s.margin);
+
+		if (s.vertical)
+		{
+			// 竖条：厚度沿 X，长度沿 Y
+			barH = (s.length > 0) ? Math.min(s.length, FlxG.height - margin * 2) : FlxG.height - margin * 2;
+			barW = Math.min(s.thickness, FlxG.width * 0.2);
+		}
+		else
+		{
+			// 横条：长度沿 X，厚度沿 Y
+			barW = (s.length > 0) ? Math.min(s.length, FlxG.width - margin * 2) : FlxG.width - margin * 2;
+			barH = Math.min(s.thickness, FlxG.height * 0.2);
+		}
+
+		// 拖拽手柄记录过的位置优先（拖拽时实时写回 posX/posY）；否则按方向贴边，两端各留 margin 安全区
+		if (s.posX >= 0 && s.posY >= 0)
+		{
+			barX = FlxMath.bound(s.posX, 0, FlxG.width - barW - HANDLE_SPACE);
+			barY = FlxMath.bound(s.posY, 0, FlxG.height - barH - HANDLE_SPACE);
+		}
+		else if (s.vertical)
+		{
+			barX = FlxG.width - margin - barW;
+			barY = margin;
+		}
+		else
+		{
+			barX = margin;
+			barY = FlxG.height - margin - barH;
+		}
+		s.posX = barX;
+		s.posY = barY;
+
+		// 齿轮挂在条的一端（竖条在上方、横条在左侧），偏移量记下来供拖拽时跟随
+		gearOffX = s.vertical ? (barW - gearSize) / 2 : -gearSize - GEAR_GAP;
+		gearOffY = s.vertical ? -gearSize - GEAR_GAP : (barH - gearSize) / 2;
+		gearX = Math.max(2, barX + gearOffX);
+		gearY = Math.max(2, barY + gearOffY);
+
+		positionChrome();
+		rebuildCells();
+	}
+
+	/** 摆放底板 / 手柄 / 齿轮（拖拽位置时每帧调用，色块由 rebuildCells 一起挪） */
+	function positionChrome():Void
+	{
+		var s = ChartMinimapSettings;
+		bgSprite.setPosition(barX, barY);
+		bgSprite.scale.set(barW, barH);
+		bgSprite.updateHitbox();
+
+		// 白色手柄：竖条贴右缘外侧、横条贴下缘外侧，即朝屏幕边缘那一边 ——
+		// 条内厚度方向按轨道分段（低端=P1），放条内必压某段色块，挪出去就都不遮
+		if (s.vertical)
+		{
+			handle.setPosition(barX + barW + 1, barY);
+			handle.scale.set(4, barH);
+		}
+		else
+		{
+			handle.setPosition(barX, barY + barH + 1);
+			handle.scale.set(barW, 4);
+		}
+		handle.updateHitbox();
+
+		gear.setPosition(gearX, gearY);
+	}
+
+	// =========================================================
+	// 数据刷新
+	// =========================================================
+	/** 立即重拉节数据并重画色块（宿主也可以主动调） */
+	public function refreshData():Void
+	{
+		if (buildSections != null)
+			sections = buildSections();
+		else
+			sections = [];
+		if (sections == null) sections = [];
+		rebuildCells();
+	}
+
+	function rebuildCells():Void
+	{
+		sideCount = computeSideCount();
+		syncPools();
+
+		if (getTotalLength() <= 0)
+		{
+			for (cell in cells) if (cell.visible) cell.visible = false;
+			for (div in dividers) if (div.visible) div.visible = false;
+			return;
+		}
+
+		clampViewStart();
+		renderCells();
+	}
+
+	/** 轨道数 = 各节 sideNotes 的最大长度；宿主将来加更多 player 时这里自动跟上 */
+	function computeSideCount():Int
+	{
+		var n:Int = 1;
+		for (sec in sections)
+			if (sec.sideNotes != null && sec.sideNotes.length > n) n = sec.sideNotes.length;
+		return n;
+	}
+
+	/** 色块 / 分割线池：够用就复用，不够补，多了删 */
+	function syncPools():Void
+	{
+		var want:Int = sections.length * ((sideCount > 0) ? sideCount : 1);
+		while (cells.length < want)
+		{
+			var cell:FlxSprite = new FlxSprite();
+			cell.makeGraphic(1, 1, FlxColor.WHITE);
+			cell.scrollFactor.set(0, 0);
+			cells.push(cell);
+			trackLayer.add(cell);
+		}
+		while (cells.length > want)
+		{
+			var cell:FlxSprite = cells.pop();
+			if (cell != null) { trackLayer.remove(cell); cell.destroy(); }
+		}
+
+		// 分割线：section 数 - 1 条（第一条前面就是条的起边，不用画）
+		var dividerCount:Int = (sections.length > 1) ? sections.length - 1 : 0;
+		while (dividers.length < dividerCount)
+		{
+			var div:FlxSprite = new FlxSprite();
+			div.makeGraphic(1, 1, DIVIDER_COLOR);
+			div.scrollFactor.set(0, 0);
+			dividers.push(div);
+			dividerLayer.add(div);
+		}
+		while (dividers.length > dividerCount)
+		{
+			var div:FlxSprite = dividers.pop();
+			if (div != null) { dividerLayer.remove(div); div.destroy(); }
+		}
+	}
+
+	/**
+	 * 只重画、不动池。窗口外的节直接隐藏；可见节很少时这一步很便宜。
+	 */
+	function renderCells():Void
+	{
+		var vertical:Bool = ChartMinimapSettings.vertical;
+		var len:Float = vertical ? barH : barW;
+		var thick:Float = vertical ? barW : barH;
+		var sides:Int = (sideCount > 0) ? sideCount : 1;
+
+		if (len <= 2 || thick <= 1 || viewSpan <= 0)
+		{
+			for (cell in cells) if (cell.visible) cell.visible = false;
+			for (div in dividers) if (div.visible) div.visible = false;
+			return;
+		}
+
+		// 先全隐藏分割线：窗口滚动后旧线不会留在外面
+		for (div in dividers) if (div.visible) div.visible = false;
+		var lastDividerPx:Float = -1;
+
+		for (i in 0...sections.length)
+		{
+			var sec = sections[i];
+			var dur:Float = sec.endTime - sec.time;
+
+			var rawStart:Float = (sec.time - viewStart) / viewSpan * len;
+			var rawEnd:Float = (sec.endTime - viewStart) / viewSpan * len;
+			var inWindow:Bool = !(rawEnd <= 0 || rawStart >= len);
+
+			var startPx:Float = 0;
+			var span:Float = 0;
+			if (inWindow)
+			{
+				var startT = Math.floor(FlxMath.bound(rawStart, 0, len));
+				var endT = Math.ceil(FlxMath.bound(rawEnd, 0, len));
+				// 钳在条内，否则最后几节会画到条外面
+				startPx = Math.min(startT, Math.max(0, len - 2));
+				span = Math.min(Math.max(2, endT - startT), len - startPx);
+			}
+
+			// 厚度方向按轨道数均分，第 0 段在厚度轴低端（竖条=左、横条=上），与编辑器左侧 player1 对齐
+			for (s in 0...sides)
+			{
+				var idx:Int = i * sides + s;
+				// 轨道数刚变、池还没重建时先跳过这一帧（0.4s 内会自己补上）
+				if (idx >= cells.length) break;
+				var cell = cells[idx];
+
+				if (!inWindow)
+				{
+					if (cell.visible) cell.visible = false;
+					continue;
+				}
+
+				var bandStart:Float = thick * s / sides;
+				var bandEnd:Float = thick * (s + 1) / sides;
+				// 段够宽时留 1px 缝：轨道分界靠底板暗色露出来，比画线省事
+				if (bandEnd - bandStart >= 6) bandEnd -= 1;
+
+				cell.visible = true;
+				if (vertical)
+				{
+					cell.setPosition(barX + bandStart, barY + startPx);
+					cell.scale.set(bandEnd - bandStart, span);
+				}
+				else
+				{
+					cell.setPosition(barX + startPx, barY + bandStart);
+					cell.scale.set(span, bandEnd - bandStart);
+				}
+				cell.updateHitbox();
+				cell.color = sideTierColor(sec, s, dur);
+			}
+
+			// 分割线压在本节起点上；节太密（不足 3px）就不画，否则整条糊成一片
+			var px:Float = dur / viewSpan * len;
+			if (i > 0 && inWindow && px >= DIVIDER_MIN_SECTION_PX && startPx >= 1 && startPx <= len - 1 && startPx != lastDividerPx)
+			{
+				var div = dividers[i - 1];
+				if (div != null)
+				{
+					div.visible = true;
+					if (vertical)
+					{
+						div.setPosition(barX, barY + startPx);
+						div.scale.set(barW, 1);
+					}
+					else
+					{
+						div.setPosition(barX + startPx, barY);
+						div.scale.set(1, barH);
+					}
+					div.updateHitbox();
+					lastDividerPx = startPx;
+				}
+			}
+		}
+	}
+
+	function getTotalLength():Float
+	{
+		if (sections.length == 0) return 0;
+		return Math.max(0, sections[sections.length - 1].endTime - sections[0].time);
+	}
+
+	/** 把窗口起点钳进 [t0, t0 + total - viewSpan]，顺便刷新 viewSpan */
+	function clampViewStart():Void
+	{
+		var total:Float = getTotalLength();
+		var t0:Float = (sections.length > 0) ? sections[0].time : 0;
+		viewSpan = total / FlxMath.bound(ChartMinimapSettings.zoom, ZOOM_MIN, ZOOM_MAX);
+		if (total <= 0) { viewStart = t0; return; }
+		viewStart = FlxMath.bound(viewStart, t0, t0 + total - viewSpan);
+	}
+
+	/** 播放头跟随：只把它往 15%~85% 的安全区里推，不居中（居中每次越界会跳掉三分之一窗口） */
+	function updateViewFollow():Void
+	{
+		if (sections.length == 0 || getPlayheadPos == null) return;
+		var total:Float = getTotalLength();
+		if (total <= 0) return;
+
+		var zoom:Float = FlxMath.bound(ChartMinimapSettings.zoom, ZOOM_MIN, ZOOM_MAX);
+		var span:Float = total / zoom;
+		viewSpan = span;
+
+		// 首次拿到数据：窗口对准播放头，别让用户一进来就停在 0:00
+		if (!viewInitialized)
+		{
+			viewInitialized = true;
+			viewStart = getPlayheadPos() - span * 0.5;
+			clampViewStart();
+			needRender = true;
+			return;
+		}
+
+		if (zoom <= 1.0001)
+		{
+			var t0:Float = sections[0].time;
+			if (Math.abs(viewStart - t0) > 0.01) { viewStart = t0; needRender = true; }
+			return;
+		}
+		// scrub / 拖位置 / 刚滚过滚轮时别抢用户的操作
+		if (scrubbing || draggingPos || zoomSaveTimer > 0) return;
+		if (!ChartMinimapSettings.followPlayhead) return;
+
+		var pos:Float = getPlayheadPos();
+		var old:Float = viewStart;
+		if (pos < viewStart) viewStart = pos - FOLLOW_LO * span;
+		else if (pos > viewStart + FOLLOW_HI * span) viewStart = pos - FOLLOW_HI * span;
+		clampViewStart();
+		if (Math.abs(viewStart - old) > 0.01) needRender = true;
+	}
+
+	/** 设置缩放；anchorRatio = 缩放锚点在条上的比例（0 = 起点，1 = 终点） */
+	public function setZoom(z:Float, ?anchorRatio:Float = 0.5):Void
+	{
+		var total:Float = getTotalLength();
+		var newZoom:Float = FlxMath.bound(z, ZOOM_MIN, ZOOM_MAX);
+		if (total <= 0)
+		{
+			ChartMinimapSettings.zoom = newZoom;
+			return;
+		}
+
+		// 锚点按"当前实际窗口"算 —— 面板刚改过 Settings.zoom 时它和 viewSpan 还不同步
+		var oldSpan:Float = (viewSpan > 0) ? viewSpan : total / FlxMath.bound(ChartMinimapSettings.zoom, ZOOM_MIN, ZOOM_MAX);
+		var r:Float = FlxMath.bound(anchorRatio, 0, 1);
+		var anchorT:Float = viewStart + r * oldSpan;
+
+		ChartMinimapSettings.zoom = newZoom;
+		viewSpan = total / newZoom;
+		viewStart = anchorT - r * viewSpan;
+
+		clampViewStart();
+		needRender = true;
+		renderCells();
+	}
+
+	public function zoomBy(factor:Float, ?anchorRatio:Float):Void
+		setZoom(ChartMinimapSettings.zoom * factor, anchorRatio);
+
+	/** 面板改了 zoom 数值：以播放头当前在窗口里的位置为锚（不在窗口内就居中） */
+	public function applyZoomFromSetting():Void
+	{
+		var r:Float = 0.5;
+		if (getPlayheadPos != null && viewSpan > 0)
+			r = FlxMath.bound((getPlayheadPos() - viewStart) / viewSpan, 0, 1);
+		setZoom(ChartMinimapSettings.zoom, r);
+	}
+
+	/** 回到全曲视图（面板的 Reset View） */
+	public function resetView():Void
+	{
+		ChartMinimapSettings.zoom = ZOOM_MIN;
+		ChartMinimapSettings.followPlayhead = true;
+		viewStart = (sections.length > 0) ? sections[0].time : 0;
+		viewSpan = getTotalLength();
+		viewInitialized = true;
+		clampViewStart();
+		needRender = true;
+		ChartMinimapSettings.save(chartSave);
+		renderCells();
+	}
+
+	/** 某条轨道在这一节的密度色；没有分轨数据时退回本节总数（单轨 / 老宿主） */
+	function sideTierColor(sec:ChartMinimapSection, side:Int, durationMs:Float):FlxColor
+	{
+		var count:Int = sec.noteCount;
+		if (sec.sideNotes != null && side < sec.sideNotes.length) count = sec.sideNotes[side];
+		return tierColor(count, durationMs);
+	}
+
+	/** NPS → 挡位颜色（5 个阈值切 6 档） */
+	function tierColor(noteCount:Int, durationMs:Float):FlxColor
+	{
+		if (noteCount <= 0) return COLOR_EMPTY;
+		if (!ChartMinimapSettings.densityColors) return TIER_COLORS[0];
+
+		var nps:Float = noteCount / Math.max(0.001, durationMs / 1000);
+		var s = ChartMinimapSettings;
+		var idx:Int = 0;
+		if (nps >= s.tier1) idx++;
+		if (nps >= s.tier2) idx++;
+		if (nps >= s.tier3) idx++;
+		if (nps >= s.tier4) idx++;
+		if (nps >= s.tier5) idx++;
+		return TIER_COLORS[idx];
+	}
+
+	// =========================================================
+	// 交互与每帧更新
+	// =========================================================
+	override function update(elapsed:Float)
+	{
+		super.update(elapsed);
+
+		refreshTimer += elapsed;
+		if (refreshTimer >= REFRESH_INTERVAL)
+		{
+			refreshTimer = 0;
+			refreshData();
+		}
+
+		// 滚轮缩放后延迟落盘，避免每格滚轮都写一次文件
+		if (zoomSaveTimer > 0)
+		{
+			zoomSaveTimer -= elapsed;
+			if (zoomSaveTimer <= 0) ChartMinimapSettings.save(chartSave);
+		}
+
+		// 窗口跟随播放头（可能改 viewStart）；变了只重画，不重建池
+		updateViewFollow();
+		if (needRender)
+		{
+			needRender = false;
+			renderCells();
+		}
+
+		// 输入框打字时不响应（与两个编辑器的 blockInput 约定一致）
+		if (PsychUIInputText.focusOn != null)
+		{
+			mouseOver = false;
+			barHovered = false;
+			tooltip.visible = false;
+			return;
+		}
+
+		// 命中判定不能用 FlxG.mouse.screenX/Y —— 那是相对"主相机"scroll 的坐标（PE 编辑器主相机会
+		// 随网格滚动，一滚就全偏）。必须换算到本组件实际绘制的那台相机的视图空间，条在这里才是
+		// 纯屏幕坐标（scrollFactor = 0）。
+		var cam:FlxCamera = (cameras != null && cameras.length > 0) ? cameras[0] : FlxG.camera;
+		FlxG.mouse.getViewPosition(cam, mousePos);
+		var mx:Float = mousePos.x;
+		var my:Float = mousePos.y;
+
+		var overGear:Bool = mx >= gearX && mx <= gearX + gearSize && my >= gearY && my <= gearY + gearSize;
+		var overBar:Bool = mx >= barX && mx <= barX + barW && my >= barY && my <= barY + barH;
+		// 手柄命中区：手柄在条贴边那侧的外面，向外放宽抓取区；向条内伸进一点兜住贴边抓取
+		var handleX:Float = ChartMinimapSettings.vertical ? barX + barW : barX;
+		var handleY:Float = ChartMinimapSettings.vertical ? barY : barY + barH;
+		var overHandle:Bool = ChartMinimapSettings.vertical
+			? (mx >= handleX - HANDLE_GRAB_IN && mx <= handleX + 4 + HANDLE_GRAB_OUT && my >= barY && my <= barY + barH)
+			: (my >= handleY - HANDLE_GRAB_IN && my <= handleY + 4 + HANDLE_GRAB_OUT && mx >= barX && mx <= barX + barW);
+		mouseOver = overGear || overBar || overHandle;
+		barHovered = overBar;
+
+		handle.alpha = (overHandle || draggingPos) ? 1 : 0.7;
+
+		// 条上滚轮 = 时间轴缩放（宿主那边的滚轮分支靠 barHovered 让路）
+		if (barHovered && !draggingPos && FlxG.mouse.wheel != 0)
+		{
+			var r:Float = ChartMinimapSettings.vertical ? (my - barY) / barH : (mx - barX) / barW;
+			var dir:Int = FlxG.mouse.wheel > 0 ? 1 : -1;
+			zoomBy(dir > 0 ? ZOOM_STEP : 1 / ZOOM_STEP, r);
+			zoomSaveTimer = ZOOM_SAVE_DELAY;
+		}
+
+		// 白色手柄：按住拖动整条位置，松手落盘
+		if (overHandle && FlxG.mouse.justPressed)
+		{
+			draggingPos = true;
+			lastMouse.x = mx;
+			lastMouse.y = my;
+		}
+		if (draggingPos)
+		{
+			if (FlxG.mouse.pressed)
+			{
+				// 每帧取鼠标增量位移条，才能 1:1 跟手（lastMouse 不更新的话，
+				// 条会按"按下点→当前点"的固定差值一路滑到钳制边界）；
+				// 贴边那侧留出 HANDLE_SPACE 给条外的手柄
+				barX = FlxMath.bound(barX + (mx - lastMouse.x), 0, FlxG.width - barW - HANDLE_SPACE);
+				barY = FlxMath.bound(barY + (my - lastMouse.y), 0, FlxG.height - barH - HANDLE_SPACE);
+				lastMouse.x = mx;
+				lastMouse.y = my;
+				ChartMinimapSettings.posX = barX;
+				ChartMinimapSettings.posY = barY;
+				gearX = Math.max(2, barX + gearOffX);
+				gearY = Math.max(2, barY + gearOffY);
+				positionChrome();
+				renderCells();
+			}
+			else
+			{
+				draggingPos = false;
+				ChartMinimapSettings.save(chartSave);
+			}
+			// 拖位置期间不处理 seek / 信息框，但播放头要继续跟
+			tooltip.visible = false;
+			updatePlayhead();
+			return;
+		}
+
+		// 齿轮：悬浮变色 + 点击开设置面板
+		gear.color = overGear ? FlxColor.WHITE : 0xFFCCCCCC;
+		if (overGear && FlxG.mouse.justPressed && openSettings != null)
+			openSettings();
+
+		// 条：点击跳转，按住拖拽 scrub（手柄区除外）
+		if (overBar && !overHandle && FlxG.mouse.justPressed)
+			scrubbing = true;
+		if (scrubbing)
+		{
+			if (FlxG.mouse.pressed)
+			{
+				if (onSeek != null && sections.length > 0)
+					onSeek(timeAtMouse(mx, my));
+			}
+			else
+				scrubbing = false;
+		}
+
+		// 悬浮信息框
+		if (overBar && !overHandle && sections.length > 0)
+			updateTooltip(mx, my);
+		else
+			tooltip.visible = false;
+
+		updatePlayhead();
+	}
+
+	/** 鼠标在条上的位置 → 歌曲时间（毫秒，按当前窗口换算） */
+	function timeAtMouse(mx:Float, my:Float):Float
+	{
+		if (viewSpan <= 0) return 0;
+		var r:Float = ChartMinimapSettings.vertical ? (my - barY) / barH : (mx - barX) / barW;
+		return viewStart + FlxMath.bound(r, 0, 1) * viewSpan;
+	}
+
+	/** 一位小数并补齐 .0 —— 分轨写成 n/m 时两段宽度才不跳 */
+	static function formatNps(v:Float):String
+	{
+		var s:String = Std.string(Math.round(v * 10) / 10);
+		return (s.indexOf('.') < 0) ? s + '.0' : s;
+	}
+
+	/** n/m 数值的归属提示：P1/P2（顺序同色块，厚度轴低端在前） */
+	static function sideLabels(n:Int):String
+		return [for (i in 0...n) 'P' + (i + 1)].join('/');
+
+	function updateTooltip(mx:Float, my:Float):Void
+	{
+		var t:Float = timeAtMouse(mx, my);
+		var sec = null;
+		for (s in sections)
+		{
+			if (t >= s.time && t < s.endTime) { sec = s; break; }
+		}
+		if (sec == null)
+		{
+			tooltip.visible = false;
+			return;
+		}
+
+		var idx:Int = sections.indexOf(sec) + 1;
+		var secLen:Float = Math.max(0.001, (sec.endTime - sec.time) / 1000);
+		// 分轨数据按编辑器从左到右排（player1 在最前）；没有就退回本节总数
+		var counts:Array<Int> = (sec.sideNotes != null && sec.sideNotes.length > 0) ? sec.sideNotes : [sec.noteCount];
+		var noteTxt:String = [for (c in counts) Std.string(c)].join('/');
+		var npsTxt:String = [for (c in counts) formatNps(c / secLen)].join('/');
+
+		tooltip.text = 'Section $idx  |  ' + FlxStringUtil.formatTime(sec.time / 1000, false)
+			+ '\nBPM ' + Math.round(sec.bpm * 10) / 10
+			+ '  |  ' + noteTxt + ' notes'
+			+ '\nNPS ' + npsTxt + (counts.length > 1 ? '  (' + sideLabels(counts.length) + ')' : '');
+		tooltip.visible = true;
+
+		// 定位三步走：先朝屏幕内侧弹出 → 钳回屏幕（4px 边距）→ 若仍压住条本体，翻到条另一侧再钳一次
+		var tw:Float = tooltip.width;
+		var th:Float = tooltip.height;
+		var tx:Float;
+		var ty:Float;
+		if (ChartMinimapSettings.vertical)
+		{
+			tx = mx - tw - 14;
+			ty = my + 14;
+		}
+		else
+		{
+			tx = mx + 14;
+			ty = my - th - 14;
+		}
+		tx = FlxMath.bound(tx, 4, FlxG.width - tw - 4);
+		ty = FlxMath.bound(ty, 4, FlxG.height - th - 4);
+
+		if (tx < barX + barW && tx + tw > barX && ty < barY + barH && ty + th > barY)
+		{
+			if (ChartMinimapSettings.vertical)
+				tx = (mx > FlxG.width / 2) ? barX - tw - 4 : barX + barW + 4;
+			else
+				ty = (my > FlxG.height / 2) ? barY - th - 4 : barY + barH + 4;
+			tx = FlxMath.bound(tx, 4, FlxG.width - tw - 4);
+			ty = FlxMath.bound(ty, 4, FlxG.height - th - 4);
+		}
+		tooltip.setPosition(tx, ty);
+	}
+
+	function updatePlayhead():Void
+	{
+		var total:Float = getTotalLength();
+		if (getPlayheadPos == null || total <= 0 || sections.length == 0 || viewSpan <= 0)
+		{
+			playhead.visible = false;
+			return;
+		}
+
+		var pos:Float = Math.max(0, getPlayheadPos());
+		var r:Float = (pos - viewStart) / viewSpan;
+		var inWindow:Bool = r >= 0 && r <= 1;
+		r = FlxMath.bound(r, 0, 1);
+
+		playhead.visible = true;
+		// 窗口外的播放头贴边显示并压暗，别直接藏掉（否则会以为播放头没了）
+		playhead.alpha = inWindow ? 1 : 0.35;
+		if (ChartMinimapSettings.vertical)
+		{
+			playhead.setPosition(barX, barY + r * barH - 1);
+			playhead.scale.set(barW + 4, 2);
+		}
+		else
+		{
+			playhead.setPosition(barX + r * barW - 1, barY);
+			playhead.scale.set(2, barH + 4);
+		}
+		playhead.updateHitbox();
+	}
+}
+
+/**
+ * ChartMinimap 的设置（持久化到宿主的编辑器存档；没传 save 时退回 FlxG.save.data）。
+ */
+class ChartMinimapSettings
+{
+	public static var vertical:Bool = true;        // true = 竖条贴右缘，false = 横条贴底缘
+	public static var length:Float = 0;            // 条长（px），0 = 自动铺满可用区
+	public static var thickness:Float = 40;        // 条厚（px）
+	public static var margin:Float = 50;           // 两端安全区（px）
+	public static var densityColors:Bool = true;   // 密度分挡配色开关
+	public static var zoom:Float = 1;              // 时间轴缩放：1 = 全曲，16 = 1/16
+	public static var followPlayhead:Bool = true;  // 缩放后窗口是否跟随播放头
+	public static var tier1:Float = 2;             // NPS 挡位：低于此值 = 绿
+	public static var tier2:Float = 4;             // tier1 ~ 此值 = 黄绿
+	public static var tier3:Float = 6;             // tier2 ~ 此值 = 黄
+	public static var tier4:Float = 8;             // tier3 ~ 此值 = 橙
+	public static var tier5:Float = 10;            // tier4 ~ 此值 = 橙红，以上 = 红
+	public static var posX:Float = -1;             // 条左上角位置（<0 = 未拖拽过，按方向贴边）
+	public static var posY:Float = -1;
+
+	/** 从宿主的编辑器存档读；save 为 null 时退回 FlxG.save.data */
+	public static function load(?save:FlxSave):Void
+	{
+		var d:Dynamic = (save != null) ? save.data : FlxG.save.data;
+
+		if (d.chart_minimap_vertical != null) vertical = d.chart_minimap_vertical == true;
+		if (d.chart_minimap_length != null) length = d.chart_minimap_length;
+		if (d.chart_minimap_thickness != null) thickness = d.chart_minimap_thickness;
+		if (d.chart_minimap_margin != null) margin = d.chart_minimap_margin;
+		if (d.chart_minimap_density != null) densityColors = d.chart_minimap_density == true;
+		if (d.chart_minimap_zoom != null) zoom = FlxMath.bound(d.chart_minimap_zoom, 1, 16);
+		if (d.chart_minimap_follow != null) followPlayhead = d.chart_minimap_follow == true;
+		if (d.chart_minimap_t1 != null) tier1 = d.chart_minimap_t1;
+		if (d.chart_minimap_t2 != null) tier2 = d.chart_minimap_t2;
+		if (d.chart_minimap_t3 != null) tier3 = d.chart_minimap_t3;
+		if (d.chart_minimap_t4 != null) tier4 = d.chart_minimap_t4;
+		if (d.chart_minimap_t5 != null) tier5 = d.chart_minimap_t5;
+		if (d.chart_minimap_posx != null) posX = d.chart_minimap_posx;
+		if (d.chart_minimap_posy != null) posY = d.chart_minimap_posy;
+	}
+
+	/** 写回宿主的编辑器存档并落盘；save 为 null 时退回 FlxG.save.data */
+	public static function save(?save:FlxSave):Void
+	{
+		var d:Dynamic = (save != null) ? save.data : FlxG.save.data;
+
+		d.chart_minimap_vertical = vertical;
+		d.chart_minimap_length = length;
+		d.chart_minimap_thickness = thickness;
+		d.chart_minimap_margin = margin;
+		d.chart_minimap_density = densityColors;
+		d.chart_minimap_zoom = zoom;
+		d.chart_minimap_follow = followPlayhead;
+		d.chart_minimap_t1 = tier1;
+		d.chart_minimap_t2 = tier2;
+		d.chart_minimap_t3 = tier3;
+		d.chart_minimap_t4 = tier4;
+		d.chart_minimap_t5 = tier5;
+		d.chart_minimap_posx = posX;
+		d.chart_minimap_posy = posY;
+
+		if (save != null) save.flush();
+		else FlxG.save.flush();
+	}
+
+	public static function reset():Void
+	{
+		vertical = true;
+		length = 0;
+		thickness = 40;
+		margin = 50;
+		densityColors = true;
+		zoom = 1;
+		followPlayhead = true;
+		tier1 = 2;
+		tier2 = 4;
+		tier3 = 6;
+		tier4 = 8;
+		tier5 = 10;
+		posX = -1;
+		posY = -1;
+	}
+}
+
+/**
+ * ChartMinimap 的 win8 MetroUI 设置浮出层（仿 PauseDebugCharm 的桥接写法）。
+ * 值直接落在 ChartMinimapSettings 静态字段上，每次改动即时存档并通知宿主条重摆。
+ */
+class ChartMinimapPanel extends Panel
+{
+	var bar:ChartMinimap;
+
+	public function new(bar:ChartMinimap)
+	{
+		super();
+		this.bar = bar;
+		panelWidthRatio = 0.3;
+	}
+
+	override public function getPageTitle():String
+		return 'Chart Minimap';
+
+	override public function buildEntries():Array<PanelEntry>
+	{
+		return [
+			{
+				id: 'layout',
+				title: 'Layout',
+				description: 'Bar position, size and safe margins',
+				options: [
+					makeOption('Orientation', 'orientation', STRING, ['Vertical', 'Horizontal'],
+						function() return ChartMinimapSettings.vertical ? 'Vertical' : 'Horizontal',
+						function(v) ChartMinimapSettings.vertical = (v == 'Vertical'),
+						'Vertical bar sits on the right edge, horizontal along the bottom'),
+					makeNum('Length (px, 0 = auto)', 'length', ChartMinimapSettings.length, 0, 4000, 20, 0,
+						function(v) ChartMinimapSettings.length = v,
+						function(v:Float) return v <= 0 ? 'Auto' : Std.int(v) + 'px',
+						'Bar length along its axis; Auto fills the screen minus both safe margins'),
+					makeNum('Thickness (px)', 'thickness', ChartMinimapSettings.thickness, 40, 150, 5, 0,
+						function(v) ChartMinimapSettings.thickness = v, null,
+						'How wide the bar is across its axis'),
+					makeNum('Safe margin (px)', 'margin', ChartMinimapSettings.margin, 8, 300, 2, 0,
+						function(v) ChartMinimapSettings.margin = v, null,
+						'Empty space kept at both ends of the bar')
+				]
+			},
+			{
+				id: 'density',
+				title: 'Density Colors',
+				description: 'Color sections by notes-per-second',
+				options: [
+					makeOption('Density colors', 'density', STRING, ['On', 'Off'],
+						function() return ChartMinimapSettings.densityColors ? 'On' : 'Off',
+						function(v) ChartMinimapSettings.densityColors = (v == 'On'),
+						'Color every track inside a section by its own note density instead of a flat color'),
+					makeNum('Low / medium (nps)', 'tier1', ChartMinimapSettings.tier1, 0.5, 30, 0.5, 1,
+						function(v) ChartMinimapSettings.tier1 = v, null,
+						'Notes per second on one track where green turns yellow-green'),
+					makeNum('Medium / high (nps)', 'tier2', ChartMinimapSettings.tier2, 1, 40, 0.5, 1,
+						function(v) ChartMinimapSettings.tier2 = v, null,
+						'Notes per second on one track where yellow-green turns yellow'),
+					makeNum('High / very high (nps)', 'tier3', ChartMinimapSettings.tier3, 2, 60, 0.5, 1,
+						function(v) ChartMinimapSettings.tier3 = v, null,
+						'Notes per second on one track where yellow turns orange'),
+					makeNum('Very high / extreme (nps)', 'tier4', ChartMinimapSettings.tier4, 3, 80, 0.5, 1,
+						function(v) ChartMinimapSettings.tier4 = v, null,
+						'Notes per second on one track where orange turns orange-red'),
+					makeNum('Extreme+ (nps)', 'tier5', ChartMinimapSettings.tier5, 4, 100, 0.5, 1,
+						function(v) ChartMinimapSettings.tier5 = v, null,
+						'Notes per second on one track where orange-red turns red'),
+					{
+						var reset:PanelOption = new PanelOption('Reset Defaults', 'reset_defaults', ACTION, null,
+							'Restore every setting and snap the bar back to the screen edge');
+						reset.actionLabel = 'Reset';
+						reset.action = function()
+						{
+							ChartMinimapSettings.reset();
+							persistSettings();
+							applyToBar();
+						};
+						reset;
+					}
+				]
+			},
+			{
+				id: 'view',
+				title: 'View',
+				description: 'Timeline zoom and playhead follow',
+				options: [
+					makeZoomNum(),
+					makeOption('Follow playhead', 'follow', STRING, ['On', 'Off'],
+						function() return ChartMinimapSettings.followPlayhead ? 'On' : 'Off',
+						function(v) ChartMinimapSettings.followPlayhead = (v == 'On'),
+						'Scroll the zoomed window with the playhead'),
+					makeAction('Zoom In', 'zoom_in', 'Double the timeline zoom around the playhead',
+						function() { if (bar != null) bar.zoomBy(2); }),
+					makeAction('Zoom Out', 'zoom_out', 'Halve the timeline zoom around the playhead',
+						function() { if (bar != null) bar.zoomBy(0.5); }),
+					makeAction('Reset View', 'reset_view', 'Back to the whole song at 1x',
+						function() { if (bar != null) bar.resetView(); })
+				]
+			}
+		];
+	}
+
+	/** 通用桥接项：getter/setter 闭包 + onChange 即时落盘并重摆条 */
+	function makeOption(name:String, variable:String, type:OptionType, options:Array<String>,
+		getter:Void->Dynamic, setter:Dynamic->Void, ?description:String):PanelOption
+	{
+		var opt:MinimapOption = new MinimapOption(name, variable, type, options, getter, setter, description);
+		opt.onChange = applyToBar;
+		opt.onSave = persistSettings;
+		return opt;
+	}
+
+	function makeNum(name:String, variable:String, cur:Float, min:Float, max:Float, step:Float, dec:Int,
+		setter:Float->Void, ?formatter:Float->String, ?description:String):PanelOption
+	{
+		var opt:MinimapOption = new MinimapOption(name, variable, FLOAT, null,
+			function() return Reflect.field(ChartMinimapSettings, variable),
+			function(v) setter(v), description);
+		opt.defaultValue = cur;
+		opt.minValue = min;
+		opt.maxValue = max;
+		opt.changeValue = step;
+		opt.decimals = dec;
+		if (formatter != null) opt.valueFormatter = formatter;
+		opt.onChange = applyToBar;
+		opt.onSave = persistSettings;
+		return opt;
+	}
+
+	/** Zoom 项：改值要以播放头为锚重算窗口，不能走默认的 applyToBar */
+	function makeZoomNum():PanelOption
+	{
+		var opt:MinimapOption = new MinimapOption('Zoom (1 = full song)', 'zoom', FLOAT, null,
+			function() return ChartMinimapSettings.zoom,
+			function(v) ChartMinimapSettings.zoom = v,
+			'1 shows the whole song, 16 shows one sixteenth');
+		opt.defaultValue = 1;
+		opt.minValue = 1;
+		opt.maxValue = 16;
+		opt.changeValue = 0.25;
+		opt.decimals = 2;
+		opt.valueFormatter = function(v:Float) return (Math.round(v * 100) / 100) + 'x';
+		opt.onChange = function() { if (bar != null) bar.applyZoomFromSetting(); };
+		opt.onSave = persistSettings;
+		return opt;
+	}
+
+	/** 动作项：点一下执行（动作自己负责落盘/重画） */
+	function makeAction(name:String, variable:String, description:String, act:Void->Void):PanelOption
+	{
+		var opt:PanelOption = new PanelOption(name, variable, ACTION, null, description);
+		opt.actionLabel = 'Go';
+		opt.action = act;
+		return opt;
+	}
+
+	function applyToBar():Void
+	{
+		if (bar != null) bar.applyLayout();
+	}
+
+	/** 设置写回宿主编辑器的存档（ChartMinimap 持有 save 引用） */
+	function persistSettings():Void
+	{
+		ChartMinimapSettings.save(bar != null ? bar.chartSave : null);
+	}
+}
+
+/**
+ * 桥接 PanelOption：值不落 ClientPrefs，经 getter/setter 闭包读写 ChartMinimapSettings。
+ * 模式同 PauseDebugCharm.DebugOption。
+ */
+class MinimapOption extends PanelOption
+{
+	var getter:Void->Dynamic;
+	var setter:Dynamic->Void;
+	/** 松手时落盘（拖动数值条期间不写文件） */
+	public var onSave:Void->Void;
+
+	public function new(name:String, variable:String, type:OptionType, ?options:Array<String>,
+		getter:Void->Dynamic, setter:Dynamic->Void, ?description:String = null)
+	{
+		super(name, variable, type, options, description);
+		this.getter = getter;
+		this.setter = setter;
+	}
+
+	override public function getValue():Dynamic
+		return (getter != null) ? getter() : null;
+
+	override public function setValue(value:Dynamic):Void
+	{
+		if (setter != null) setter(value);
+	}
+
+	override public function saveCurrentValue():Void
+	{
+		if (onSave != null) onSave();
+	}
+}

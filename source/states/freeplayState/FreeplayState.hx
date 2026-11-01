@@ -105,8 +105,10 @@ class FreeplayState extends MusicBeatState
 
 	var detailRate:StarRect;
 	var detailMapper:FlxText;
+	var detailSpeedText:FlxText; // 星级旁的当前倍速标注（x1.50 等）
 
 	var noteData:DataDis;
+	var normalNoteData:DataDis;
 	var holdNoteData:DataDis;
 	var speedData:DataDis;
 	var keyCountData:DataDis;
@@ -320,32 +322,46 @@ class FreeplayState extends MusicBeatState
 		detailRate.y += (detailRect.bg2.height - detailRect.bg3.height) * 0.5 - detailRate.height * 0.5;
 		add(detailRate);
 
+		detailSpeedText = new FlxText(0, 0, 0, 'x1.00', Std.int(detailRect.bg1.height * 0.25));
+		detailSpeedText.setFormat(Paths.font(Language.get('fontName', 'main') + '.ttf'), Std.int((detailRect.bg2.height - detailRect.bg3.height) * 0.7 * 0.6), 0xFFFFFFFF, LEFT, FlxTextBorderStyle.OUTLINE, 0xFFFFFFFF);
+		detailSpeedText.borderStyle = NONE;
+		detailSpeedText.antialiasing = ClientPrefs.data.antialiasing;
+		detailSpeedText.x = detailRate.x + detailRate.width + 6;
+		detailSpeedText.y = detailRect.bg2.y + (detailRect.bg2.height - detailRect.bg3.height) * 0.5 - detailSpeedText.height * 0.5;
+		detailSpeedText.camera = camAfter;
+		add(detailSpeedText);
+
 		detailMapper = new FlxText(0, 0, 0, 'Rate 0.99 mapped by test', Std.int(detailRect.bg1.height * 0.25));
 		detailMapper.setFormat(Paths.font(Language.get('fontName', 'main') + '.ttf'), Std.int((detailRect.bg2.height - detailRect.bg3.height) * 0.7 * 0.6), 0xFFFFFFFF, LEFT, FlxTextBorderStyle.OUTLINE, 0xFFFFFFFF);
         detailMapper.borderStyle = NONE;
 		detailMapper.antialiasing = ClientPrefs.data.antialiasing;
-		detailMapper.x = detailRate.x + detailRate.width + 10;
+		detailMapper.x = detailSpeedText.x + detailSpeedText.width + 10;
 		detailMapper.y = detailRect.bg2.y + (detailRect.bg2.height - detailRect.bg3.height) * 0.5 - detailMapper.height * 0.5;
 		detailMapper.camera = camAfter;
 		detailMapper.color = 0x9bff7a;
 		add(detailMapper);
 
 
-		noteData = new DataDis(10, detailRect.bg3.y + 5, 120, 5, 'Notes', 0, 100, 0);
+		noteData = new DataDis(10, detailRect.bg3.y + 5, 100, 5, 'Total Notes', 0, 100, 0);
 		noteData.camera = camAfter;
 		noteData.allowTweenDecimal = noteData.allowDecimal = false;
 		add(noteData);
 
-		holdNoteData = new DataDis(noteData.x + noteData.lineDis.width * 1.2, detailRect.bg3.y + 8, 120, 5, 'Hold Notes', 0, 100, 0);
+		normalNoteData = new DataDis(noteData.x + noteData.lineDis.width * 1.2, detailRect.bg3.y + 5, 100, 5, 'Normal Notes', 0, 100, 0);
+		normalNoteData.camera = camAfter;
+		normalNoteData.allowTweenDecimal = normalNoteData.allowDecimal = false;
+		add(normalNoteData);
+
+		holdNoteData = new DataDis(normalNoteData.x + normalNoteData.lineDis.width * 1.2, detailRect.bg3.y + 5, 100, 5, 'Hold Notes', 0, 100, 0);
 		holdNoteData.camera = camAfter;
 		holdNoteData.allowTweenDecimal = holdNoteData.allowDecimal = false;
 		add(holdNoteData);
 
-		speedData = new DataDis(holdNoteData.x + holdNoteData.lineDis.width * 1.2, detailRect.bg3.y + 8, 120, 5, 'Speed', 0, 4, 0);
+		speedData = new DataDis(holdNoteData.x + holdNoteData.lineDis.width * 1.2, detailRect.bg3.y + 5, 100, 5, 'Speed', 0, 4, 0);
 		speedData.camera = camAfter;
 		add(speedData);
 
-		keyCountData = new DataDis(speedData.x + speedData.lineDis.width * 1.2, detailRect.bg3.y + 8, 120, 5, 'Key count', 0, 9, 0);
+		keyCountData = new DataDis(speedData.x + speedData.lineDis.width * 1.2, detailRect.bg3.y + 5, 100, 5, 'Key count', 0, 9, 0);
 		keyCountData.camera = camAfter;
 		keyCountData.allowTweenDecimal = keyCountData.allowDecimal = false;
 		add(keyCountData);
@@ -372,6 +388,9 @@ class FreeplayState extends MusicBeatState
 								songMoveEvent);
 		songsMove.useLerp = true;
 		songsMove.lerpSmooth = 8;
+		// 直加式映射（moveY(songPosiData + id * ...)）：沿用 NF 旧版拖拽方向与正滚轮灵敏度
+		songsMove.mouseWheelSensitivity = 1000;
+		songsMove.invertDrag = true;
 		songsMove.forceUpdateEvent = false;
 		add(songsMove);
 
@@ -483,6 +502,7 @@ class FreeplayState extends MusicBeatState
 		backRect.cameras = [camAfter];
 
 		detailRate.camera = camAfter;
+		detailSpeedText.camera = camAfter;
 
 		for (data in 0...funcData.length)
 		{
@@ -616,8 +636,23 @@ class FreeplayState extends MusicBeatState
 		
 		if (stopAll) return;
 
-		if (keyboardState == 0) 
+		#if RELAX_ALLOWED
+		// 类休眠：闲置计时（RelaxIdle 共享实现，与主菜单同一开关）
+		general.backend.relax.RelaxIdle.update(elapsed);
+		#end
+
+		if (keyboardState == 0)
 		{
+			#if RELAX_ALLOWED
+			// debug 快捷键：R 直接呼出 Relax（搜索/菜单模式 keyboardState != 0 时不触发）
+			if (FlxG.keys.justPressed.R && subState == null
+				&& general.backend.relax.GetInit.getListNum() > 0)
+			{
+				openSubState(new substates.RelaxSubState());
+				return;
+			}
+			#end
+
 			if (FlxG.keys.justPressed.T)
 			{
 				searchButton.focusSearch();
@@ -845,7 +880,7 @@ class FreeplayState extends MusicBeatState
 						#end
 						StageData.loadDirectory(loadedSong);
 						Conductor.bpm = loadedSong.bpm;
-						var diffCalc = DiffRating.calcForSong(loadedSong);
+						var diffCalc = DiffRating.calcForSong(loadedSong, ClientPrefs.getGameplaySetting('songspeed'));
 						updateDetail(loadedSong, diffCalc, requestId, selected, difficulty);
 					}
 					catch (e:Dynamic)
@@ -877,13 +912,19 @@ class FreeplayState extends MusicBeatState
 		detailSongName.text = selectedRect.songNameSt;
 		detailMusican.text = selectedRect.songMusican;
 		detailPlayText.text = Std.string(Highscore.getPlayCount(selectedRect.songNameSt, difficulty));
-		detailBpmText.text = Std.string(song.bpm);
+		detailBpmText.text = formatBpmText(song);
+		var rateMult:Float = ClientPrefs.getGameplaySetting('songspeed');
+		if (rateMult <= 0) rateMult = 1.0;
+		detailSpeedText.text = 'x' + FlxMath.roundDecimal(rateMult, 2);
+		detailSpeedText.color = detailRate.getColorByValue(diffCalc / 10);
+		detailMapper.x = detailSpeedText.x + detailSpeedText.width + 10;
 		detailMapper.text = 'Rate ' + Std.string(diffCalc) + ' mapped by ' + charter;
 		detailMapper.color = detailRate.getColorByValue(diffCalc / 10);
 		detailRate.setRate(diffCalc);
 
 		BackendThread.run(function():Void {
 			var noteCount:Int = 0;
+			var normalNoteCount:Int = 0;
 			var holdNoteCount:Int = 0;
 			if (song != null && song.notes != null) {
 				for (sec in song.notes) {
@@ -902,6 +943,7 @@ class FreeplayState extends MusicBeatState
 						if (isPlayerSide) {
 							noteCount++;
 							if (isHold) holdNoteCount++;
+							else normalNoteCount++;
 						}
 					}
 				}
@@ -912,9 +954,10 @@ class FreeplayState extends MusicBeatState
 			MainLoop.runInMainThread(function():Void
 			{
 				if (!isDetailRequestCurrent(requestId, selected, difficulty)
-					|| noteData == null || holdNoteData == null || speedData == null
+					|| noteData == null || normalNoteData == null || holdNoteData == null || speedData == null
 					|| keyCountData == null) return;
 				noteData.chanegData(noteCount);
+				normalNoteData.chanegData(normalNoteCount);
 				holdNoteData.chanegData(holdNoteCount);
 				speedData.chanegData(speedValue);
 				keyCountData.chanegData(keyCountValue);
@@ -925,6 +968,38 @@ class FreeplayState extends MusicBeatState
 
 		if (difficulty >= 0 && difficulty < Difficulty.list.length)
 			loadReplaysForCurrentSong();
+	}
+
+	// 变速谱面显示 最低~最高(谱面bpm)，无变速时只显示谱面 bpm。
+	// 基础 bpm 也参与 min/max：谱面以 song.bpm 起步，中途 changeBPM 段切到别的值，
+	// 区间要覆盖实际出现过的所有速度，只取变速段会漏掉起步速度。
+	function formatBpmText(song:SwagSong):String
+	{
+		if (song == null) return 'N/A';
+
+		var baseBpm:Float = song.bpm;
+		var minBpm:Float = baseBpm;
+		var maxBpm:Float = baseBpm;
+		if (song.notes != null)
+		{
+			for (sec in song.notes)
+			{
+				if (sec == null || sec.changeBPM != true) continue;
+				var secBpm:Null<Float> = sec.bpm;
+				if (secBpm == null || secBpm <= 0) continue;
+				if (secBpm < minBpm) minBpm = secBpm;
+				if (secBpm > maxBpm) maxBpm = secBpm;
+			}
+		}
+
+		if (minBpm >= maxBpm) return formatBpmValue(baseBpm);
+		return formatBpmValue(minBpm) + '~' + formatBpmValue(maxBpm) + '(' + formatBpmValue(baseBpm) + ')';
+	}
+
+	inline function formatBpmValue(bpm:Float):String
+	{
+		var rounded:Int = Math.round(bpm);
+		return (Math.abs(bpm - rounded) < 0.001) ? Std.string(rounded) : Std.string(bpm);
 	}
 
 	var allowPlayMusic:Bool = true;
@@ -1066,6 +1141,7 @@ class FreeplayState extends MusicBeatState
 		detailBpmText.text = 'N/A';
 		detailMapper.text = 'No Chart Found';
 		noteData.chanegData(0);
+		normalNoteData.chanegData(0);
 		holdNoteData.chanegData(0);
 		speedData.chanegData(0);
 		keyCountData.chanegData(0);
@@ -1611,6 +1687,9 @@ class FreeplayState extends MusicBeatState
 	{
 		super.closeSubState();
 		persistentUpdate = true;
+		#if RELAX_ALLOWED
+		general.backend.relax.RelaxIdle.reset(); // 弹层（Relax 等）关闭后重新计时
+		#end
 	}
 	
 	public static function destroyFreeplayVocals() {

@@ -1,12 +1,37 @@
 package general.backend.mouse;
 
 import flixel.FlxBasic;
+import win8.Input;
 
 class MouseMove extends FlxBasic
 {
     public var allowUpdate:Bool = true;
     public var enableMouseWheel:Bool = true;
-    
+
+    /**
+     * 命中判定 / 拖拽基准用的鼠标坐标空间。
+     * false（默认）= `FlxG.mouse.x/y`，即相对 `FlxG.camera` 的世界坐标（会被相机滚动推着走）；
+     * true = 走 `win8.Input` 的指针位置，也就是宿主 bind 声明的"界面实际绘制所在的相机"
+     * 的视图空间（与 `FlxObject.overlapsPoint` 的指针侧同一套算法）。
+     * 界面把内容按屏幕坐标排版、却画在"不滚动、不缩放"的相机上时要打开它，
+     * 否则 mouseLimit 区域与拖拽基准会整体偏掉（scroll 差一个游戏相机的滚动量，
+     * zoom != 1 时还多一个缩放误差）。
+     */
+    public var useViewSpace:Bool = false;
+
+    inline function mouseX():Float return useViewSpace ? Input.mouseX() : FlxG.mouse.x;
+
+    inline function mouseY():Float return useViewSpace ? Input.mouseY() : FlxG.mouse.y;
+
+    /**
+     * 拖拽方向反过来（NF 旧版行为）。
+     * FE 的约定是"拖拽跟手"：向上拖 → target 增大，配合 content.y = base - scroll 的偏移式
+     * 映射就是内容跟着手指走。NF 的一些旧界面用 content.y = base + scroll 的直加式映射
+     * （target 增大 = 内容下移），这类界面把它打开，同时滚轮灵敏度要配成正值，手感才和
+     * 移植前一致。新写的界面一律别开，跟 FE 保持一致。
+     */
+    public var invertDrag:Bool = false;
+
     public var follow:Dynamic; //数据跟谁
     public var followData:String; //数据变量的名称
 
@@ -14,8 +39,9 @@ class MouseMove extends FlxBasic
     public var moveLimit:Array<Float> = [0, 0];  //[min, max]
     public var mouseLimit:Array<Array<Float>> = [];   //[ X[min, max], Y[min, max] ]
 
-    public var mouseWheelSensitivity:Float = 1000.0; // 鼠标滚轮更改量的控制变量
+    public var mouseWheelSensitivity:Float = -1000.0; // 鼠标滚轮更改量的控制变量
     public var tweenData(default, set):Float = 0; //用于tween/lerp到指定数据的
+    private var hasTweenData:Bool = false;
     public var tweenTime:Float = 0.3; //tween时间
     public var tweenType:String = 'linear'; //tween类型
     public var useLerp:Bool = true; //是否使用lerp而不是tween
@@ -27,30 +53,30 @@ class MouseMove extends FlxBasic
     ////////////////////////////////////////////////////////////////////////////////////////////////
 
     public var infScroll:Bool = false; //是否为无限滚动
-    
-    private var isDragging:Bool = false;
+
+    public var isDragging:Bool = false;
     private var lastMouseY:Float = 0;
     public var velocity:Float = 0; //检测的时候需要它
     private var velocityArray:Array<Float> = [];
 
     private var __target:Float;
     public var state:String = 'stop';
-    
+
     // 物理参数
-    private var dragSensitivity:Float = 1.0;   // 拖动灵敏度
-    private var deceleration:Float = 0.9;      // 减速系数 (0.9 - 0.99 效果较好)
+    public var dragSensitivity:Float = 1.0;   // 拖动灵敏度
+    public var deceleration:Float = 0.9;      // 减速系数 (0.9 - 0.99 效果较好)
     private var minVelocity:Float = 0.001;       // 最小速度阈值
     private var springStrength:Float = 25.0;
     private var releaseBoost:Float = 1.1;
 
     public var saveElapsed:Float = 0; //保存上一次更新的时间
-    
+
     ////////////////////////////////////////////////////////////////////////////////////////////////
-    
+
     public function new(follow:Dynamic, followData:String, moveData:Array<Float>, mouseData:Array<Array<Float>>, putEvent:Void->Void = null, needUpdate:Bool = true) {
         super();
         this.allowUpdate = needUpdate;
-        
+
         this.follow = follow;
         this.followData = followData;
 
@@ -58,10 +84,10 @@ class MouseMove extends FlxBasic
         if (moveData.length == 0) infScroll = true;
         else this.moveLimit = moveData;
         this.mouseLimit = mouseData;
-        
+
         this.event = putEvent;
     }
-    
+
     private var _lastUpdateTime:Int = 0;
     private var __lastDragTick:Int = 0;
     private var _inertiaTime:Float = 0;
@@ -83,67 +109,65 @@ class MouseMove extends FlxBasic
 
         var mouse = FlxG.mouse;
 
+        var mx:Float = mouseX();
+        var my:Float = mouseY();
+
         var checkInput:Bool = true;
 
-        var inBounds:Bool = mouse.x > mouseLimit[0][0] && mouse.x < mouseLimit[0][1] && mouse.y > mouseLimit[1][0] && mouse.y < mouseLimit[1][1];
-        if (!inBounds && !isDragging) {
+        if (!(mx > mouseLimit[0][0] && mx < mouseLimit[0][1] && my > mouseLimit[1][0] && my < mouseLimit[1][1])) {
+            endDrag();
             _dragPending = false;
             checkInput = false;
         }
-        
+
         if (checkInput && inputAllow) {
+            // 控件（拖数值条）按住指针时让位。不光是别开始新的拖拽 —— 已经挂起的
+            // _dragPending 也要清掉，否则按住滑块满 100ms 之后列表照样会开始滚。
+            var captured:Bool = Input.isPointerCaptured();
+            if (captured) _dragPending = false;
+
             // 鼠标按下
-            if (mouse.justPressed) {
+            if (mouse.justPressed && !captured) {
                 _dragPending = true;
                 _dragPendingTick = FlxG.game.ticks;
-                _dragPendingY = mouse.y;
-                lastMouseY = mouse.y;
+                _dragPendingY = my;
+                lastMouseY = my;
             }
 
-            if (_dragPending && mouse.pressed) {
+            if (_dragPending && mouse.pressed && !captured) {
                 var heldMs = FlxG.game.ticks - _dragPendingTick;
-                var moved = Math.abs(mouse.y - _dragPendingY);
+                var moved = Math.abs(my - _dragPendingY);
                 if (heldMs >= dragStartDelayMs || moved >= dragStartDistance) {
                     _dragPending = false;
-                    startDrag(mouse.y);
+                    startDrag(my);
                     cancelMoveTo();
                 }
             }
 
             // 鼠标滚轮
-            if (enableMouseWheel && inBounds && mouse.wheel != 0) {
+            if (enableMouseWheel && mouse.wheel != 0) {
                 isDragging = false;
                 _dragPending = false;
                 velocity += mouse.wheel * mouseWheelSensitivity;
                 cancelMoveTo();
             }
-            
+
             // 拖动中更新位置
-            if (isDragging && mouse.pressed)
-            {
-                updateDrag(mouse.y);
+            if (isDragging && mouse.pressed) {
+                updateDrag(my);
             }
 
+            // 鼠标释放时停止拖动
+            if (mouse.justReleased) {
+                if (_dragPending) _dragPending = false;
+                endDrag();
+            }
         } else {
-            lastMouseY = mouse.y;
+            lastMouseY = my;
             _dragPending = false;
         }
 
-        // 拖动开始后允许指针经过滚动区域外，但释放事件无论位置都必须结束拖动。
-        if (mouse.justReleased) {
-            if (_dragPending) _dragPending = false;
-            endDrag();
-        }
-
-        super.update(elapsed);
-    }
-
-    override function drawUpdate(elapsed:Float) {
-        super.drawUpdate(elapsed);
-        if (!allowUpdate) return;
-
-        saveElapsed = elapsed;
-
+        // ========== 原 drawUpdate 的逻辑合并到这里 ==========
         if (_pendingDragDelta != 0) {
             target += _pendingDragDelta;
             _pendingDragDelta = 0;
@@ -153,41 +177,40 @@ class MouseMove extends FlxBasic
             applyInertia(elapsed);
         }
 
-        if (tweenData != 0 && allowLerp) {
+        if (hasTweenData && allowLerp) {
             if (Math.abs(target - tweenData) < 0.1) {
                 target = tweenData;
                 tweenData = 0;
+                hasTweenData = false;
                 allowLerp = false;
             } else {
                 target = FlxMath.lerp(tweenData, target, Math.exp(-elapsed * lerpSmooth));
             }
         }
 
-        if(!infScroll) {
+        if (!infScroll) {
             if (target < moveLimit[0]) target = FlxMath.lerp(moveLimit[0], target, Math.exp(-elapsed * lerpSmooth * 2));
             if (target > moveLimit[1]) target = FlxMath.lerp(moveLimit[1], target, Math.exp(-elapsed * lerpSmooth * 2));
         }
 
         var previousState:String = state;
-        var targetChanged:Bool = __target != target;
         if (__target > target) state = 'up';
         else if (__target < target) state = 'down';
-        else state = 'stop';
+        else if (__target == target) state = 'stop';
 
         __target = target;
 
-        // Reflection invokes a full dynamic setter path. Do it only when the
-        // scroll value actually moved instead of on every draw callback.
-        if (targetChanged)
-            Reflect.setProperty(follow, followData, target);
-        
-        // Dispatch the one transition back to "stop" as well. Consumers use
-        // it to restore full row detail after the lightweight drag rendering.
-        if (event!= null && (state != 'stop' || previousState != state || forceUpdateEvent)) {
+        Reflect.setProperty(follow, followData, target);
+
+        // NF 在 FE 的条件上多留一档"刚回到 stop 也发一次"：songMoveEvent 这类消费方
+        // 靠它做最后一帧布局，并把 setScrollRendering(false) 的完整行渲染恢复回去。
+        if (event != null && (state != 'stop' || previousState != state || forceUpdateEvent)) {
             event();
         }
+
+        super.update(elapsed);
     }
-    
+
     private function startDrag(startY:Float) {
         isDragging = true;
         lastMouseY = startY;
@@ -199,10 +222,12 @@ class MouseMove extends FlxBasic
         _inertiaTime = 0;
         _pendingDragDelta = 0;
     }
-    
+
     private var velocLastMouseY:Float = 0;
     private function updateDrag(currentY:Float) {
-        var deltaY = currentY - lastMouseY;
+        // FE 约定：向上拖拽（currentY < lastMouseY）让列表向下移动（正delta）；
+        // invertDrag 时沿用 NF 旧版的相反符号，供直加式映射的旧界面保持移植前手感
+        var deltaY:Float = invertDrag ? (currentY - lastMouseY) : (lastMouseY - currentY);
         var now = FlxG.game.ticks;
         var deltaMs = Math.max(1, now - __lastDragTick);
         velocity = (deltaY * dragSensitivity) * (1000.0 / deltaMs);
@@ -212,16 +237,16 @@ class MouseMove extends FlxBasic
 
         if (FlxG.game.ticks - _lastUpdateTime >= 16)
         {
-            var dY = currentY - velocLastMouseY;
+            var dY:Float = invertDrag ? (currentY - velocLastMouseY) : (velocLastMouseY - currentY);
             var dMs = Math.max(1, FlxG.game.ticks - _lastUpdateTime);
             var vps = (dY * dragSensitivity) * (1000.0 / dMs);
             velocUpdate(vps);
             velocLastMouseY = currentY;
-            
+
             _lastUpdateTime = FlxG.game.ticks;
         }
     }
-    
+
     private function endDrag() {
         if (!isDragging) return;
         isDragging = false;
@@ -240,7 +265,13 @@ class MouseMove extends FlxBasic
     private function set_tweenData(value:Float) {
         var doNotStop:Bool = value == tweenData;
         tweenData = value;
+        hasTweenData = true;
         if (!doNotStop) moveTo(tweenData);
+        // 目标值没变、但当前位置还没到位时也要重新武装 lerp。
+        // 典型场景：静止状态下 tweenData 已被复位成 0，此时再设置 0（比如按 HOME 回到第一个）
+        // 会被判成"同值"而跳过 moveTo，allowLerp 一直是 false，导致永远不会滚动过去。
+        // （拖拽中不武装，拖拽优先级高于程序化滚动）
+        else if (useLerp && !isDragging && Math.abs(target - tweenData) > 0.001) allowLerp = true;
 
         return tweenData;
     }
@@ -256,9 +287,33 @@ class MouseMove extends FlxBasic
     }
 
     private function cancelMoveTo() {
-        allowLerp = false;
+        // 注意顺序：tweenData 是 (default, set) 属性，这里的赋值会走 set_tweenData
+        // （可能顺带把 allowLerp 打开），所以这几个标志必须放在它之后再复位。
         tweenData = 0;
+        hasTweenData = false;
+        allowLerp = false;
         if (moveTween != null) moveTween.cancel();
+    }
+
+    /**
+     * 丢弃残留的鼠标输入状态（待拖拽 / 拖拽中 / 速度）。
+     *
+     * 宿主 state 弹出子状态时通常会暂停更新，这段时间内的按下与松开事件都不会被处理，
+     * 于是 `_dragPending` 会一直挂着。恢复更新的第一帧就会命中 `_dragPending && mouse.pressed`
+     * 而误判成"开始拖拽"，进而调用 `cancelMoveTo()` 把刚设置好的 `tweenData`
+     * （例如 Freeplay 搜索结果的跳转）直接取消掉。
+     * 因此凡是"暂停更新后即将恢复"的地方，都应该先调用本方法清理一次。
+     */
+    public function resetInputState():Void
+    {
+        _dragPending = false;
+        isDragging = false;
+        _pendingDragDelta = 0;
+        velocity = 0;
+        velocityArray = [];
+        lastMouseY = mouseY();
+        velocLastMouseY = lastMouseY;
+        _lastUpdateTime = FlxG.game.ticks;
     }
 
     var isPositive:Bool = true; //正数检测

@@ -12,6 +12,34 @@ class Language
 		return ClientPrefs.data.developerMode ? value + ' (404)' : value;
 	}
 
+	/**
+	 * 带占位符替换的短语读取（FE charm 栈移植）。
+	 * 在所有语言分组里找 key，找不到用 defaultPhrase，然后把 {1}..{n} 换成 args 对应项。
+	 * 注意：不能走 CustomLangGroup.get()——它缺失时返回 key 本身，无法和"真的翻译成了 key"区分。
+	 */
+	public static function getPhrase(key:String, defaultPhrase:String, ?args:Array<Dynamic>):String
+	{
+		var result:String = null;
+		for (group in groups)
+		{
+			var v:String = group.data.get(key);
+			if (v == null) v = group.defaultData.get(key);
+			if (v != null)
+			{
+				result = v;
+				break;
+			}
+		}
+		if (result == null) result = defaultPhrase;
+
+		if (args != null)
+		{
+			for (i in 0...args.length)
+				result = StringTools.replace(result, '{' + (i + 1) + '}', Std.string(args[i]));
+		}
+		return result;
+	}
+
 	public static function resetData()
 	{
 		check();

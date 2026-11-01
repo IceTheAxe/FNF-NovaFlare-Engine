@@ -84,6 +84,8 @@ import general.shaders.MobileShaderConverter;
 	public var safeFrames:Float = 10;
 	public var marvelousRating:Bool = true;
 	public var marvelousSprite:Bool = true;
+	// 开局判定信息提示（MessageBox toast）的停留秒数，0 = 不创建
+	public var startInfoTime:Float = 2;
 
 	// App
 	public var discordRPC:Bool = true;
@@ -99,6 +101,7 @@ import general.shaders.MobileShaderConverter;
 	public var showRating:Bool = true;
 	public var opponentStrums:Bool = true;
 	public var judgementCounter:Bool = false;
+	public var totalNoteHits:Bool = true; // JudgementCounter 顶部显示 当前命中/总note
 	public var keyboardViewer:Bool = true;
 	public var timeBarType:String = 'Time Left';
 	public var healthBarAlpha:Float = 1;
@@ -185,9 +188,24 @@ import general.shaders.MobileShaderConverter;
 	public var gradientTimeBar:Bool = true;
 	public var pauseType:String = "NF";
 	public var coolBackdrop:Bool = true;
+	// FE 同步：暂停菜单动画/输入选项（NewPauseSubState）
+	public var pauseSkipFadeIn:Bool = false;            // 跳过开场滑入动画
+	public var pauseSkipFadeOut:Bool = false;           // 跳过关闭滑出动画
+	public var pauseDoubleEnterSkip:Bool = false;       // 关闭动画期间双击 accept 键瞬时关闭
+	public var pauseUnlockInputDuringAnim:Bool = false; // 开场动画期间也允许操作
 	public var luaDebugPrint:Bool = true;
 	public var noteOffsetChangingAllowed:Bool = false;
 	public var peChartEditor:Bool = false;
+
+	// ===== RelaxState Options（RelaxSubState 音乐播放器，选项面板直接 Reflect 写入） =====
+	public var NextSongs:String = 'Next';              // 播放结束行为：Next / Restart / Random
+	public var RelaxAudioDisplayQuality:Int = 2;       // 频谱 FFT 质量（仅 Relax 界面，1-10）
+	public var RelaxAudioNumber:Int = 3;               // 频谱条数（120 / 该值，1-8）
+	public var RelaxAudioSymmetry:Bool = true;         // 频谱中间对称
+	// enableRecordRotation / enableBpmZoom / theme / songInfo 沿用上方旧字段（172-175 行）
+
+	// 主菜单闲置 N 分钟后自动进入 Relax（类休眠），0 = 关闭
+	public var relaxIdleMinutes:Int = 0;
 	// Arrow RGB
 	public var arrowRGB:Array<Array<FlxColor>> = [
 		[0xFFC24B99, 0xFFFFFFFF, 0xFF3C1F56],

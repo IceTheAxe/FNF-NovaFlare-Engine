@@ -36,3 +36,13 @@ charting_mode => Charting Mode
 // ===== 功能切换状态 =====
 on => ON
 off => OFF
+
+// ===== 曲师 / 谱师署名 =====
+pause_artist => Artist: {1}
+pause_charter => Charter: {1}
+
+// ===== 调试面板（Win8 Panel） =====
+pause_skip => Skip
+pause_skip_apply => Skip to Time
+pause_leave_charting_mode => Leave Charting Mode
+pause_end_song => End Song

@@ -94,7 +94,7 @@ class GameplayChangersSubstate extends Panel
 			'Speed multiplier of the whole song');
 		rate.minValue = 0.5;
 		rate.maxValue = 3.0;
-		rate.changeValue = 0.05;
+		rate.changeValue = 0.01;
 		rate.displayFormat = '%vX';
 		rate.decimals = 2;
 		optionsArray.push(rate);

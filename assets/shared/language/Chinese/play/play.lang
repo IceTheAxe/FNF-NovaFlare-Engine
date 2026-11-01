@@ -1,0 +1,4 @@
+startInfo_ratingOffset => 判定偏移
+startInfo_noteOffset => 判定线
+startInfo_safeFrames => 判定宽容帧数
+startInfo_playbackRate => 播放速率

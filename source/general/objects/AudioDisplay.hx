@@ -31,6 +31,10 @@ class AudioDisplay extends FlxSprite
 	public var symmetry:Bool = false;
 	public var stopUpdate:Bool = false;
 	public var amplitude:Float = 0;
+	#if RELAX_ALLOWED
+	// Relax 界面专用：FFT 质量改读 RelaxAudioDisplayQuality（MainMenu 共用本组件，默认关闭）
+	public var inRelax:Bool = false;
+	#end
 
 	var line:Int;
 	var displayWidth:Int;
@@ -211,10 +215,17 @@ class AudioDisplay extends FlxSprite
 
 		if (analyzer == null)
 		{
+			#if RELAX_ALLOWED
+			final quality:Int = inRelax
+				? ClientPrefs.data.RelaxAudioDisplayQuality
+				: ClientPrefs.data.audioDisplayQuality;
+			#else
+			final quality:Int = ClientPrefs.data.audioDisplayQuality;
+			#end
 			analyzer = new SpectralAnalyzer(source,
 				Std.int(line + Math.abs(0.05 *
-					(4 - ClientPrefs.data.audioDisplayQuality))), 1, 5);
-			analyzer.fftN = 256 * ClientPrefs.data.audioDisplayQuality;
+					(4 - quality))), 1, 5);
+			analyzer.fftN = 256 * quality;
 		}
 		else
 			analyzer.changeSnd(source);

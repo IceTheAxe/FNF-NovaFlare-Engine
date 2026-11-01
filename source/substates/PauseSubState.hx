@@ -15,6 +15,7 @@ import games.backend.WeekData;
 import games.backend.Highscore;
 import games.backend.Replay;
 import games.backend.Song;
+import games.backend.SongCredits;
 
 /*
 	PauseSubState made by TieGuo, code optimized by Beihu.
@@ -49,6 +50,8 @@ class PauseSubState extends MusicBeatSubstate
 	var practiceText:FlxText;
 	var botText:FlxText;
 	var ballText:FlxText;
+	var artistText:FlxText;
+	var charterText:FlxText;
 	var menuText:Array<FlxText> = [];
 	var menuTextStart:FlxTimer;
 	var menuTextTween:Array<FlxTween> = [];
@@ -329,8 +332,30 @@ class PauseSubState extends MusicBeatSubstate
 		ballText = new FlxText(0, 15, 0, 'Blueballed: ' + PlayState.deathCounter, 32);
 		ballText.setFormat(font, 25);
 		ballText.updateHitbox();
-		ballText.antialiasing = ClientPrefs.data.antialiasing;
-		add(ballText);
+	ballText.antialiasing = ClientPrefs.data.antialiasing;
+	add(ballText);
+
+	// 曲师 / 谱师署名（有数据才建，跟随 menuText 的右对齐 + 逐条淡入）
+	var pauseCredits = SongCredits.forPlayState();
+	var creditArtist:String = SongCredits.getArtist(pauseCredits);
+	var creditCharter:String = SongCredits.getCharter(pauseCredits);
+
+	if(creditArtist != null && creditArtist.length > 0)
+	{
+		artistText = new FlxText(0, 15, 0, Language.getPhrase('pause_artist', 'Artist: {1}', [creditArtist]), 32);
+		artistText.setFormat(font, 25);
+		artistText.updateHitbox();
+		artistText.antialiasing = ClientPrefs.data.antialiasing;
+		add(artistText);
+	}
+	if(creditCharter != null && creditCharter.length > 0)
+	{
+		charterText = new FlxText(0, 15, 0, Language.getPhrase('pause_charter', 'Charter: {1}', [creditCharter]), 32);
+		charterText.setFormat(font, 25);
+		charterText.updateHitbox();
+		charterText.antialiasing = ClientPrefs.data.antialiasing;
+		add(charterText);
+	}
 
 		practiceText = new FlxText(0, 15, 0, 'Practice Mode: ' + (PlayState.instance.practiceMode ? 'ON' : 'OFF'), 32);
 		practiceText.setFormat(font, 25);
@@ -378,6 +403,8 @@ class PauseSubState extends MusicBeatSubstate
 		add(mismatchText);
 
 		menuText = [dataText, songText, ballText, practiceText, botText, cheatingText, engineText, formatText, mismatchText];
+	if(artistText != null) menuText.insert(3, artistText);
+	if(charterText != null) menuText.insert(artistText != null ? 4 : 3, charterText);
 
 		var curText = 0;
 		for (i in menuText)

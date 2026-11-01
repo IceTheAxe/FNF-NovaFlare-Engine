@@ -5,8 +5,11 @@ import games.backend.Song.SwagSong;
 import games.backend.Song;
 
 class DiffRating {
-    public static function calcForSong(song:SwagSong):Float {
+    // rate 为播放倍速（Playback Rate），把所有 note 时间按 1/rate 压缩，
+    // 让 strain 衰减按实际游玩节奏计算，倍速越高星级越高
+    public static function calcForSong(song:SwagSong, ?rate:Float = 1.0):Float {
         if (song == null || song.notes == null || song.notes.length == 0) return 0;
+        if (rate == null || rate <= 0) rate = 1.0;
         var objs:Array<ManiaObj> = [];
         var totalColumns:Int = song.mania + 1;
         if (totalColumns <= 0) totalColumns = 4;
@@ -19,9 +22,9 @@ class DiffRating {
                 if (rawLane < 0) continue;
                 var lane:Int = resolvePlayableLane(sec, rawLane, song);
                 if (lane < 0) continue;
-                var start:Float = n[0];
+                var start:Float = n[0] / rate;
                 var sustain:Float = (n.length >= 3 && n[2] != null) ? n[2] : 0.0;
-                var end:Float = start + (sustain > 0 ? sustain : 0);
+                var end:Float = start + ((sustain > 0 ? sustain : 0) / rate);
                 objs.push({ startTime: start, endTime: end, column: lane, index: 0, deltaTime: 0, previousIndex: -1, previousStart: 0, previousHitByColumn: [], columnStrainTime: 0 });
             }
         }

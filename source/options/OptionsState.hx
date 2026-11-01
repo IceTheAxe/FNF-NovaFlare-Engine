@@ -253,6 +253,9 @@ class OptionsState extends MusicBeatState
 				[0, FlxG.height]
 			],
 			naviMoveEvent);
+		// 直加式映射（naviGroup.y = naviPosiData + ...）：沿用 NF 旧版拖拽方向与正滚轮灵敏度
+		naviMove.mouseWheelSensitivity = 1000;
+		naviMove.invertDrag = true;
 		add(naviMove);
 		refreshNavScrollBounds();
 	}
@@ -269,6 +272,9 @@ class OptionsState extends MusicBeatState
 				[0, LayoutMetrics.contentBottom()]
 			],
 			cataMoveEvent);
+		// 直加式映射（cataGroup.y = cataPosiData + ...）：沿用 NF 旧版拖拽方向与正滚轮灵敏度
+		cataMove.mouseWheelSensitivity = 1000;
+		cataMove.invertDrag = true;
 		add(cataMove);
 		cataMove.forceUpdateEvent = true;
 		cataMove.useLerp = false;

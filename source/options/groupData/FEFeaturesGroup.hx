@@ -13,11 +13,24 @@ class FEFeaturesGroup extends OptionCata
 		var option:Option = new Option(this, 'pauseType', STRING , pauseArray);
 		addOption(option);
 
+		var option:Option = new Option(this, 'pauseSkipFadeIn', BOOL);
+		addOption(option);
+
+		var option:Option = new Option(this, 'pauseSkipFadeOut', BOOL);
+		addOption(option);
+
+		var option:Option = new Option(this, 'pauseDoubleEnterSkip', BOOL);
+		addOption(option);
+
+		var option:Option = new Option(this, 'pauseUnlockInputDuringAnim', BOOL);
+		addOption(option);
+
 		var option:Option = new Option(this, 'coolBackdrop', BOOL);
 		addOption(option);
 
-		var option:Option = new Option(this, 'peChartEditor', BOOL);
-		addOption(option);
+		// 老版谱面编辑器已下线，谱面编辑器固定走 PE 版，此开关不再需要
+		// var option:Option = new Option(this, 'peChartEditor', BOOL);
+		// addOption(option);
 		
 		var option:Option = new Option(this, 'showMS', BOOL);
 		addOption(option);
@@ -59,6 +72,15 @@ class FEFeaturesGroup extends OptionCata
 
 		var option:Option = new Option(this, 'noteOffsetChangingAllowed', BOOL);
 		addOption(option);
+
+		// 开局判定信息提示的停留秒数，0 = 不显示
+		var option:Option = new Option(this, 'startInfoTime', FLOAT, [0, 10, 1]);
+		addOption(option);
+
+		#if RELAX_ALLOWED
+		var option:Option = new Option(this, 'relaxIdleMinutes', INT, [0, 60, 1]);
+		addOption(option);
+		#end
 
 		changeHeight(0);
 	}

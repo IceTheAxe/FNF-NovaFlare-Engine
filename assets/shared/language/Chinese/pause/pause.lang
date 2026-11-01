@@ -30,3 +30,13 @@ charting_mode => 制图模式
 
 on => 开
 off => 关
+
+// ===== 曲师 / 谱师署名 =====
+pause_artist => 作曲家：{1}
+pause_charter => 谱师：{1}
+
+// ===== 调试面板（Win8 Panel） =====
+pause_skip => 跳过
+pause_skip_apply => 跳转至时间
+pause_leave_charting_mode => 离开制图模式
+pause_end_song => 结束歌曲

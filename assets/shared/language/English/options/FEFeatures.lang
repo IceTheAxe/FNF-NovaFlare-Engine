@@ -18,3 +18,5 @@ pauseType_NF => NF
 pauseType_FE => FE
 pauseType_Psych => Psych
 peChartEditor => PE Chart Editor
+relaxIdleMinutes => Auto Relax When Idle (Minutes, 0 = Off)
+startInfoTime => Start Info Popup (Seconds, 0 = Off)

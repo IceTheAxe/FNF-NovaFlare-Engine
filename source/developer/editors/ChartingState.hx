@@ -25,6 +25,10 @@ import general.objects.AttachedSprite;
 
 import substates.Prompt;
 
+import developer.editors.common.ChartMinimap;
+import developer.editors.common.ChartMinimap.ChartMinimapPanel;
+import developer.editors.common.ChartMinimap.ChartMinimapSection;
+
 import games.backend.Song;
 import games.backend.Section;
 import games.backend.StageData;
@@ -109,6 +113,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 	var _file:FileReference;
 
 	var UI_box:PsychUIBox;
+	var chartMinimap:ChartMinimap;
 
 	public static var isFreePlay:Bool = false;
 	public static var goToPlayState:Bool = false;
@@ -190,6 +195,9 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 
 	public static var vortex:Bool = false;
 
+	// 谱面反向滚动（编辑器网格上下翻转，类似 Downscroll 视角）
+	public static var reverseScroll:Bool = false;
+
 	var leftKeys:Int = 4;
 	var rightKeys:Int = 4;
 	var totalKeys:Int = 8;
@@ -225,7 +233,8 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 			PlayState.SONG = _song;
 		}
 
-		updateKeyAmounts();
+		// 加载进来的谱面 lane 已是最终布局，重排只该发生在手动改键数时
+		updateKeyAmounts(false);
 
 		new FlxTimer().start(60, function(tmr:FlxTimer)
 		{
@@ -240,6 +249,9 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		#end
 
 		vortex = FlxG.save.data.chart_vortex;
+		if (FlxG.save.data.chart_reverseScroll == null)
+			FlxG.save.data.chart_reverseScroll = false;
+		reverseScroll = FlxG.save.data.chart_reverseScroll;
 		ignoreWarnings = FlxG.save.data.ignoreWarnings;
 		var bg:FlxSprite = new FlxSprite().loadGraphic(Paths.image('menuDesat'));
 		bg.antialiasing = ClientPrefs.data.antialiasing;
@@ -252,6 +264,11 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 
 		waveformSprite = new FlxSprite(GRID_SIZE, 0).makeGraphic(1, 1, 0x00FFFFFF);
 		add(waveformSprite);
+
+		// 当前 section 被选中时的高亮框（在网格之上、note 之下）
+		sectionSelectOverlay = new FlxSprite().makeGraphic(1, 1, 0x3DFFF176);
+		sectionSelectOverlay.visible = false;
+		add(sectionSelectOverlay);
 
 		eventIcon = new FlxSprite(-GRID_SIZE - 5, -90).loadGraphic(Paths.image('eventArrow'));
 		eventIcon.antialiasing = ClientPrefs.data.antialiasing;
@@ -394,6 +411,14 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 
 		updateGrid();
 
+		// 谱面缩略图（密度条）：点击/拖拽跳转时间，齿轮开 win8 设置面板
+		chartMinimap = new ChartMinimap();
+		chartMinimap.buildSections = buildMinimapSections;
+		chartMinimap.getPlayheadPos = function() return FlxG.sound.music != null ? FlxG.sound.music.time : 0;
+		chartMinimap.onSeek = seekToMinimapTime;
+		chartMinimap.openSettings = function() openSubState(new ChartMinimapPanel(chartMinimap));
+		add(chartMinimap);
+
 		addVirtualPad(ChartingStateC, ChartingStateC);
 
 		super.create();
@@ -403,6 +428,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 	var check_mute_vocals:PsychUICheckBox = null;
 	var check_mute_vocals_opponent:PsychUICheckBox = null;
 	var check_vortex:PsychUICheckBox = null;
+	var check_reverseScroll:PsychUICheckBox = null;
 	var check_warnings:PsychUICheckBox = null;
 	var playSoundBf:PsychUICheckBox = null;
 	var playSoundDad:PsychUICheckBox = null;
@@ -461,7 +487,8 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 			Song.forceEngineVersion = nextEngine;
 			var songName:String = Paths.formatToSongPath(_song.song);
 			try { _song = Song.loadFromJson(songName, songName); } catch(e) {}
-			updateKeyAmounts();
+			// 重新读入的谱面 lane 已是磁盘上的最终布局，不做重排
+			updateKeyAmounts(false);
 			reloadGridLayer();
 			makeStrumNotes();
 			changeSection(curSec);
@@ -487,9 +514,11 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 				clearEvents();
 				var savedFmt = Song.detectedFormat;
 				var savedCE = Song.chartEngineVersion;
+				var savedLaneSem = Song.chartLaneSemantics;
 				var events:SwagSong = Song.loadFromJson('events', songName);
 				Song.detectedFormat = savedFmt;
 				Song.chartEngineVersion = savedCE;
+				Song.chartLaneSemantics = savedLaneSem;
 				_song.events = events.events;
 				changeSection(curSec);
 			}
@@ -519,7 +548,13 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		});
 		makeRedButton(clear_notes);
 
-		var stepperBPM:PsychUINumericStepper = new PsychUINumericStepper(10, 70, 1, Conductor.bpm, 1, 400, 3);
+		// 切到 PE 版谱面编辑器：未保存的修改在 PlayState.SONG 里直接带过去
+		var openPEBtn:PsychUIButton = new PsychUIButton(320, clear_notes.y + 30, 'Open PE Editor', function()
+		{
+			switchToPEEditor();
+		});
+
+		var stepperBPM:PsychUINumericStepper = new PsychUINumericStepper(10, 70, 1, Conductor.bpm, 1, 10000, 3);
 		stepperBPM.name = 'song_bpm';
 
 		var stepperSpeed:PsychUINumericStepper = new PsychUINumericStepper(10, stepperBPM.y + 35, 0.1, _song.speed, 0.1, 10, 2);
@@ -659,6 +694,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		tab_group_song.add(check_voices);
 		tab_group_song.add(clear_events);
 		tab_group_song.add(clear_notes);
+		tab_group_song.add(openPEBtn);
 		tab_group_song.add(saveButton);
 		tab_group_song.add(saveEvents);
 		tab_group_song.add(reloadSong);
@@ -695,6 +731,18 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 	var sectionToCopy:Int = 0;
 	var notesCopied:Array<Dynamic>;
 
+	// ===== 多 section 选择复制 =====
+	// 选择模式：开启后点击网格选中/取消当前 section，Copy 按选中集合复制
+	var sectionSelectMode:Bool = false;
+	var selectedSections:Array<Int> = [];
+	// 剪贴板：按选中 section 升序，每项存该 section 的 notes/events（时间相对各自 section 起点）
+	var multiCopiedSections:Array<{notes:Array<Dynamic>, events:Array<Dynamic>}> = [];
+	var sectionSelectOverlay:FlxSprite;
+	var selectSectionButton:PsychUIButton;
+	// 粘贴内容开关（Notes / Events），原为 addSectionUI 局部变量，提升为成员供 pasteSelectedSections 使用
+	var check_notesSec:PsychUICheckBox = null;
+	var check_eventsSec:PsychUICheckBox = null;
+
 	function addSectionUI():Void
 	{
 		var tab_group_section:FlxSpriteGroup = UI_box.getTab('Section').menu;
@@ -722,10 +770,16 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 			check_changeBPM.checked ? _song.notes[curSec].bpm : Conductor.bpm, 0, 999, 1);
 		stepperSectionBPM.name = 'section_bpm';
 
-		var check_eventsSec:PsychUICheckBox = null;
-		var check_notesSec:PsychUICheckBox = null;
 		var copyButton:PsychUIButton = new PsychUIButton(10, 190, "Copy Section", function()
 		{
+			// 有选中的 section 时按选择集合复制，否则保持原行为只复制当前 section
+			if (selectedSections.length > 0)
+			{
+				copySelectedSections();
+				return;
+			}
+
+			multiCopiedSections = [];
 			notesCopied = [];
 			sectionToCopy = curSec;
 			for (i in 0..._song.notes[curSec].sectionNotes.length)
@@ -750,10 +804,23 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 					notesCopied.push([strumTime, -1, copiedEventArray]);
 				}
 			}
+
+			var noteNum:Int = 0;
+			var eventNum:Int = 0;
+			for (note in notesCopied)
+			{
+				if (note[1] < 0) eventNum++;
+				else noteNum++;
+			}
+			showEditorStatus('Copied 1 section ($noteNum notes, $eventNum events)');
 		});
 
 		var pasteButton:PsychUIButton = new PsychUIButton(copyButton.x + 100, copyButton.y, "Paste Section", function()
 		{
+			// 多 section 剪贴板：从当前（滚动到的第一个）section 开始逐节粘贴
+			if (pasteSelectedSections())
+				return;
+
 			if (notesCopied == null || notesCopied.length < 1)
 			{
 				return;
@@ -762,6 +829,8 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 			var addToTime:Float = Conductor.stepCrochet * (getSectionBeats() * 4 * (curSec - sectionToCopy));
 			// trace('Time to add: ' + addToTime);
 
+			var noteNum:Int = 0;
+			var eventNum:Int = 0;
 			for (note in notesCopied)
 			{
 				var copiedNote:Array<Dynamic> = [];
@@ -777,6 +846,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 							copiedEventArray.push([eventToPush[0], eventToPush[1], eventToPush[2]]);
 						}
 						_song.events.push([newStrumTime, copiedEventArray]);
+						eventNum++;
 					}
 				}
 				else
@@ -789,10 +859,12 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 							copiedNote = [newStrumTime, note[1], note[2], note[3]];
 
 						_song.notes[curSec].sectionNotes.push(copiedNote);
+						noteNum++;
 					}
 				}
 			}
 			updateGrid();
+			showEditorStatus('Pasted 1 section ($noteNum notes, $eventNum events)');
 		});
 
 		var clearSectionButton:PsychUIButton = new PsychUIButton(pasteButton.x + 100, pasteButton.y, "Clear", function()
@@ -826,6 +898,16 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		check_notesSec.checked = true;
 		check_eventsSec = new PsychUICheckBox(check_notesSec.x + 100, check_notesSec.y, "Events", 100);
 		check_eventsSec.checked = true;
+
+		selectSectionButton = new PsychUIButton(check_eventsSec.x + 100, check_notesSec.y, "Select Section", function()
+		{
+			sectionSelectMode = !sectionSelectMode;
+			if (sectionSelectMode)
+				selectedSections = []; // 重新进入选择模式时清空上次的选择
+			updateSectionSelectVisual();
+			showEditorStatus(sectionSelectMode ? 'Section Select: click the grid to pick sections' : 'Section Select off');
+		});
+		selectSectionButton.resize(85, 22);
 
 		var swapSection:PsychUIButton = new PsychUIButton(10, check_notesSec.y + 40, "Swap section", function()
 		{
@@ -927,6 +1009,24 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 			updateGrid();
 		});
 
+		var mirrorSongButton:PsychUIButton = new PsychUIButton(mirrorButton.x + 100, mirrorButton.y, "Mirror Song", function()
+		{
+			for (section in _song.notes)
+			{
+				for (note in section.sectionNotes)
+				{
+					var boob = note[1] % leftKeys;
+					boob = (leftKeys - 1) - boob;
+					if (note[1] >= leftKeys)
+						boob += leftKeys;
+
+					note[1] = boob;
+				}
+			}
+
+			updateGrid();
+		});
+
 		tab_group_section.add(new FlxText(stepperBeats.x, stepperBeats.y - 15, 0, 'Beats per Section:'));
 		tab_group_section.add(stepperBeats);
 		tab_group_section.add(stepperSectionBPM);
@@ -939,11 +1039,13 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		tab_group_section.add(clearSectionButton);
 		tab_group_section.add(check_notesSec);
 		tab_group_section.add(check_eventsSec);
+		tab_group_section.add(selectSectionButton);
 		tab_group_section.add(swapSection);
 		tab_group_section.add(stepperCopy);
 		tab_group_section.add(copyLastButton);
 		tab_group_section.add(duetButton);
 		tab_group_section.add(mirrorButton);
+		tab_group_section.add(mirrorSongButton);
 	}
 
 	var stepperSusLength:PsychUINumericStepper;
@@ -1272,6 +1374,18 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 			reloadGridLayer();
 		};
 
+		check_reverseScroll = new PsychUICheckBox(check_vortex.x + 120, check_vortex.y, "Reverse Scroll", 100, function()
+		{
+			FlxG.save.data.chart_reverseScroll = check_reverseScroll.checked;
+			reverseScroll = check_reverseScroll.checked;
+			reloadGridLayer(); // 重建下一节网格/分隔线的位置（内部会 updateGrid）
+			updateWaveform();
+		});
+		if (FlxG.save.data.chart_reverseScroll == null)
+			FlxG.save.data.chart_reverseScroll = false;
+		check_reverseScroll.checked = FlxG.save.data.chart_reverseScroll;
+		reverseScroll = check_reverseScroll.checked;
+
 		check_warnings = new PsychUICheckBox(10, 120, "Ignore Progress Warnings", 100);
 		if (FlxG.save.data.ignoreWarnings == null)
 			FlxG.save.data.ignoreWarnings = false;
@@ -1377,6 +1491,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		tab_group_chart.add(check_mute_vocals);
 		tab_group_chart.add(check_mute_vocals_opponent);
 		tab_group_chart.add(check_vortex);
+		tab_group_chart.add(check_reverseScroll);
 		tab_group_chart.add(mouseScrollingQuant);
 		tab_group_chart.add(check_warnings);
 		tab_group_chart.add(playSoundBf);
@@ -1744,9 +1859,15 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 
 	function sectionStartTime(add:Int = 0):Float
 	{
+		return getSectionStartTime(curSec + add);
+	}
+
+	/** 任意 section 的起始时间（累加前面所有节的时长，考虑换 BPM / 每节拍数） */
+	function getSectionStartTime(index:Int):Float
+	{
 		var daBPM:Float = _song.bpm;
 		var daPos:Float = 0;
-		for (i in 0...curSec + add)
+		for (i in 0...index)
 		{
 			if (_song.notes[i] != null)
 			{
@@ -1758,6 +1879,218 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 			}
 		}
 		return daPos;
+	}
+
+	// ===== 多 section 选择复制/粘贴 =====
+
+	function toggleSectionSelection(sec:Int):Void
+	{
+		if (selectedSections.contains(sec))
+			selectedSections.remove(sec);
+		else
+			selectedSections.push(sec);
+	}
+
+	function updateSectionSelectVisual():Void
+	{
+		if (selectSectionButton == null)
+			return;
+		if (sectionSelectMode)
+			selectSectionButton.normalStyle = {bgColor: FlxColor.LIME, textColor: FlxColor.BLACK, bgAlpha: 1};
+		else
+			selectSectionButton.normalStyle = {bgColor: 0xFFAAAAAA, textColor: FlxColor.BLACK, bgAlpha: 1};
+		selectSectionButton.forceCheckNext = true;
+	}
+
+	/** 把选中的所有 section 复制进剪贴板，时间存为相对各 section 起点的偏移 */
+	function copySelectedSections():Void
+	{
+		var selSections:Array<Int> = selectedSections.copy();
+		selSections.sort(function(a:Int, b:Int) return a - b);
+
+		multiCopiedSections = [];
+		var noteNum:Int = 0;
+		var eventNum:Int = 0;
+
+		for (sec in selSections)
+		{
+			if (_song.notes[sec] == null)
+				continue;
+
+			var secStart:Float = getSectionStartTime(sec);
+			var secEnd:Float = getSectionStartTime(sec + 1);
+
+			var secNotes:Array<Dynamic> = [];
+			for (note in _song.notes[sec].sectionNotes)
+			{
+				if (note == null)
+					continue;
+				if (note[4] != null)
+					secNotes.push([note[0] - secStart, note[1], note[2], note[3], note[4]]);
+				else
+					secNotes.push([note[0] - secStart, note[1], note[2], note[3]]);
+				noteNum++;
+			}
+
+			var secEvents:Array<Dynamic> = [];
+			for (event in _song.events)
+			{
+				if (event[0] >= secStart && event[0] < secEnd)
+				{
+					var grp:Array<Dynamic> = [];
+					for (i in 0...event[1].length)
+					{
+						var e:Array<Dynamic> = event[1][i];
+						grp.push([e[0], e[1], e[2]]);
+					}
+					secEvents.push([event[0] - secStart, grp]);
+					eventNum++;
+				}
+			}
+
+			multiCopiedSections.push({notes: secNotes, events: secEvents});
+		}
+
+		showEditorStatus('Copied ${multiCopiedSections.length} sections ($noteNum notes, $eventNum events)');
+	}
+
+	/** 多 section 粘贴：从当前（滚动到的第一个）section 开始逐节落下，返回 false 表示剪贴板不是多选内容 */
+	function pasteSelectedSections():Bool
+	{
+		if (multiCopiedSections.length <= 0)
+			return false;
+
+		var noteNum:Int = 0;
+		var eventNum:Int = 0;
+		var anchorSec:Int = curSec;
+
+		for (i in 0...multiCopiedSections.length)
+		{
+			var destSec:Int = anchorSec + i;
+			while (_song.notes[destSec] == null)
+				addSection();
+
+			var destStart:Float = getSectionStartTime(destSec);
+			var group = multiCopiedSections[i];
+
+			if (check_notesSec.checked)
+			{
+				for (note in group.notes)
+				{
+					var t:Float = note[0] + destStart;
+					if (note[4] != null)
+						_song.notes[destSec].sectionNotes.push([t, note[1], note[2], note[3], note[4]]);
+					else
+						_song.notes[destSec].sectionNotes.push([t, note[1], note[2], note[3]]);
+					noteNum++;
+				}
+			}
+
+			if (check_eventsSec.checked)
+			{
+				for (event in group.events)
+				{
+					var grp:Array<Dynamic> = [];
+					for (i in 0...event[1].length)
+					{
+						var e:Array<Dynamic> = event[1][i];
+						grp.push([e[0], e[1], e[2]]);
+					}
+					_song.events.push([event[0] + destStart, grp]);
+					eventNum++;
+				}
+			}
+		}
+
+		updateGrid();
+		showEditorStatus('Pasted ${multiCopiedSections.length} sections ($noteNum notes, $eventNum events)');
+		return true;
+	}
+
+	// ===== 编辑器顶部临时提示 =====
+
+	var statusText:FlxText;
+	var statusTextTimer:FlxTimer;
+
+	function showEditorStatus(msg:String):Void
+	{
+		if (statusText == null)
+		{
+			statusText = new FlxText(0, 10, FlxG.width - 80, '', 20);
+			statusText.setFormat(Paths.font("vcr.ttf"), 20, FlxColor.YELLOW, CENTER, FlxTextBorderStyle.OUTLINE_FAST, FlxColor.BLACK);
+			statusText.borderSize = 2;
+			statusText.scrollFactor.set();
+			add(statusText);
+		}
+		if (statusTextTimer != null)
+			statusTextTimer.cancel();
+
+		statusText.text = msg;
+		statusText.screenCenter(X);
+		statusText.alpha = 1;
+		statusText.visible = true;
+		statusTextTimer = new FlxTimer().start(2, function(tmr:FlxTimer)
+		{
+			statusText.visible = false;
+		});
+	}
+
+	// ===== 谱面缩略图（ChartMinimap）=====
+
+	/** 给缩略图提供每个 section 的数据：起点/终点/当前 BPM/note 数 */
+	function buildMinimapSections():Array<ChartMinimapSection>
+	{
+		var out:Array<ChartMinimapSection> = [];
+		var bpm:Float = _song.bpm;
+		var pos:Float = 0;
+		for (i in 0..._song.notes.length)
+		{
+			var sec = _song.notes[i];
+			if (sec == null) continue;
+			if (sec.changeBPM && sec.bpm > 0) bpm = sec.bpm;
+			var dur:Float = getSectionBeats(i) * (1000 * 60 / bpm);
+
+			// 旧谱面的 note 是数组形式，note[1] 是绝对轨道：0..leftKeys-1 = 玩家侧，之后 = 对手侧
+			var cnt:Int = 0;
+			var sides:Array<Int> = [0, 0];
+			var cols:Int = (leftKeys > 0) ? leftKeys : 4;
+			if (sec.sectionNotes != null)
+			{
+				for (n in sec.sectionNotes)
+				{
+					if (n == null || n.length < 2) continue;
+					var side:Int = Std.int(n[1] / cols);
+					if (side < 0) side = 0;
+					else if (side >= sides.length) side = sides.length - 1;
+					cnt++;
+					sides[side]++;
+				}
+			}
+			out.push({time: pos, endTime: pos + dur, bpm: bpm, noteCount: cnt, sideNotes: sides});
+			pos += dur;
+		}
+		return out;
+	}
+
+	/** 缩略图跳转：定位到目标节，再把音乐拉到指定时间（对齐 changeSection/resetSection 的做法） */
+	function seekToMinimapTime(ms:Float):Void
+	{
+		ms = Math.max(0, ms);
+		var target:Int = 0;
+		for (i in 0..._song.notes.length)
+		{
+			if (sectionStartTime(i) <= ms) target = i;
+			else break;
+		}
+		if (curSec != target) changeSection(target, false);
+
+		if (FlxG.sound.music != null)
+		{
+			FlxG.sound.music.pause();
+			FlxG.sound.music.time = ms;
+			pauseAndSetVocalsTime();
+		}
+		updateCurStep();
 	}
 
 	var lastConductorPos:Float;
@@ -1794,20 +2127,62 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		FlxG.mouse.visible = true; // cause reasons. trust me
 		camPos.y = strumLine.y;
 		camPos.x = strumLine.x + CAM_OFFSET + gridOffsetX;
+
+		// 选中 section 的高亮框跟随当前网格
+		if (sectionSelectOverlay != null)
+		{
+			sectionSelectOverlay.visible = selectedSections.contains(curSec);
+			if (sectionSelectOverlay.visible)
+			{
+				sectionSelectOverlay.setPosition(gridBG.x, gridBG.y);
+				sectionSelectOverlay.setGraphicSize(Std.int(gridBG.width), Std.int(gridBG.height));
+				sectionSelectOverlay.updateHitbox();
+			}
+		}
+
+		// 反向滚动时角色图标移到网格下方（相机在节首对着网格底部，上方图标会跑出视野）
+		var editorIconY:Float = reverseScroll ? gridBG.height + 10 : -100;
+		if (leftIcon != null)
+			leftIcon.y = editorIconY;
+		if (rightIcon != null)
+			rightIcon.y = editorIconY;
+		if (eventIcon != null)
+			eventIcon.y = reverseScroll ? gridBG.height + 10 : -90;
+
 		if (!disableAutoScrolling.checked)
 		{
-			if (Math.ceil(strumLine.y) >= gridBG.height)
+			if (reverseScroll)
 			{
-				if (_song.notes[curSec + 1] == null)
+				// 反向：strumline 从 section 底部往上走，到顶进下一节，越过底部回上一节
+				if (Math.floor(strumLine.y) <= gridBG.y)
 				{
-					addSection();
-				}
+					if (_song.notes[curSec + 1] == null)
+					{
+						addSection();
+					}
 
-				changeSection(curSec + 1, false);
+					changeSection(curSec + 1, false);
+				}
+				else if (strumLine.y > gridBG.y + gridBG.height + 10)
+				{
+					changeSection(curSec - 1, false);
+				}
 			}
-			else if (strumLine.y < -10)
+			else
 			{
-				changeSection(curSec - 1, false);
+				if (Math.ceil(strumLine.y) >= gridBG.height)
+				{
+					if (_song.notes[curSec + 1] == null)
+					{
+						addSection();
+					}
+
+					changeSection(curSec + 1, false);
+				}
+				else if (strumLine.y < -10)
+				{
+					changeSection(curSec - 1, false);
+				}
 			}
 		}
 		FlxG.watch.addQuick('daBeat', curBeat);
@@ -1867,7 +2242,18 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 				}
 				if (touch.justReleased && !noteMove)
 				{
-					if (touch.overlaps(curRenderedNotes))
+					if (sectionSelectMode)
+					{
+						// 选择模式：点按网格切换当前 section 的选中状态
+						if (touch.x > gridBG.x
+							&& touch.x < gridBG.x + gridBG.width
+							&& touch.y > gridBG.y
+							&& touch.y < gridBG.y + (GRID_SIZE * getSectionBeats() * 4) * zoomList[curZoom])
+						{
+							toggleSectionSelection(curSec);
+						}
+					}
+					else if (touch.overlaps(curRenderedNotes))
 					{
 						curRenderedNotes.forEachAlive(function(note:Note)
 						{
@@ -1890,7 +2276,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 					}
 				}
 
-				if (touch.x > gridBG.x
+				if (!sectionSelectMode && touch.x > gridBG.x
 					&& touch.x < gridBG.x + gridBG.width
 					&& touch.y > gridBG.y
 					&& touch.y < gridBG.y + (GRID_SIZE * getSectionBeats() * 4) * zoomList[curZoom])
@@ -1910,7 +2296,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		}
 		else
 		{
-			if (FlxG.mouse.pressedRight
+			if (!sectionSelectMode && FlxG.mouse.pressedRight
 				&& FlxG.mouse.x > gridBG.x
 				&& FlxG.mouse.x < gridBG.x + gridBG.width
 				&& FlxG.mouse.y > gridBG.y
@@ -1933,7 +2319,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 					nowMoveNote.y = FlxG.mouse.y;
 				}
 			}
-			if (FlxG.mouse.justReleasedRight)
+			if (!sectionSelectMode && FlxG.mouse.justReleasedRight)
 			{
 				noteMove = false;
 				if (nowMoveNote != null
@@ -1948,9 +2334,21 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 				}
 			}
 
-			if (FlxG.mouse.justPressed && !noteMove)
+			// 缩略图上的点击不能落到网格上（放/删 note）
+			if (FlxG.mouse.justPressed && !noteMove && !(chartMinimap != null && chartMinimap.mouseOver))
 			{
-				if (FlxG.mouse.overlaps(curRenderedNotes))
+				if (sectionSelectMode)
+				{
+					// 选择模式：点击网格切换当前 section 的选中状态
+					if (FlxG.mouse.x > gridBG.x
+						&& FlxG.mouse.x < gridBG.x + gridBG.width
+						&& FlxG.mouse.y > gridBG.y
+						&& FlxG.mouse.y < gridBG.y + (GRID_SIZE * getSectionBeats() * 4) * zoomList[curZoom])
+					{
+						toggleSectionSelection(curSec);
+					}
+				}
+				else if (FlxG.mouse.overlaps(curRenderedNotes))
 				{
 					curRenderedNotes.forEachAlive(function(note:Note)
 					{
@@ -1987,7 +2385,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 				}
 			}
 
-			if (FlxG.mouse.x > gridBG.x
+			if (!sectionSelectMode && FlxG.mouse.x > gridBG.x
 				&& FlxG.mouse.x < gridBG.x + gridBG.width
 				&& FlxG.mouse.y > gridBG.y
 				&& FlxG.mouse.y < gridBG.y + (GRID_SIZE * getSectionBeats() * 4) * zoomList[curZoom])
@@ -2155,7 +2553,8 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 
 			if (!controls.mobileC)
 			{
-				if (FlxG.mouse.wheel != 0)
+				// 鼠标在缩略图上滚轮是缩放时间轴，别同时滚谱面
+				if (FlxG.mouse.wheel != 0 && !(chartMinimap != null && chartMinimap.barHovered))
 				{
 					FlxG.sound.music.pause();
 					if (!mouseQuant)
@@ -2581,14 +2980,15 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		}
 		else
 			nextGridBG = new FlxSprite().makeGraphic(1, 1, FlxColor.TRANSPARENT);
-		nextGridBG.y = gridBG.height;
+		// 反向滚动时下一节预览放在当前网格上方（时间向上增长）
+		nextGridBG.y = reverseScroll ? -nextGridBG.height : gridBG.height;
 
 		gridLayer.add(nextGridBG);
 		gridLayer.add(gridBG);
 
 		if (foundNextSec)
 		{
-			var gridBlack:FlxSprite = new FlxSprite(0, gridBG.height).makeGraphic(1, 1, FlxColor.BLACK);
+			var gridBlack:FlxSprite = new FlxSprite(0, nextGridBG.y).makeGraphic(1, 1, FlxColor.BLACK);
 			gridBlack.setGraphicSize(Std.int(GRID_SIZE * (totalKeys + 1)), Std.int(nextGridBG.height));
 			gridBlack.updateHitbox();
 			gridBlack.antialiasing = false;
@@ -2604,7 +3004,10 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 
 		for (i in 1...Std.int(getSectionBeats()))
 		{
-			var beatsep:FlxSprite = new FlxSprite(gridBG.x, (GRID_SIZE * (4 * zoomList[curZoom])) * i).makeGraphic(1, 1, 0x44FF0000);
+			var sepY:Float = (GRID_SIZE * (4 * zoomList[curZoom])) * i;
+			if (reverseScroll)
+				sepY = gridBG.height - sepY; // 反向时拍线从底部往上排
+			var beatsep:FlxSprite = new FlxSprite(gridBG.x, sepY).makeGraphic(1, 1, 0x44FF0000);
 			beatsep.scale.x = gridBG.width;
 			beatsep.updateHitbox();
 			if (vortex)
@@ -2699,7 +3102,11 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 			var rmin:Float = FlxMath.bound(((index < wavData[1][0].length && index >= 0) ? wavData[1][0][index] : 0) * (gSize / 1.12), -hSize, hSize) / 2;
 			var rmax:Float = FlxMath.bound(((index < wavData[1][1].length && index >= 0) ? wavData[1][1][index] : 0) * (gSize / 1.12), -hSize, hSize) / 2;
 
-			waveformSprite.pixels.fillRect(new Rectangle(hSize - (lmin + rmin), index * size, (lmin + rmin) + (lmax + rmax), size), FlxColor.BLUE);
+			var rowY:Float = index * size;
+			if (reverseScroll)
+				rowY = gridBG.height - rowY - size; // 波形随网格一起上下翻转
+
+			waveformSprite.pixels.fillRect(new Rectangle(hSize - (lmin + rmin), rowY, (lmin + rmin) + (lmax + rmax), size), FlxColor.BLUE);
 		}
 
 		waveformPrinted = true;
@@ -3231,7 +3638,13 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		var beats:Float = getSectionBeats(isNextSection ? 1 : 0);
 		note.y = getYfromStrumNotes(daStrumTime - sectionStartTime(), beats);
 		// if(isNextSection) note.y += gridBG.height;
-		if (note.y < -150)
+		if (reverseScroll)
+		{
+			// 反向时越界的节前 note 会跑到网格下方，钳到下边界外 150px
+			if (note.y > gridBG.y + gridBG.height + 150)
+				note.y = gridBG.y + gridBG.height + 150;
+		}
+		else if (note.y < -150)
 			note.y = -150;
 		return note;
 	}
@@ -3261,7 +3674,11 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		if (height < 1)
 			height = 1; // Prevents error of invalid height
 
-		var spr:FlxSprite = new FlxSprite(note.x + (GRID_SIZE * 0.5) - 4, note.y + GRID_SIZE / 2).makeGraphic(8, height);
+		var sprY:Float = note.y + GRID_SIZE / 2;
+		if (reverseScroll)
+			sprY -= height; // 反向滚动时持续条朝时间增大方向（上方）延伸
+
+		var spr:FlxSprite = new FlxSprite(note.x + (GRID_SIZE * 0.5) - 4, sprY).makeGraphic(8, height);
 		return spr;
 	}
 
@@ -3464,7 +3881,16 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		var leZoom:Float = zoomList[curZoom];
 		if (!doZoomCalc)
 			leZoom = 1;
-		return FlxMath.remapToRange(yPos, gridBG.y, gridBG.y + gridBG.height * leZoom, 0, 16 * Conductor.stepCrochet);
+		// 反向滚动时网格上下翻转：屏幕顶端对应节末，底端对应节首
+		var minY:Float = gridBG.y;
+		var maxY:Float = gridBG.y + gridBG.height * leZoom;
+		if (reverseScroll)
+		{
+			var tmp:Float = minY;
+			minY = maxY;
+			maxY = tmp;
+		}
+		return FlxMath.remapToRange(yPos, minY, maxY, 0, 16 * Conductor.stepCrochet);
 	}
 
 	function getYfromStrum(strumTime:Float, doZoomCalc:Bool = true):Float
@@ -3472,13 +3898,21 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		var leZoom:Float = zoomList[curZoom];
 		if (!doZoomCalc)
 			leZoom = 1;
-		return FlxMath.remapToRange(strumTime, 0, 16 * Conductor.stepCrochet, gridBG.y, gridBG.y + gridBG.height * leZoom);
+		var result:Float = FlxMath.remapToRange(strumTime, 0, 16 * Conductor.stepCrochet, gridBG.y, gridBG.y + gridBG.height * leZoom);
+		// 注意镜像轴用实际网格高度（不含 leZoom 的名义范围）：strumline 实际只占 [gridBG.y, gridBG.y + gridBG.height]
+		if (reverseScroll)
+			result = 2 * gridBG.y + gridBG.height - result;
+		return result;
 	}
 
 	function getYfromStrumNotes(strumTime:Float, beats:Float):Float
 	{
 		var value:Float = strumTime / (beats * 4 * Conductor.stepCrochet);
-		return GRID_SIZE * beats * 4 * zoomList[curZoom] * value + gridBG.y;
+		var y:Float = GRID_SIZE * beats * 4 * zoomList[curZoom] * value + gridBG.y;
+		// 反向滚动：以当前 section 网格为轴上下翻转（下一节预览会翻到当前网格上方）
+		if (reverseScroll)
+			y = 2 * gridBG.y + gridBG.height - y;
+		return y;
 	}
 
 	function getNotes():Array<Dynamic>
@@ -3669,14 +4103,40 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		if (gridOffsetX < -limit) gridOffsetX = -limit;
 	}
 
-	function updateKeyAmounts():Void
+	/**
+	 * 切到 PE 版谱面编辑器（PEChartingState）。legacy 编辑器直接改 PlayState.SONG，
+	 * 无需回写；若当前是 legacy 的"相对 lane + mustHitSection"语义，先转成 PE 版
+	 * 内部的 psych_v1 绝对 lane 并对齐全局版本标记。回程（PE 版的 Open Legacy Editor
+	 * 按钮）会再转回相对 lane。
+	 */
+	function switchToPEEditor()
+	{
+		if (PlayState.SONG != null && Song.chartLaneSemantics != 'absolute')
+		{
+			Song.convertNoteLanesToPsychV1(PlayState.SONG, Note.getColumnsPerPlayer(PlayState.SONG));
+			Song.chartLaneSemantics = 'absolute';
+			Song.chartEngineVersion = 'Pe-1.0.4';
+			Song.detectedFormat = 'Pe-1.0.x';
+		}
+		developer.editors.pe.PEChartingState.GRID_COLUMNS_PER_PLAYER = Note.getColumnsPerPlayer(PlayState.SONG);
+		MusicBeatState.switchState(new developer.editors.pe.PEChartingState());
+	}
+
+	/**
+	 * @param redistribute 键数变化时是否重排已有音符的 lane。仅在编辑器内手动改键数
+	 * （song_mania 步进器）时需要；加载/切换进来的谱面自带完整 lane 布局，
+	 * 重排会把非 4K 谱面挤坏（旧版 create 时无条件重排，>4K 谱面进来自动错位）。
+	 */
+	function updateKeyAmounts(redistribute:Bool = true):Void
 	{
 		var oldTotalKeys:Int = totalKeys;
 		leftKeys = _song.mania + 1;
 		rightKeys = _song.mania + 1;
 		totalKeys = leftKeys + rightKeys;
 		gridOffsetX = 0; // re-anchor to left edge when key count changes
-		
+
+		if (!redistribute) return;
+
 		if (totalKeys < oldTotalKeys)
 		{
 			var oldLeftKeys:Int = oldTotalKeys >> 1;

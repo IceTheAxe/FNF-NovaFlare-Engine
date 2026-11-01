@@ -1,7 +1,8 @@
 package win8;
 
 import flixel.tweens.FlxTween;
-import flixel.tweens.FlxEase;
+
+import general.backend.MetroEase;
 
 /**
  * ==========================================================================
@@ -379,9 +380,16 @@ class Panel extends MusicBeatSubstate
 			true
 		);
 		scroller.infScroll = false;
+		scroller.dragSensitivity = 1.0;
+		scroller.deceleration = 0.92;
 		scroller.mouseWheelSensitivity = -1000.0;
 		scroller.dragStartDelayMs = 100;
 		scroller.dragStartDistance = 10;
+		// 面板的 mouseLimit / 拖拽基准都是面板坐标，而 MouseMove 默认读 FlxG.mouse.x/y
+		// （相对 FlxG.camera 的世界坐标，被游戏相机的 scroll / zoom 推着走——
+		// 谱面编辑器里主相机每帧都在滚，命中区就会整体偏掉、滚轮拖拽全失灵）
+		// → 切到 Input 的指针空间（create 里 bind 过本面板的相机），跟面板布局同一坐标系。
+		scroller.useViewSpace = true;
 		add(scroller);
 	}
 
@@ -807,7 +815,7 @@ class Panel extends MusicBeatSubstate
 		setWidgetsEnabled(false);
 
 		dim.alpha = 0;
-		FlxTween.tween(dim, {alpha: Theme.overlayAlpha()}, ANIM_IN, {ease: FlxEase.quadOut});
+		FlxTween.tween(dim, {alpha: Theme.overlayAlpha()}, ANIM_IN, {ease: MetroEase.ENTRANCE});
 
 		// 面板从屏幕右边外面滑到贴右位置。
 		// 不需要淡入：offset = panelW 时整个面板（含所有行）都在屏幕外，看不见。
@@ -815,7 +823,8 @@ class Panel extends MusicBeatSubstate
 		panelSlide.value = panelW;
 		applyPanelOffset();
 
-		slidePanel(0, ANIM_IN, FlxEase.quartOut, function() {
+		// 缓动走 Win8 官方的 entrance 曲线（先快后慢），跟 MessageBox 同一套
+		slidePanel(0, ANIM_IN, MetroEase.ENTRANCE, function() {
 			isAnimating = false;
 			setWidgetsEnabled(true);
 		});
@@ -828,8 +837,9 @@ class Panel extends MusicBeatSubstate
 		closing = true;
 		setWidgetsEnabled(false);
 
-		FlxTween.tween(dim, {alpha: 0}, ANIM_OUT, {ease: FlxEase.quadOut});
-		slidePanel(panelW, ANIM_OUT, FlxEase.quartIn, function() {
+		// 出场走 Win8 官方的 exit 曲线（先停顿一下再迅速离场，不抢注意力）
+		FlxTween.tween(dim, {alpha: 0}, ANIM_OUT, {ease: MetroEase.EXIT});
+		slidePanel(panelW, ANIM_OUT, MetroEase.EXIT, function() {
 			closePanel();
 		});
 	}

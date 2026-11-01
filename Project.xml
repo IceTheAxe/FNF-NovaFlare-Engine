@@ -20,6 +20,8 @@
 	<!-- ______________________ NOVAFLARE ENGINE CUSTOMIZATION ______________________ -->
 
 	<define name="MODS_ALLOWED" if="desktop || mobile || emscripten" />
+	<!-- RelaxSubState（音乐播放器/类休眠）总开关：注释掉本行即可整体裁掉 Relax 相关代码 -->
+	<define name="RELAX_ALLOWED" if="desktop || mobile" />
 	<define name="LUA_ALLOWED" if="desktop || mobile" unless="hl"/>
 	<define name="HSCRIPT_ALLOWED" if="desktop || mobile || web" />
 	<define name="ACHIEVEMENTS_ALLOWED" />
@@ -185,6 +187,7 @@
 	<haxelib name="flxanimate" unless="html5"/>
 	<haxelib name="tjson"/>
 	<haxelib name="json2object"/>
+	<haxelib name="moonchart"/>
 	<!-- FNF 0.8.7 dependencies; NF's existing core libraries stay selected. -->
 	<haxelib name="polymod"/>
 	<haxelib name="FlxPartialSound"/>

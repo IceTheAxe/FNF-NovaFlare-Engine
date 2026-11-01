@@ -6,3 +6,19 @@ options => Opções
 exit => Sair
 back => Voltar
 debug => Depurar
+
+// ===== Créditos (compositor / criador da chart) =====
+pause_artist => Artista: {1}
+pause_charter => Criador: {1}
+
+// ===== Painel de Debug (Win8 Panel) =====
+debug_panel => Painel de Charting
+skip_time => Tempo de Salto
+pause_skip => Saltar
+pause_skip_apply => Saltar para o Tempo
+practice => Prática
+botplay => Botplay
+leave => Sair
+pause_leave_charting_mode => Sair do Modo Charting
+end_song => Finalizar Música
+pause_end_song => Finalizar Música

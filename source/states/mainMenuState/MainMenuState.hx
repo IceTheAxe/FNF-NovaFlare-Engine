@@ -38,8 +38,8 @@ import cpp.Lib;
 class MainMenuState extends MusicBeatState
 {
 	public static var psychEngineVersion:String = '0.7.3'; // This is also used for Discord RPC
-	public static var novaFlareEngineDataVersion:Float = 4.1;
-	public static var novaFlareEngineVersion:String = '1.2.1-Coldfix-Extra-2';
+	public static var novaFlareEngineDataVersion:Float = 4.2;
+	public static var novaFlareEngineVersion:String = '1.2.1-Coldfix-3';
 	public static var novaFlareEngineCommit:String = 
 	    #if commit_sha
             haxe.macro.Compiler.getDefine("commit_sha");
@@ -100,6 +100,15 @@ class MainMenuState extends MusicBeatState
 
 	var StatusIcon:FlxSprite;
 	var ActionStatus:Dynamic;
+
+	// 类休眠：主菜单闲置指定分钟数后自动打开 RelaxSubState（RelaxIdle 共享实现）
+	override function closeSubState()
+	{
+		super.closeSubState();
+		#if RELAX_ALLOWED
+		general.backend.relax.RelaxIdle.reset(); // Relax 关闭后重新计时，避免立刻再次触发
+		#end
+	}
 
 	override function create()
 	{
@@ -361,6 +370,16 @@ class MainMenuState extends MusicBeatState
 		#if (debug && android)
 		if (FlxG.android.justReleased.BACK)
 			FlxG.debugger.visible = !FlxG.debugger.visible;
+		#end
+
+		#if RELAX_ALLOWED
+		// 类休眠：闲置计时（!endCheck = 正在退场切换时不计时）
+		general.backend.relax.RelaxIdle.update(elapsed, !endCheck);
+
+		// debug 快捷键：R 直接呼出 Relax
+		if (FlxG.keys.justPressed.R && !endCheck && subState == null
+			&& general.backend.relax.GetInit.getListNum() > 0)
+			openSubState(new substates.RelaxSubState());
 		#end
 
 		if (ActionStatus != null)

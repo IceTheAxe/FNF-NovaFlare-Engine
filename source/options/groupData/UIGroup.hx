@@ -29,6 +29,9 @@ class UIGroup extends OptionCata
 		var option:Option = new Option(this, 'judgementCounter', BOOL);
 		addOption(option);
 
+		var option:Option = new Option(this, 'totalNoteHits', BOOL);
+		addOption(option);
+
 		var option:Option = new Option(this, 'keyboardViewer', BOOL);
 		addOption(option);
 

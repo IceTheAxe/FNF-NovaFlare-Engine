@@ -26,6 +26,7 @@ import flixel.graphics.FlxGraphic;
 import modchart.Manager;
 
 import general.objects.AttachedSprite;
+import general.objects.MessageBox;
 import general.objects.screen.MouseEffect;
 import general.backend.DeepDebugTracker;
 import general.backend.gc.GCManager.GameplayGC;
@@ -33,7 +34,8 @@ import general.backend.gc.GCManager.GameplayGC;
 import states.storyMenuState.StoryMenuState;
 import states.freeplayState.FreeplayState;
 
-import developer.editors.ChartingState;
+// 老版谱面编辑器（developer.editors.ChartingState）已下线，note 类型表改用 Note.defaultNoteTypes
+// import developer.editors.ChartingState;
 import developer.editors.pe.PEChartingState;
 import developer.editors.CharacterEditorState;
 
@@ -293,6 +295,7 @@ class PlayState extends MusicBeatState
 
 	public var songScore:Int = 0;
 	public var songHits:Int = 0;
+	public var playerTotalNotes:Int = 0; // 玩家需要打的头部 note 总数（判定计数板 当前/总 显示用）
 	public var songMisses:Int = 0;
 	public var scoreTxt:FlxText;
 	public var judgementCounter_S:JudgementCounter; // add _S is make sure nobody make a new one broken this
@@ -1352,6 +1355,33 @@ class PlayState extends MusicBeatState
 		Paths.sound('introGo' + introSoundsSuffix);
 	}
 
+	/** 开局信息 toast 的正文：判定偏移 / 判定线 / Safe Frames / 各判定窗口（词走 play 语言模块） */
+	function buildStartInfoText():String
+	{
+		// Shit 档的上限 = 可命中窗口（judgeNote 的兜底档），跟 Safe Frames 是同一把尺子
+		var shitZone:Int = Math.round((ClientPrefs.data.safeFrames / 60) * 1000 * playbackRate);
+
+		var lines:Array<String> = [
+			Language.getPhrase('startInfo_ratingOffset', 'Rating Offset') + ': '
+				+ (ClientPrefs.data.ratingOffset > 0 ? '+' : '') + ClientPrefs.data.ratingOffset + ' ms' + "|" + Language.getPhrase('startInfo_playbackRate', 'Playback Rate') + ': ' + playbackRate,
+			Language.getPhrase('startInfo_noteOffset', 'Note Offset') + ': ' + ClientPrefs.data.noteOffset + ' ms',
+			Language.getPhrase('startInfo_safeFrames', 'Safe Frames') + ': ' + Std.string(ClientPrefs.data.safeFrames)
+				+ '  (±' + shitZone + ' ms)'
+		];
+
+		// 各判定窗口（diff ≤ 窗口即该档，Conductor.judgeNote 的分档；Marv 关闭时不显示）
+		var windowParts:Array<String> = [];
+		if (ClientPrefs.data.marvelousRating)
+			windowParts.push('Marv ' + ClientPrefs.data.marvelousWindow);
+		windowParts.push('Sick ' + ClientPrefs.data.sickWindow);
+		windowParts.push('Good ' + ClientPrefs.data.goodWindow);
+		windowParts.push('Bad ' + ClientPrefs.data.badWindow);
+		windowParts.push('Shit ' + shitZone);
+		lines.push(windowParts.join(' | '));
+
+		return lines.join('\n');
+	}
+
 	//var funkin_modchart_instance:Manager;
 	public function startCountdown()
 	{
@@ -1398,6 +1428,14 @@ class PlayState extends MusicBeatState
 			// All chart, stage and script setup is now live. Pay for one full GC
 			// before timing starts, then keep song-time collections nursery-only.
 			GameplayGC.begin();
+
+			// 开局判定信息提示（FE MessageBox 风格 toast；停留秒数可配，0 = 不创建）
+			if (ClientPrefs.data.startInfoTime > 0)
+			{
+				var infoPopup:MessageBox = MessageBox.show('${SONG.song} - ${Difficulty.getString()}', buildStartInfoText(), ClientPrefs.data.startInfoTime);
+				if (infoPopup != null)
+					infoPopup.cameras = [camHUD];
+			}
 
 			var swagCounter:Int = 0;
 			if (startOnTime > 0)
@@ -1911,7 +1949,7 @@ class PlayState extends MusicBeatState
 					swagNote.noteType = rawNoteType;
 				else
 				{
-					swagNote.noteType = ChartingState.noteTypeList[rawNoteType];
+					swagNote.noteType = Note.defaultNoteTypes[rawNoteType];
 					if (swagNote.noteType == null)
 						swagNote.noteType = '';
 				}
@@ -1995,6 +2033,13 @@ class PlayState extends MusicBeatState
 				makeEvent(event, i);
 
 		unspawnNotes.sort(sortByTime);
+
+		// 统计玩家侧头部 note 总数（与 goodNoteHit 的可打侧判定一致，含 playOpponent）
+		playerTotalNotes = 0;
+		for (note in unspawnNotes)
+			if (note != null && !note.isSustainNote
+				&& (ClientPrefs.data.playOpponent ? !note.mustPress : note.mustPress))
+				playerTotalNotes++;
 
 		generatedMusic = true;
 	}

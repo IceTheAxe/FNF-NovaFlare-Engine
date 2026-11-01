@@ -74,7 +74,9 @@ class StringSelect extends FlxSpriteGroup
 								]
 								);
 		OptionsState.instance.addMove(optionMove);
-        //optionMove.mouseWheelSensitivity = 10;
+		// 直加式映射（option.y = ... + posiData）：沿用 NF 旧版拖拽方向与正滚轮灵敏度
+		optionMove.mouseWheelSensitivity = 1000;
+		optionMove.invertDrag = true;
     }
 
     public var allowUpdate:Bool = true;

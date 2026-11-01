@@ -458,7 +458,7 @@ class EditorPlayState extends MusicBeatSubstate
 				swagNote.gfNote = (section.gfSection && (songNotes[1] < (PlayState.SONG.mania + 1)));
 				swagNote.noteType = songNotes[3];
 				if (!Std.isOfType(songNotes[3], String))
-					swagNote.noteType = ChartingState.noteTypeList[songNotes[3]]; // Backward compatibility + compatibility with Week 7 charts
+					swagNote.noteType = Note.defaultNoteTypes[songNotes[3]]; // Backward compatibility + compatibility with Week 7 charts
 
 				swagNote.scrollFactor.set();
 

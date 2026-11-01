@@ -248,6 +248,10 @@ class NewControlsSubState extends MusicBeatSubstate
 						[0, FlxG.width],
 						[0, FlxG.height]
 					]);
+		// 直加式映射（按钮 y = position + ...，position 越负越往下翻）：本界面另有手动滚轮
+		// 与拖拽叠加，沿用 NF 旧版拖拽方向与正滚轮灵敏度保持原手感
+		buttonMouseMove.mouseWheelSensitivity = 1000;
+		buttonMouseMove.invertDrag = true;
 		buttonMouseMove.tweenTime = 0.4;
 		add(buttonMouseMove);
     }

@@ -37,6 +37,10 @@ typedef SwagSong =
 	@:optional var keyCount:Int;
 	@:optional var mapper:String;
 	@:optional var musican:String;
+	// 歌曲署名（FE 同步）。原版谱面 JSON 自带这两个字段；V-Slice 转换时也会写入。
+	// 统一取数见 games.backend.SongCredits（暂停界面 / Freeplay 共用）。
+	@:optional var artist:String;
+	@:optional var charter:String;
 }
 
 class Song
@@ -250,6 +254,15 @@ class Song
 	public static var chartEngineVersion:String = 'Pe-0.7.3';
 	public static var forceEngineVersion:String = null; // null=auto, 'Pe-0.7.3' or 'Pe-1.0.4' to force
 
+	/**
+	 * 当前谱面在内存里的 lane 语义：
+	 *  - 'legacy'：相对 lane，note[1] 相对 mustHitSection 那一侧（0.7.x / legacy 编辑器输出）
+	 *  - 'absolute'：绝对 lane，0..cols-1 玩家侧、cols.. 对手侧（psych_v1）
+	 *
+	 * 由 parseJSON 按文件结构（有无 {"song":...} 包裹层）判定，不看 format 字段。
+	 */
+	public static var chartLaneSemantics:String = 'absolute';
+
 	public static function loadFromJson(jsonInput:String, ?folder:String):SwagSong
 	{
 		if (folder == null)
@@ -337,6 +350,12 @@ class Song
 		if (writeGlobalVersion)
 		{
 			chartEngineVersion = localVersion;
+
+			// lane 语义只看文件结构：带 {"song":...} 包裹层就是 legacy 输出（PE 0.7.3 /
+			// legacy 编辑器），lane 是"相对 + mustHitSection"语义。
+			// format 字段不可信 —— legacy 编辑器保存时会把 psych_v1 的 format 一并写进包裹层，
+			// 按它判定会当成绝对 lane 解释，音符整侧反转。
+			chartLaneSemantics = hasWrapper ? 'legacy' : 'absolute';
 		}
 		else if (chartEngineVersion != null && localVersion != chartEngineVersion)
 		{

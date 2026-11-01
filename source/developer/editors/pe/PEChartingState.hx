@@ -13,6 +13,7 @@ import lime.media.AudioBuffer;
 
 import flash.media.Sound;
 import flash.geom.Rectangle;
+import openfl.net.FileFilter;
 
 import haxe.Json;
 import haxe.Exception;
@@ -22,6 +23,19 @@ import developer.editors.pe.content.MetaNote;
 import developer.editors.pe.content.VSlice;
 import developer.editors.pe.content.Prompt;
 import developer.editors.pe.content.*;
+
+import developer.editors.common.ChartMinimap;
+import developer.editors.common.ChartMinimap.ChartMinimapPanel;
+import developer.editors.common.ChartMinimap.ChartMinimapSection;
+
+// 谱面导入/导出/来源选择器（自 Frozen Engine 谱面编辑器移植）
+import developer.editors.common.ChartConvertCore.ChartImportInfo;
+import developer.editors.common.ChartConverter;
+import developer.editors.common.ChartImportDialog;
+import developer.editors.common.ChartImportDialog.ChartConvertOptions;
+import developer.editors.common.ChartSourceSelectSubstate;
+import developer.editors.common.OsuArchiveExtractor;
+import developer.editors.common.OsuArchiveExtractor.ExtractResult;
 
 import games.backend.Section.SwagSection;
 import games.backend.Song;
@@ -47,6 +61,7 @@ enum abstract UndoAction(String)
 	var DELETE_NOTE = 'Delete Note';
 	var MOVE_NOTE = 'Move Note';
 	var SELECT_NOTE = 'Select Note';
+	var CHANGE_NOTE_DATA = 'Change Note Data';
 }
 
 enum abstract ChartingTheme(String)
@@ -95,13 +110,10 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 	public static var GRID_SIZE = 40;
 	final BACKUP_EXT = '.bkp';
 
-	// 按 ClientPrefs.data.peChartEditor 决定进 PE 版还是 NF 老版谱面编辑器
+	// 谱面编辑器统一走 PE 版（老版 ChartingState 已下线）
 	public static function openChartEditor():Void
 	{
-		if (ClientPrefs.data.peChartEditor)
-			LoadingState.loadAndSwitchState(new PEChartingState(), false);
-		else
-			MusicBeatState.switchState(new developer.editors.ChartingState());
+		LoadingState.loadAndSwitchState(new PEChartingState(), false);
 	}
 
 	public var quantizations:Array<Int> = [
@@ -150,7 +162,8 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 	var infoBox:PsychUIBox;
 	var infoBoxPosition:FlxPoint = FlxPoint.get(1000, 360);
 	var upperBox:PsychUIBox;
-	
+	var chartMinimap:ChartMinimap;
+
 	var camUI:FlxCamera;
 
 	var prevGridBg:ChartingGridSprite;
@@ -173,6 +186,9 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 		24
 	];
 	var curZoom:Float = 1;
+	//滚轮/W S 滚动与 Q/E 长条调整的倍率，2.0 ≈ 旧版 ChartingState 手感
+	var scrollMult:Float = 1;
+	var sustainMult:Float = 1;
 
 	var mustHitIndicator:FlxSprite;
 	var eventIcon:FlxSprite;
@@ -263,6 +279,8 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 		if(chartEditorSave.data.autoSave != null) autoSaveCap = chartEditorSave.data.autoSave;
 		if(chartEditorSave.data.backupLimit != null) backupLimit = chartEditorSave.data.backupLimit;
 		if(chartEditorSave.data.vortex != null) vortexEnabled = chartEditorSave.data.vortex;
+		if(chartEditorSave.data.scrollMult != null) scrollMult = chartEditorSave.data.scrollMult;
+		if(chartEditorSave.data.sustainMult != null) sustainMult = chartEditorSave.data.sustainMult;
 
 		if(chartEditorSave.data.customBgColor == null) chartEditorSave.data.customBgColor = '303030';
 		if(chartEditorSave.data.customGridColors == null || chartEditorSave.data.customGridColors.length < 2)
@@ -271,6 +289,9 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 			chartEditorSave.data.customNextGridColors = ['5F5F5F', '4A4A4A'];
 		
 		changeTheme(chartEditorSave.data.theme != null ? chartEditorSave.data.theme : DEFAULT, false);
+
+		// 进来先把谱面强制转成 psych_v1，后面的列配置、网格、音符全按绝对 lane 建
+		ensurePsychV1Chart();
 
 		updateColumnConfig();
 		createGrids();
@@ -396,6 +417,16 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 		addViewTab();
 		//
 
+		// 谱面缩略图（密度条）：点击/拖拽跳转时间，齿轮开 win8 设置面板。
+		// 设置存进编辑器自己的 chart_editor_data，跟其它编辑器选项一起走
+		chartMinimap = new ChartMinimap(chartEditorSave);
+		chartMinimap.buildSections = buildMinimapSections;
+		chartMinimap.getPlayheadPos = function() return FlxG.sound.music != null ? FlxG.sound.music.time : 0;
+		chartMinimap.onSeek = seekToMinimapTime;
+		chartMinimap.openSettings = function() openSubState(new ChartMinimapPanel(chartMinimap));
+		chartMinimap.cameras = [camUI];
+		add(chartMinimap);
+
 		loadMusic();
 		reloadNotesDropdowns();
 		if(!_shouldReset)
@@ -456,6 +487,7 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 			"A/D - Change Sections",
 			"Q/E - Decrease/Increase Note Sustain Length",
 			"Hold Shift/Alt to Increase/Decrease move by 4x",
+			"Legacy feel: Scroll Mult 2.0 / Sustain Mult 2.0 (Charting tab)",
 			"",
 			"F12 - Preview Chart",
 			"Enter - Playtest Chart",
@@ -583,6 +615,9 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 	function onChartLoaded()
 	{
 		if(PlayState.SONG == null) return;
+
+		// 从 legacy 编辑器切过来时走不到 loadChart，这里补一次列数显示同步
+		if (maniaStepper != null) maniaStepper.value = GRID_COLUMNS_PER_PLAYER;
 
 		// SONG TAB
 		songNameInputText.text = PlayState.SONG.song;
@@ -878,7 +913,9 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 					else loadSection(0);
 					Conductor.songPosition = FlxG.sound.music.time = vocals.time = opponentVocals.time = timeToGoBack;
 				}
-				else if(FlxG.keys.pressed.W != FlxG.keys.pressed.S || FlxG.mouse.wheel != 0)
+				// 鼠标在缩略图上滚轮是缩放时间轴，别同时滚谱面
+				else if(FlxG.keys.pressed.W != FlxG.keys.pressed.S
+					|| (FlxG.mouse.wheel != 0 && !(chartMinimap != null && chartMinimap.barHovered)))
 				{
 					if(FlxG.sound.music.playing)
 						setSongPlaying(false);
@@ -886,14 +923,14 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 					if(mouseSnapCheckBox.checked && FlxG.mouse.wheel != 0)
 					{
 						var snap:Float = Conductor.stepCrochet / (curQuant/16) / curZoom;
-						var timeAdd:Float = (FlxG.keys.pressed.SHIFT ? 4 : 1) / (holdingAlt ? 4 : 1) * -FlxG.mouse.wheel * snap;
+						var timeAdd:Float = (FlxG.keys.pressed.SHIFT ? 4 : 1) / (holdingAlt ? 4 : 1) * -FlxG.mouse.wheel * snap * scrollMult;
 						var time:Float = Math.round((FlxG.sound.music.time + timeAdd) / snap) * snap;
 						if(time > 0) time += 0.000001; //goes at the start of a section more properly
 						FlxG.sound.music.time = time;
 					}
 					else
 					{
-						var speedMult:Float = (FlxG.keys.pressed.SHIFT ? 4 : 1) * (FlxG.mouse.wheel != 0 ? 4 : 1) / (holdingAlt ? 4 : 1);
+						var speedMult:Float = (FlxG.keys.pressed.SHIFT ? 4 : 1) * (FlxG.mouse.wheel != 0 ? 4 : 1) / (holdingAlt ? 4 : 1) * scrollMult;
 						if(FlxG.keys.pressed.W || FlxG.mouse.wheel > 0)
 							FlxG.sound.music.time -= Conductor.crochet * speedMult * 1.5 * elapsed / curZoom;
 						else if(FlxG.keys.pressed.S || FlxG.mouse.wheel < 0)
@@ -1150,7 +1187,8 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 			else if(FlxG.mouse.justMoved)
 				updateSelectionBox();
 		}
-		else if(FlxG.mouse.pressedRight && (FlxG.mouse.deltaScreenX != 0 || FlxG.mouse.deltaScreenY != 0))
+		else if(FlxG.mouse.pressedRight && (FlxG.mouse.deltaScreenX != 0 || FlxG.mouse.deltaScreenY != 0)
+			&& !(chartMinimap != null && chartMinimap.mouseOver))
 		{
 			selectionBox.setPosition(FlxG.mouse.screenX, FlxG.mouse.screenY);
 			selectionStart.set(FlxG.mouse.screenX, FlxG.mouse.screenY);
@@ -1159,6 +1197,9 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 		}
 		
 		if(FlxG.mouse.justPressed && (FlxG.mouse.overlaps(mainBox.bg) || FlxG.mouse.overlaps(infoBox.bg)))
+			ignoreClickForThisFrame = true;
+		// 谱面缩略图上的点击不能落到网格上（放/删 note）
+		else if(FlxG.mouse.justPressed && chartMinimap != null && chartMinimap.mouseOver)
 			ignoreClickForThisFrame = true;
 
 		var minX:Float = gridBg.x;
@@ -1450,7 +1491,7 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 
 			var qPress = FlxG.keys.justPressed.Q;
 			var ePress = FlxG.keys.justPressed.E;
-			var addSus = (FlxG.keys.pressed.SHIFT ? 4 : 1) * (Conductor.stepCrochet / 2);
+			var addSus = (FlxG.keys.pressed.SHIFT ? 4 : 1) * (Conductor.stepCrochet / 2) * sustainMult;
 			if(qPress) addSus *= -1;
 
 			if(qPress != ePress && selectedNotes.length != 1)
@@ -1573,6 +1614,69 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 		if(secStartTime == null || secCrochet == null || secRows == null) return;
 
 		scrollY = (((Conductor.songPosition - secStartTime) / secCrochet * GRID_SIZE * 4) + (secRows * GRID_SIZE)) * curZoom - FlxG.height/2;
+	}
+
+	// ===== 谱面缩略图（ChartMinimap）=====
+
+	/** 给缩略图提供每个 section 的数据：时间用 cachedSectionTimes，note 数现场从 notes[] 统计 */
+	function buildMinimapSections():Array<ChartMinimapSection>
+	{
+		var out:Array<ChartMinimapSection> = [];
+		if(PlayState.SONG == null || PlayState.SONG.notes == null || cachedSectionTimes == null) return out;
+
+		var songLen:Float = (FlxG.sound.music != null && FlxG.sound.music.length > 0) ? FlxG.sound.music.length : 0;
+		for (i in 0...PlayState.SONG.notes.length)
+		{
+			var st:Null<Float> = cast cachedSectionTimes[i];
+			if(st == null) break;
+			var et:Float = (i + 1 < cachedSectionTimes.length) ? cachedSectionTimes[i + 1] : Math.max(songLen, st + 1);
+			var bpm:Float = (i < cachedSectionBPMs.length) ? cachedSectionBPMs[i] : PlayState.SONG.bpm;
+			out.push({time: st, endTime: et, bpm: bpm, noteCount: 0, sideNotes: [for (p in 0...GRID_PLAYERS) 0]});
+		}
+		if(out.length == 0) return out;
+
+		// 现场编辑的真数据源是 notes[]（MetaNote）：按时间归节，按 songData[1] / 每轨轨道数 归轨道
+		var cols:Int = GRID_COLUMNS_PER_PLAYER;
+		for (note in notes)
+		{
+			if(note == null || note.isEvent) continue;
+			var t:Float = note.strumTime;
+			var side:Int = (cols > 0) ? Std.int(note.songData[1] / cols) : 0;
+			if(side < 0) side = 0;
+			else if(side >= GRID_PLAYERS) side = GRID_PLAYERS - 1;
+
+			for (j in 0...out.length)
+			{
+				if(t < out[j].endTime || j == out.length - 1)
+				{
+					out[j].noteCount++;
+					out[j].sideNotes[side]++;
+					break;
+				}
+			}
+		}
+		return out;
+	}
+
+	/** 缩略图跳转：对齐 View > Go to 的做法 —— 定位 curSec + 直接拉音乐时间 + loadSection() */
+	function seekToMinimapTime(ms:Float):Void
+	{
+		if(FlxG.sound.music == null) return;
+		ms = FlxMath.bound(ms, 0, FlxG.sound.music.length - 1);
+
+		var target:Int = 0;
+		for (i => t in cachedSectionTimes)
+		{
+			if(t <= ms) target = i;
+			else break;
+		}
+		curSec = target;
+
+		FlxG.sound.music.time = ms;
+		Conductor.songPosition = ms;
+		if(vocals != null) vocals.time = ms;
+		if(opponentVocals != null) opponentVocals.time = ms;
+		loadSection();
 	}
 
 	function updateSelectionBox()
@@ -1863,19 +1967,34 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 	var cachedSectionTimes:Array<Float>;
 	var cachedSectionCrochets:Array<Float>;
 	var cachedSectionBPMs:Array<Float>;
+	/**
+	 * 进入编辑器时的强制归一化：把内存里的谱面统一成 psych_v1
+	 * （绝对 lane、format = "psych_v1"），之后编辑器里所有摆放/显示都按绝对 lane 走。
+	 *
+	 * 判定用 Song.chartLaneSemantics（parseJSON 按文件结构得出），不看 chartEngineVersion：
+	 * 后者会被 forceEngineVersion 或谱面里错误的 format 字段带偏，一旦判错，
+	 * legacy 谱面会跳过转换直接按绝对 lane 摆放，音符整侧错位。
+	 */
+	function ensurePsychV1Chart(?song:SwagSong):Void
+	{
+		var target:SwagSong = (song != null) ? song : PlayState.SONG;
+		if (target == null) return;
+
+		if (Song.chartLaneSemantics != 'absolute')
+		{
+			Song.convertNoteLanesToPsychV1(target, Note.getColumnsPerPlayer(target));
+			Song.chartLaneSemantics = 'absolute';
+		}
+
+		target.format = 'psych_v1';
+		Song.chartEngineVersion = 'Pe-1.0.4';
+		Song.detectedFormat = 'Pe-1.0.x';
+	}
+
 	function loadChart(song:SwagSong)
 	{
 		PlayState.SONG = song;
-		// 编辑器内部统一用 psych_v1 的绝对 lane 语义。Legacy（0.7.x）谱面的 note[1] 是
-		// "相对 lane + mustHitSection 决定归属"，不转的话 note 会全挤到一侧去。
-		// 只动内存，磁盘文件要等 Save / Save (Legacy) 才写。
-		if (Song.chartEngineVersion != 'Pe-1.0.4')
-		{
-			Song.convertNoteLanesToPsychV1(song, Note.getColumnsPerPlayer(song));
-			song.format = 'psych_v1';
-			Song.chartEngineVersion = 'Pe-1.0.4';
-			Song.detectedFormat = 'Pe-1.0.x';
-		}
+		ensurePsychV1Chart(song);
 		updateColumnConfig(song);
 		if (maniaStepper != null) maniaStepper.value = GRID_COLUMNS_PER_PLAYER;
 		StageData.loadDirectory(PlayState.SONG);
@@ -2433,6 +2552,8 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 	var playbackSlider:PsychUISlider;
 
 	var mouseSnapCheckBox:PsychUICheckBox;
+	var scrollMultStepper:PsychUINumericStepper;
+	var sustainMultStepper:PsychUINumericStepper;
 	var ignoreProgressCheckBox:PsychUICheckBox;
 	var hitsoundPlayerStepper:PsychUINumericStepper;
 	var hitsoundOpponentStepper:PsychUINumericStepper;
@@ -2483,6 +2604,20 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 		playerMuteCheckBox = new PsychUICheckBox(objX + 100, objY, 'Mute', 60, updateAudioVolume);
 		opponentMuteCheckBox = new PsychUICheckBox(objX + 200, objY, 'Mute', 60, updateAudioVolume);
 
+		objY += 42;
+		scrollMultStepper = new PsychUINumericStepper(objX, objY, 0.5, scrollMult, 0.5, 10, 1);
+		scrollMultStepper.onValueChange = function()
+		{
+			scrollMult = scrollMultStepper.value;
+			chartEditorSave.data.scrollMult = scrollMult;
+		};
+		sustainMultStepper = new PsychUINumericStepper(objX + 100, objY, 0.5, sustainMult, 0.5, 10, 1);
+		sustainMultStepper.onValueChange = function()
+		{
+			sustainMult = sustainMultStepper.value;
+			chartEditorSave.data.sustainMult = sustainMult;
+		};
+
 		tab_group.add(playbackSlider);
 		tab_group.add(mouseSnapCheckBox);
 		tab_group.add(ignoreProgressCheckBox);
@@ -2503,6 +2638,11 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 		tab_group.add(playerMuteCheckBox);
 		tab_group.add(opponentVolumeStepper);
 		tab_group.add(opponentMuteCheckBox);
+
+		tab_group.add(new FlxText(scrollMultStepper.x, scrollMultStepper.y - 15, 100, 'Scroll Mult:'));
+		tab_group.add(new FlxText(sustainMultStepper.x, sustainMultStepper.y - 15, 100, 'Sustain Mult:'));
+		tab_group.add(scrollMultStepper);
+		tab_group.add(sustainMultStepper);
 	}
 
 	var gameOverCharDropDown:PsychUIDropDownMenu;
@@ -3138,6 +3278,38 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 			softReloadNotes(true);
 		});
 
+		objY += 40;
+		var mirrorSongButton:PsychUIButton = new PsychUIButton(objX, objY, 'Mirror Song', function()
+		{
+			var func:Void->Void = function()
+			{
+				var mirroredNotes:Array<MetaNote> = [];
+				var oldData:Array<Int> = [];
+				var newData:Array<Int> = [];
+				for (note in notes)
+				{
+					if(note == null || note.isEvent) continue;
+
+					var data:Int = Std.int(note.songData[1]);
+					var mirrored:Int = Std.int((Math.floor(data / GRID_COLUMNS_PER_PLAYER) * GRID_COLUMNS_PER_PLAYER) + GRID_COLUMNS_PER_PLAYER - note.noteData - 1);
+					note.changeNoteData(mirrored);
+					positionNoteXByData(note);
+					mirroredNotes.push(note);
+					oldData.push(data);
+					newData.push(mirrored);
+				}
+
+				if(mirroredNotes.length > 0)
+					addUndoAction(CHANGE_NOTE_DATA, {notes: mirroredNotes, oldData: oldData, newData: newData});
+
+				softReloadNotes(true);
+				showOutput('Mirrored ${mirroredNotes.length} notes across the entire song');
+			}
+
+			if(!ignoreProgressCheckBox.checked) openSubState(new Prompt('Mirror all notes in the song?', func));
+			else func();
+		});
+
 		tab_group.add(mustHitCheckBox);
 		tab_group.add(gfSectionCheckBox);
 		tab_group.add(altAnimSectionCheckBox);
@@ -3159,6 +3331,7 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 		tab_group.add(swapSectionButton);
 		tab_group.add(duetSectionButton);
 		tab_group.add(mirrorNotesButton);
+		tab_group.add(mirrorSongButton);
 	}
 
 	function reloadNotesDropdowns()
@@ -3362,7 +3535,7 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 
 		objY += 65;
 		//(x:Float = 0, y:Float = 0, step:Float = 1, defValue:Float = 0, min:Float = -999, max:Float = 999, decimals:Int = 0, ?wid:Int = 60, ?isPercent:Bool = false)
-		bpmStepper = new PsychUINumericStepper(objX, objY, 1, 1, 1, 400, 3);
+		bpmStepper = new PsychUINumericStepper(objX, objY, 1, 1, 1, 10000, 3);
 		bpmStepper.onValueChange = function()
 		{
 			var oldTimes:Array<Float> = cachedSectionTimes.copy();
@@ -3503,6 +3676,45 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 					trace(e.stack);
 				}
 			});
+		}, btnWid);
+		btn.text.alignment = LEFT;
+		tab_group.add(btn);
+
+		btnY += 20;
+		var btn:PsychUIButton = new PsychUIButton(btnX, btnY, '  Charts Selecter', function()
+		{
+			upperBox.isMinimized = true;
+			upperBox.bg.visible = false;
+
+			ClientPrefs.toggleVolumeKeys(false);
+			openSubState(new ChartSourceSelectSubstate(function(category:String, path:String, difficulty:String, variant:String)
+			{
+				var normPath:String = path.replace('\\', '/');
+
+				// mods 里的谱面：把"当前模组"切到谱面所属 mod，之后的资源查找（inst/voices/图）先查该 mod
+				if (normPath.startsWith(ChartSourceSelectSubstate.ROOT_MODS + '/'))
+				{
+					var modRest:String = normPath.substring(ChartSourceSelectSubstate.ROOT_MODS.length + 1);
+					var modSlash:Int = modRest.indexOf('/');
+					Mods.currentModDirectory = (modSlash > 0) ? modRest.substring(0, modSlash) : modRest;
+				}
+				else Mods.loadTopMod();
+
+				if (category == ChartSourceSelectSubstate.V_SLICE)
+				{
+					// V-Slice 转换产物是 psych_v1 绝对 lane；先对齐全局状态，
+					// 免得 loadChart 的归一化把它当 legacy 谱再转一遍（会按 mustHitSection 重排）
+					Song.chartEngineVersion = 'Pe-1.0.4';
+					Song.detectedFormat = 'Pe-1.0.x';
+					Song.chartLaneSemantics = 'absolute';
+					loadVSliceChartFromFolder(normPath, difficulty, variant);
+				}
+				else loadChartFromAnyPath(normPath);
+			},
+			function()
+			{
+				showOutput('Chart selection cancelled');
+			}));
 		}, btnWid);
 		btn.text.alignment = LEFT;
 		tab_group.add(btn);
@@ -4123,6 +4335,51 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 		btn.text.alignment = LEFT;
 		tab_group.add(btn);
 		
+		// === 谱面导入（StepMania / osu!mania / Quaver / MIDI / Malody）===
+		btnY += 20;
+		var btn:PsychUIButton = new PsychUIButton(btnX, btnY, '  Import Chart...', function()
+		{
+			if(!fileDialog.completed) return;
+			upperBox.isMinimized = true;
+			upperBox.bg.visible = false;
+
+			fileDialog.open(null, 'Open Chart (.sm/.ssc/.osu/.osz/.qua/.qp/.mid/.mc)',
+				[new FileFilter('Chart Files', ChartConverter.FILE_FILTER)], function()
+			{
+				openChartImportDialog(fileDialog.path.replace('\\', '/'));
+			});
+		}, btnWid);
+		btn.text.alignment = LEFT;
+		tab_group.add(btn);
+
+		// === 谱面导出（StepMania / osu!mania / Quaver）===
+		btnY += 20;
+		var btn:PsychUIButton = new PsychUIButton(btnX, btnY, '  Export Chart...', function()
+		{
+			if(!fileDialog.completed) return;
+			upperBox.isMinimized = true;
+			upperBox.bg.visible = false;
+
+			updateChartData();
+			var keys:Int = GRID_COLUMNS_PER_PLAYER;
+
+			ClientPrefs.toggleVolumeKeys(false);
+			var dialog:ChartImportDialog = new ChartImportDialog(ChartImportDialog.MODE_EXPORT, keys, keys);
+			dialog.onConfirm = function(opts:ChartConvertOptions)
+			{
+				var targetFormat:String = opts.format;
+				if(targetFormat == null) return;
+				performChartExport(targetFormat, opts.diff);
+			};
+			dialog.onCancel = function()
+			{
+				showOutput('Chart export cancelled');
+			};
+			openSubState(dialog);
+		}, btnWid);
+		btn.text.alignment = LEFT;
+		tab_group.add(btn);
+
 		btnY += 20;
 		var btn:PsychUIButton = new PsychUIButton(btnX, btnY, '  Update (Legacy)...', function()
 		{
@@ -4171,6 +4428,42 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 		btn.text.alignment = LEFT;
 		tab_group.add(btn);
 
+		// === 全谱交换 Player / Opponent 两侧轨道（自 Frozen Engine 移植，列内序号不变）===
+		btnY += 20;
+		var btn:PsychUIButton = new PsychUIButton(btnX, btnY, '  Swap Song', function()
+		{
+			var func:Void->Void = function()
+			{
+				var maxData:Int = GRID_COLUMNS_PER_PLAYER * GRID_PLAYERS;
+				var swappedNotes:Array<MetaNote> = [];
+				var oldData:Array<Int> = [];
+				var newData:Array<Int> = [];
+				for (note in notes)
+				{
+					if(note == null || note.isEvent) continue;
+
+					var data:Int = Std.int(note.songData[1]);
+					var swapped:Int = (data + GRID_COLUMNS_PER_PLAYER) % maxData;
+					note.changeNoteData(swapped);
+					positionNoteXByData(note);
+					swappedNotes.push(note);
+					oldData.push(data);
+					newData.push(swapped);
+				}
+
+				if(swappedNotes.length > 0)
+					addUndoAction(CHANGE_NOTE_DATA, {notes: swappedNotes, oldData: oldData, newData: newData});
+
+				softReloadNotes(true);
+				showOutput('Swapped ${swappedNotes.length} notes between Player and Opponent');
+			}
+
+			if(!ignoreProgressCheckBox.checked) openSubState(new Prompt('Swap Player and Opponent tracks\nacross the entire song?', func));
+			else func();
+		}, btnWid);
+		btn.text.alignment = LEFT;
+		tab_group.add(btn);
+
 		btnY++;
 		btnY += 20;
 		var btn:PsychUIButton = new PsychUIButton(btnX, btnY, '  Preview (F12)', openEditorPlayState, btnWid);
@@ -4194,6 +4487,446 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 		btn.text.alignment = LEFT;
 		tab_group.add(btn);
 	}
+
+	// ============================================================
+	// 谱面导入 / 导出 / 来源选择器 / 编辑器互切（自 Frozen Engine 谱面编辑器移植）
+	// ============================================================
+
+	function openChartImportDialog(filePath:String)
+	{
+		var info:ChartImportInfo = null;
+		try
+		{
+			info = ChartConverter.probe(filePath);
+		}
+		catch(e:Dynamic)
+		{
+			showOutput('Error: ${Std.string(e)}', true);
+			return;
+		}
+
+		ClientPrefs.toggleVolumeKeys(false);
+		var dialog:ChartImportDialog = new ChartImportDialog(ChartImportDialog.MODE_IMPORT, info.keys, info.keys, info.diffs, info.formatLabel,
+			info.format);
+		dialog.onConfirm = function(opts:ChartConvertOptions)
+		{
+			performChartImport(filePath, opts.diff, opts.convertKeys ? opts.targetKeys : info.keys, opts.action, opts.extractAudio);
+		};
+		dialog.onCancel = function()
+		{
+			showOutput('Chart import cancelled');
+		};
+		openSubState(dialog);
+	}
+
+	/**
+	 * 统一谱面导入（.sm/.ssc/.osu/.osz/.qua/.qp/.mid/.mc → SwagSong）
+	 * ACTION_LOAD 直接载入编辑器；ACTION_SAVE 先存转换后的 Psych JSON 再询问是否载入
+	 * @param extractAudio 仅 .osz 有效：保存时把包内音频一起落到输出目录
+	 */
+	function performChartImport(filePath:String, diff:String, targetKeys:Int, action:Int, extractAudio:Bool = false)
+	{
+		try
+		{
+			var loadedChart:SwagSong = ChartConverter.importChart(filePath, diff, targetKeys);
+			if(loadedChart == null || !Reflect.hasField(loadedChart, 'song'))
+			{
+				showOutput('Error: Unable to read chart file', true);
+				return;
+			}
+
+			// 转换产物按 psych_v1 绝对 lane 构造；先对齐全局状态，
+			// 免得 loadChart 的归一化把它当 legacy 谱再转一遍（会按 mustHitSection 重排）
+			Song.chartEngineVersion = 'Pe-1.0.4';
+			Song.detectedFormat = 'Pe-1.0.x';
+			Song.chartLaneSemantics = 'absolute';
+
+			if(action == ChartImportDialog.ACTION_SAVE)
+			{
+				// 保存转换后的 Psych JSON（可选继续载入编辑器）
+				fileDialog.openDirectory('Save Converted Psych JSON', function()
+				{
+					var path:String = fileDialog.path.replace('\\', '/');
+					if(!path.endsWith('/')) path += '/';
+
+					var chartName:String = Paths.formatToSongPath(loadedChart.song);
+					if(chartName == null || chartName.length == 0) chartName = 'converted';
+					var savePath:String = path + chartName + '.json';
+					var saveData:String = PsychJsonPrinter.print(loadedChart, ['sectionNotes', 'events']);
+
+					overwriteCheck(savePath, chartName + '.json', saveData, function()
+					{
+						// .osz 里的音频一起落地，省得用户再去解包（失败不影响谱面本身）
+						var audioPath:String = extractAudio ? extractOszAudio(filePath, path) : null;
+						if(audioPath != null)
+							showOutput('Audio extracted to: $audioPath');
+
+						openSubState(new BasePrompt(400, 150, 'Import Complete', function(state:BasePrompt)
+						{
+							var promptBtnY:Float = state.bg.y + state.bg.height - 70;
+
+							var yesBtn:PsychUIButton = new PsychUIButton(0, promptBtnY, 'Yes, load to editor', function()
+							{
+								state.close();
+
+								var func:Void->Void = function()
+								{
+									GRID_COLUMNS_PER_PLAYER = targetKeys;
+									loadChart(loadedChart);
+									Song.chartPath = savePath;
+									reloadNotesDropdowns();
+									prepareReload();
+									showOutput('Chart loaded from: ' + savePath);
+								};
+
+								if (!ignoreProgressCheckBox.checked)
+									openSubState(new Prompt('Warning: Any unsaved progress\nwill be lost.', func));
+								else
+									func();
+							});
+							yesBtn.normalStyle.bgColor = FlxColor.GREEN;
+							yesBtn.normalStyle.textColor = FlxColor.WHITE;
+							yesBtn.cameras = state.cameras;
+							yesBtn.screenCenter(X);
+							yesBtn.x -= 100;
+							state.add(yesBtn);
+
+							var noBtn:PsychUIButton = new PsychUIButton(0, promptBtnY, 'No, just save', function()
+							{
+								state.close();
+								showOutput('Chart converted and saved successfully: ' + savePath);
+							});
+							noBtn.cameras = state.cameras;
+							noBtn.screenCenter(X);
+							noBtn.x += 100;
+							state.add(noBtn);
+
+							var infoTxt:FlxText = new FlxText(0, state.bg.y + 60, state.bg.width,
+								'Chart saved successfully!\nWould you like to load it into the editor?', 18);
+							infoTxt.setFormat(null, 18, FlxColor.WHITE, CENTER);
+							infoTxt.cameras = state.cameras;
+							state.add(infoTxt);
+						}
+						));
+					}, true);
+				});
+			}
+			else
+			{
+				var func:Void->Void = function()
+				{
+					GRID_COLUMNS_PER_PLAYER = targetKeys;
+					loadChart(loadedChart);
+					Song.chartPath = null;
+					reloadNotesDropdowns();
+					prepareReload();
+					showOutput('${targetKeys}K chart loaded from: ' + filePath);
+				};
+
+				if (!ignoreProgressCheckBox.checked)
+					openSubState(new Prompt('Warning: Any unsaved progress\nwill be lost.', func));
+				else
+					func();
+			}
+		}
+		catch(e:Dynamic)
+		{
+			showOutput('Error: ${Std.string(e)}', true);
+			trace(e);
+		}
+	}
+
+	function extractOszAudio(oszPath:String, targetDir:String):Null<String>
+	{
+		var result:ExtractResult = OsuArchiveExtractor.extract(oszPath);
+		if(result == null) return null;
+
+		var saved:Null<String> = null;
+		try
+		{
+			if(result.audioPath != null)
+			{
+				var ext:String = result.audioPath.substr(result.audioPath.lastIndexOf('.'));
+				var targetPath:String = targetDir + 'inst' + ext;
+				if(!FileSystem.exists(targetPath)) File.copy(result.audioPath, targetPath);
+				saved = targetPath;
+			}
+		}
+		catch(e:Dynamic)
+		{
+			trace('OSZ audio copy failed: $e');
+		}
+		OsuArchiveExtractor.cleanup(result.tempDir);
+		return saved;
+	}
+
+	/**
+	 * 执行谱面导出（.sm / .ssc / .osu / .qua），写到用户选的目录
+	 * @param diffName 写入文件的难度名
+	 */
+	function performChartExport(format:String, diffName:String = 'Challenge'):Void
+	{
+		fileDialog.openDirectory('Save Chart File', function()
+		{
+			try
+			{
+				var path:String = fileDialog.path.replace('\\', '/');
+				if(!path.endsWith('/')) path += '/';
+
+				var content:String = ChartConverter.exportChart(PlayState.SONG, format, diffName);
+				var fileName:String = Paths.formatToSongPath(PlayState.SONG.song) + '.' + format;
+				var savePath:String = path + fileName;
+
+				overwriteCheck(savePath, fileName, content, function()
+				{
+					showOutput('${format.toUpperCase()} file saved successfully: $savePath');
+				});
+			}
+			catch(e:Dynamic)
+			{
+				showOutput('Error: ${Std.string(e)}', true);
+			}
+		});
+	}
+
+	function loadChartFromAnyPath(path:String)
+	{
+		if (ChartConverter.detectFormat(path) != null)
+			openChartImportDialog(path);
+		else if (path.toLowerCase().endsWith('.json'))
+			loadChartFromFile(path);
+		else showOutput('Unsupported chart file: $path', true);
+	}
+
+	function loadChartFromFile(filePath:String)
+	{
+		try
+		{
+			// 检查文件是否存在
+			if (!FileSystem.exists(filePath))
+			{
+				showOutput('Error: File not found: $filePath', true);
+				return;
+			}
+
+			var loadedChart:SwagSong = Song.parseJSON(File.getContent(filePath), filePath.substr(filePath.lastIndexOf('/') + 1));
+			if (loadedChart == null || !Reflect.hasField(loadedChart, 'song'))
+			{
+				showOutput('Error: File loaded is not a Psych Engine/FNF chart.', true);
+				return;
+			}
+
+			var func:Void->Void = function()
+			{
+				loadChart(loadedChart);
+				Song.chartPath = filePath;
+				reloadNotesDropdowns();
+				prepareReload();
+				showOutput('Opened chart "${filePath}" successfully!');
+			};
+
+			if(!ignoreProgressCheckBox.checked) openSubState(new Prompt('Warning: Any unsaved progress\nwill be lost.', func));
+			else func();
+		}
+		catch(e:Exception)
+		{
+			showOutput('Error: ${e.message}', true);
+			trace(e.stack);
+		}
+	}
+
+	function loadVSliceChartFromFolder(folderOrFilePath:String, ?difficulty:String = null, ?variant:Null<String> = null)
+	{
+		try
+		{
+			var normalizedPath:String = folderOrFilePath.replace('\\', '/');
+			var baseFolder:String = normalizedPath;
+			var chartFileName:String = null;
+			var metadataFileName:String = null;
+			var lowerPath:String = normalizedPath.toLowerCase();
+
+			if (lowerPath.endsWith('.json'))
+			{
+				var lastSlash:Int = normalizedPath.lastIndexOf('/');
+				baseFolder = normalizedPath.substring(0, lastSlash);
+				chartFileName = normalizedPath.substring(lastSlash + 1);
+				if (chartFileName.toLowerCase().indexOf('metadata') != -1)
+				{
+					metadataFileName = chartFileName;
+					chartFileName = null;
+				}
+			}
+
+			if (!FileSystem.exists(baseFolder) || !FileSystem.isDirectory(baseFolder))
+			{
+				showOutput('Error: V-Slice folder not found: $baseFolder', true);
+				return;
+			}
+
+			var files:Array<String> = FileSystem.readDirectory(baseFolder);
+			if (chartFileName == null)
+			{
+				var wantedVariant:String = variant;
+				if (wantedVariant == null && metadataFileName != null)
+					wantedVariant = ChartSourceSelectSubstate.getVariantNameFromFile(metadataFileName);
+
+				for (file in files)
+				{
+					if (file.startsWith('.') || !file.toLowerCase().endsWith('.json') || file.toLowerCase().indexOf('metadata') != -1) continue;
+					if (wantedVariant == null || ChartSourceSelectSubstate.getVariantNameFromFile(file).toLowerCase() == wantedVariant.toLowerCase())
+					{
+						chartFileName = file;
+						break;
+					}
+				}
+			}
+
+			if (chartFileName == null && FileSystem.exists('$baseFolder/chart.json')) chartFileName = 'chart.json';
+			if (chartFileName == null)
+			{
+				showOutput('Error: V-Slice chart file not found in: $baseFolder', true);
+				return;
+			}
+
+			// Match metadata to the selected chart variant before falling back to shared metadata.
+			var chartVariant:String = ChartSourceSelectSubstate.getVariantNameFromFile(chartFileName).toLowerCase();
+			if (metadataFileName == null)
+			{
+				for (file in files)
+				{
+					if (file.startsWith('.') || !file.toLowerCase().endsWith('.json') || file.toLowerCase().indexOf('metadata') == -1) continue;
+					if (ChartSourceSelectSubstate.getVariantNameFromFile(file).toLowerCase() == chartVariant)
+					{
+						metadataFileName = file;
+						break;
+					}
+				}
+				if (metadataFileName == null && FileSystem.exists('$baseFolder/metadata.json')) metadataFileName = 'metadata.json';
+			}
+
+			var chartPath:String = '$baseFolder/$chartFileName';
+			var metadataPath:String = '$baseFolder/$metadataFileName';
+
+			if (chartFileName == null || !FileSystem.exists(chartPath))
+			{
+				showOutput('Error: V-Slice chart file not found in: $baseFolder', true);
+				return;
+			}
+			if (metadataFileName == null || !FileSystem.exists(metadataPath))
+			{
+				showOutput('Error: V-Slice metadata file not found in: $baseFolder', true);
+				return;
+			}
+
+			var chart:VSliceChart = cast Json.parse(File.getContent(chartPath));
+			var metadata:VSliceMetadata = cast Json.parse(File.getContent(metadataPath));
+			if(chart == null || chart.version == null || chart.notes == null || chart.scrollSpeed == null)
+			{
+				showOutput('Error: File loaded is not a valid FNF V-Slice chart.', true);
+				return;
+			}
+			if(metadata == null || metadata.version == null || metadata.playData == null || metadata.songName == null ||
+				metadata.playData.difficulties == null || metadata.timeChanges == null || metadata.timeChanges.length < 1)
+			{
+				showOutput('Error: File loaded is not a valid FNF V-Slice metadata.', true);
+				return;
+			}
+
+			// Metadata describes the package; notes in the selected chart define its actual difficulties.
+			var chartDifficulties:Array<String> = Reflect.fields(chart.notes);
+			var availableDifficulties:Array<String> = [];
+			for (metaDifficulty in metadata.playData.difficulties)
+			{
+				for (chartDifficulty in chartDifficulties)
+				{
+					if (Paths.formatToSongPath(metaDifficulty) == Paths.formatToSongPath(chartDifficulty))
+					{
+						availableDifficulties.push(chartDifficulty);
+						break;
+					}
+				}
+			}
+			for (chartDifficulty in chartDifficulties)
+				if (availableDifficulties.indexOf(chartDifficulty) == -1) availableDifficulties.push(chartDifficulty);
+
+			if (availableDifficulties.length < 1)
+			{
+				showOutput('Error: No difficulty found in the selected V-Slice variant.', true);
+				return;
+			}
+			metadata.playData.difficulties = availableDifficulties;
+
+			var pack:PsychPackage = VSlice.convertToPsych(chart, metadata);
+			if(pack == null || pack.difficulties == null) return;
+
+			var diffs:Array<String> = metadata.playData.difficulties.copy();
+			var firstChart:SwagSong = null;
+
+			// 如果指定了难度，优先使用指定的难度
+			if (difficulty != null && difficulty.length > 0)
+			{
+				var targetDiff:String = Paths.formatToSongPath(difficulty);
+				if (pack.difficulties.exists(targetDiff))
+				{
+					firstChart = pack.difficulties.get(targetDiff);
+				}
+			}
+
+			// 如果没有找到指定难度，使用第一个可用难度
+			if (firstChart == null)
+			{
+				for (diff in diffs)
+				{
+					if(pack.difficulties.exists(diff))
+					{
+						firstChart = pack.difficulties.get(diff);
+						break;
+					}
+				}
+			}
+
+			if(firstChart == null)
+			{
+				showOutput('Error: No valid difficulty found in the V-Slice chart.', true);
+				return;
+			}
+
+			var func:Void->Void = function()
+			{
+				loadChart(firstChart);
+				Song.chartPath = chartPath;
+				reloadNotesDropdowns();
+				prepareReload();
+
+				var variantInfo:String = (variant != null && variant != 'default') ? ' (variant: $variant)' : '';
+				showOutput('Opened V-Slice chart from "${baseFolder}" successfully!$variantInfo');
+			};
+
+			if(!ignoreProgressCheckBox.checked) openSubState(new Prompt('Warning: Any unsaved progress\nwill be lost.', func));
+			else func();
+		}
+		catch(e:Exception)
+		{
+			showOutput('Error: ${e.message}', true);
+			trace(e.stack);
+		}
+	}
+
+	// 老版谱面编辑器（developer.editors.ChartingState）已下线，切回 legacy 的入口一并停用。
+	// function switchToLegacyEditor()
+	// {
+	// 	chartEditorSave.flush();
+	// 	setSongPlaying(false);
+	// 	updateChartData();
+	//
+	// 	PlayState.SONG.mania = GRID_COLUMNS_PER_PLAYER - 1;
+	// 	Song.convertNoteLanesToLegacy(PlayState.SONG, GRID_COLUMNS_PER_PLAYER);
+	// 	Song.chartLaneSemantics = 'legacy';
+	// 	Song.chartEngineVersion = 'Pe-0.7.3';
+	// 	Song.detectedFormat = 'Pe-0.7.3';
+	//
+	// 	MusicBeatState.switchState(new developer.editors.ChartingState());
+	// }
 
 	var lockedEvents:Bool = false;
 	function addEditTab()
@@ -5158,6 +5891,15 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 				actionPushNotes(action.data.originalNotes, action.data.originalEvents);
 				onSelectNote();
 
+			case CHANGE_NOTE_DATA:
+				for(i in 0...action.data.notes.length)
+					if(action.data.notes[i] != null)
+					{
+						action.data.notes[i].changeNoteData(action.data.oldData[i]);
+						positionNoteXByData(action.data.notes[i]);
+					}
+				softReloadNotes(true);
+
 			case SELECT_NOTE:
 				resetSelectedNotes();
 				selectedNotes = action.data.old;
@@ -5190,6 +5932,15 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 				actionRemoveNotes(action.data.originalNotes, action.data.originalEvents);
 				actionPushNotes(action.data.movedNotes, action.data.movedEvents);
 				onSelectNote();
+
+			case CHANGE_NOTE_DATA:
+				for(i in 0...action.data.notes.length)
+					if(action.data.notes[i] != null)
+					{
+						action.data.notes[i].changeNoteData(action.data.newData[i]);
+						positionNoteXByData(action.data.notes[i]);
+					}
+				softReloadNotes(true);
 
 			case SELECT_NOTE:
 				resetSelectedNotes();

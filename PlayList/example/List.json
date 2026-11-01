@@ -1,0 +1,23 @@
+{
+	"name": "example",
+	"list": [
+		{
+			"name": "Aimai Attitude",
+			"sound": ["songs/Aimai-Attitude.ogg"],
+			"background": ["art/Aimai-Attitude.png"],
+			"lyrics": "lyrics/Aimai-Attitude.json",
+			"record": null,
+			"bpm": 200,
+			"writer": "rejection"
+		},
+		{
+			"name": "Wellerman",
+			"sound": ["songs/Wellerman.ogg"],
+			"background": ["art/Wellerman.png"],
+			"lyrics": null,
+			"record": null,
+			"bpm": 110,
+			"writer": "Acapella"
+		}
+	]
+}

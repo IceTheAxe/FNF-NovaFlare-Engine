@@ -128,7 +128,8 @@ class InitScriptData {
 
         //states.editors
         Iris.proxyImports.set("editors.CharacterEditorState", developer.editors.CharacterEditorState);
-        Iris.proxyImports.set("editors.ChartingState", developer.editors.ChartingState);
+        // 老版谱面编辑器已下线，脚本侧不再暴露
+        // Iris.proxyImports.set("editors.ChartingState", developer.editors.ChartingState);
         Iris.proxyImports.set("editors.DialogueCharacterEditorState", developer.editors.DialogueCharacterEditorState);
         Iris.proxyImports.set("editors.DialogueEditorState", developer.editors.DialogueEditorState);
         Iris.proxyImports.set("editors.EditorPlayState", developer.editors.EditorPlayState);
@@ -248,7 +249,8 @@ class InitScriptData {
 
         //states.editors
         Iris.proxyImports.set("editors.CharacterEditorState", developer.editors.CharacterEditorState);
-        Iris.proxyImports.set("editors.ChartingState", developer.editors.ChartingState);
+        // 老版谱面编辑器已下线，脚本侧不再暴露
+        // Iris.proxyImports.set("editors.ChartingState", developer.editors.ChartingState);
         Iris.proxyImports.set("editors.DialogueCharacterEditorState", developer.editors.DialogueCharacterEditorState);
         Iris.proxyImports.set("editors.DialogueEditorState", developer.editors.DialogueEditorState);
         Iris.proxyImports.set("editors.EditorLua", scripts.lua.FunkinLua);  // EditorLua合并到FunkinLua

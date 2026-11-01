@@ -9,6 +9,7 @@ showComboNum => Show Combo Num
 showRating => Show Rating
 opponentStrums => Opponent Strums
 judgementCounter => Judgement Counter
+totalNoteHits => Total Note Hits
 keyboardViewer => Keyboard Display
 
 
