@@ -1945,6 +1945,7 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 		createStrumLineNotes(startX, startY);
 		createGridIndicators();
 
+		timeLine.x = gridBg.x;
 		timeLine.setGraphicSize(Std.int(gridBg.width), 4);
 		timeLine.updateHitbox();
 		timeLine.screenCenter(Y);
@@ -2540,6 +2541,9 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 					iconP2.changeIcon('gf');
 			}
 
+			// changeIcon 换帧后宽度可能和建图标时不同（mod 图标帧宽五花八门），重新对准列中心
+			recenterGridIcons();
+
 			if(mustHitSection)
 				mustHitIndicator.x = iconP1.x + iconP1.width/2;
 			else
@@ -2547,6 +2551,19 @@ class PEChartingState extends MusicBeatState implements PsychUIEventHandler.Psyc
 		}
 		_lastGfSection = isGfSection;
 		_lastSec = curSec;
+	}
+
+	/** 把每个玩家图标重新摆到自己列区间的水平中心（图标实际宽度以 changeIcon 后的帧为准） */
+	function recenterGridIcons():Void
+	{
+		if(gridBg == null || icons.length == 0) return;
+		var startX:Float = gridBg.x + (SHOW_EVENT_COLUMN ? GRID_SIZE : 0);
+		for (i in 0...icons.length)
+		{
+			var icon:HealthIcon = icons[i];
+			if(icon == null) continue;
+			icon.x = startX + GRID_SIZE * (i * GRID_COLUMNS_PER_PLAYER + GRID_COLUMNS_PER_PLAYER / 2) - icon.width / 2;
+		}
 	}
 
 	var playbackSlider:PsychUISlider;
