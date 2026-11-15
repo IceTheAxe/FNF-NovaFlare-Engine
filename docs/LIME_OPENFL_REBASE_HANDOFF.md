@@ -238,3 +238,8 @@ NF 纯新增（直接拷贝 + Build.xml 登记）：`RenderThread.cpp/.h`、`Bac
 - **已修**：①`ClientPrefs.renderThread` 默认 false + 迁移段改 false + `performanceDefaultsVersion` 8→9；②lime fork `OpenGLBindings::SetMultiThreaded(true)` 加回退：`WaitForContext(true,2000)` 失败则 `Stop()+MakeCurrent()` 回主线程、`isMultiThreaded` 保持 false（②需重编 ndll 才生效）。
 - 免重编验证：`NOVAFLARE_RENDER_THREAD=0`。
 - 未解：渲染线程首绑为何失败（怀疑与 Origin 兼容层 `ContextMakeCurrent(void*)` 用非 SDL 路径绑定有关，待查）。
+- **渲染线程已实测可用（2026-11-16 00:22，真机非 RDP）**：`NOVAFLARE_RENDER_THREAD=1` 启动得到
+  `[RT] lime_gl_set_multithreaded(1), current=0` → `[RT] render worker bound the GL context` → `[RT] render worker online`，
+  `GL_VENDOR=NVIDIA Corporation / RTX 2060 / 4.6.0 621.24`、`maxTextureSize 32768`（主线程查 GL 仍正常）。
+  22:54–22:58 的连续首绑失败 = 旧 ndll 的竞态，已加**绑定重试**（6×20ms）兜住；失败时仍回退主线程并打日志。
+- 量化手段：`NOVAGC_PERF_TRACE=1` 时 worker 每秒打 `perf:RenderThread frames=/commands=/avg_commands=/exec_avg_ms=`，可据此判断 GL 提交是否真被分担。
