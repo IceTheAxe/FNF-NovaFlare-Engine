@@ -32,6 +32,13 @@
 
 	<define name="ORIGIN_FUNKIN_COMPAT"/>
 	<define name="ORIGIN_SDL2_COMPAT"/>
+	<!-- 换底初期锁 OpenGL（lime-vulkan 为上游新默认；openfl/flixel 渲染链仍走 GL，
+	     Vulkan 上下文会黑屏。稳定后单独评估再放开） -->
+	<define name="no-vulkan"/>
+	<!-- Origin 编辑器布局的分阶段资源（tools/setup-origin-editor-layouts.ps1 生成，
+	     95 份 XML/CSS 编译期内嵌；运行时完整 Origin 资源包另配）。
+	     相对仓库根解析；拿到完整外部资源包部署到 bin 后可删除本行回退默认查找。 -->
+	<define name="ORIGIN_ASSETS_PATH" value="_build/origin-editor-build-assets"/>
 	<!-- Codename runs as an isolated state chain with NovaFlare's state-aware
 	     mobile input layer. Keyboard, gamepad and touch stay active together. -->
 	<define name="CODENAME_ENGINE_COMPAT" />
@@ -273,7 +280,9 @@
 	<!-- High-rate desktop rendering depends on avoiding full-tree transform
 	     walks and per-frame Event allocation when nothing changed. -->
 	<haxedef name="openfl_enable_experimental_update_queue" if="desktop" />
-	<haxedef name="openfl_pool_events" if="desktop" />
+	<!-- 诊断：换底后 FakeCamera 静态初始化期间 Event.__pool.get() 触发 hxSehException，
+	     先关池化定位；确认根因后再评估恢复 -->
+	<!-- <haxedef name="openfl_pool_events" if="desktop" /> -->
 	<haxedef name="openfl_always_render" if="ios" />
 
 	<haxedef name="HXCPP_ALIGN_ALLOC"/>
