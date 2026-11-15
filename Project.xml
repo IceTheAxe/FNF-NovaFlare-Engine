@@ -35,10 +35,10 @@
 	<!-- 换底初期锁 OpenGL（lime-vulkan 为上游新默认；openfl/flixel 渲染链仍走 GL，
 	     Vulkan 上下文会黑屏。稳定后单独评估再放开） -->
 	<define name="no-vulkan"/>
-	<!-- Origin 编辑器布局的分阶段资源（tools/setup-origin-editor-layouts.ps1 生成，
-	     95 份 XML/CSS 编译期内嵌；运行时完整 Origin 资源包另配）。
-	     相对仓库根解析；拿到完整外部资源包部署到 bin 后可删除本行回退默认查找。 -->
-	<define name="ORIGIN_ASSETS_PATH" value="_build/origin-editor-build-assets"/>
+	<!-- Origin 编辑器布局的分阶段资源（95 份 XML/CSS，编译期内嵌）。
+	     随仓库提供，CI 与本地共用同一份；运行时完整 Origin 资源包另配。
+	     tools/setup-origin-editor-layouts.ps1 用于从上游 funkin.assets 重新提取。 -->
+	<define name="ORIGIN_ASSETS_PATH" value="tools/origin-editor-layouts"/>
 	<!-- Codename runs as an isolated state chain with NovaFlare's state-aware
 	     mobile input layer. Keyboard, gamepad and touch stay active together. -->
 	<define name="CODENAME_ENGINE_COMPAT" />
@@ -75,9 +75,9 @@
 		<define name="FEATURE_ANIMATION_EDITOR"/>
 		<define name="FEATURE_RESULTS_DEBUG"/>
 		<define name="FEATURE_POLYMOD_MODS"/>
-		<define name="FEATURE_CHART_EDITOR"/>
-		<define name="FEATURE_STAGE_EDITOR"/>
-		<define name="FEATURE_CAMERA_EDITOR"/>
+		<define name="FEATURE_CHART_EDITOR" unless="no-origin-editors"/>
+		<define name="FEATURE_STAGE_EDITOR" unless="no-origin-editors"/>
+		<define name="FEATURE_CAMERA_EDITOR" unless="no-origin-editors"/>
 		<haxedef name="haxeui_dont_impose_base_class"/>
 		<haxedef name="haxeui_no_mouse_reset"/>
 	</section>
@@ -139,7 +139,7 @@
 	<classpath name="source-originFunkin" />
 	<classpath name="source-codename" if="CODENAME_ENGINE_COMPAT" />
 	<classpath name="source-originFunkin/editor-compat" if="origin_editors"/>
-	<haxeflag name="--macro" value="originfunkin.macro.OriginEditorMacro.configure()" if="origin_editors"/>
+	<haxeflag name="--macro" value="originfunkin.macro.OriginEditorMacro.configure()" if="origin_editors" unless="no-origin-editors"/>
 	<haxeflag name="--macro" value="originfunkin.macro.OriginScriptCompatMacro.configure()" />
 	<haxeflag name="--macro" value="addMetadata('@:build(originfunkin.macro.OriginScriptCompatMacro.allowBitmapOverrides())', 'flixel.system.frontEnds.BitmapFrontEnd')" />
 	<haxeflag name="--macro" value="addMetadata('@:build(originfunkin.macro.OriginScriptCompatMacro.allowBitmapOverrides())', 'flixel.sound.FlxSound')" />

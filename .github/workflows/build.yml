@@ -59,6 +59,11 @@ on:
         required: false
         type: string
         default: ''
+      with_origin_editors:
+        description: '编译 Origin 系列编辑器（谱面/舞台/相机，需要仓库内布局资产）；CI 默认关，发布开'
+        required: false
+        type: boolean
+        default: false
 
 env:
   HAXE_VERSION: 4.3.7
@@ -343,6 +348,7 @@ jobs:
         shell: bash
         env:
           BUILD_NUMBER: ${{ steps.get_version.outputs.current_version }}
+          WITH_ORIGIN_EDITORS: ${{ inputs.with_origin_editors }}
         run: |
           COMMIT_SHA=$(git rev-parse --short HEAD)
 
@@ -357,7 +363,14 @@ jobs:
             EXTRA="-always"
           fi
 
-          haxelib run lime build ${{ inputs.buildArgs }} $EXTRA \
+          # Origin 编辑器是编译期 XML→UI 宏，缺布局资产会直接中断整个编译。
+          # CI 只验证主游戏，默认不编它们；发布链显式打开。
+          ORIGIN_FLAG=""
+          if [ "$WITH_ORIGIN_EDITORS" != "true" ]; then
+            ORIGIN_FLAG="-Dno-origin-editors"
+          fi
+
+          haxelib run lime build ${{ inputs.buildArgs }} $EXTRA $ORIGIN_FLAG \
             -Dcommit_sha=$COMMIT_SHA -Dbuild_number="$BUILD_NUMBER"
 
       # 编译失败也存：hxcpp 是并行编的，报错时大部分 .obj 已经编完了，下次照样命中。

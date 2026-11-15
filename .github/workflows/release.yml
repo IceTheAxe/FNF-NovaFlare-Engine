@@ -173,6 +173,7 @@ jobs:
       artifactPath: ${{ matrix.artifactPath }}
       use_cache: false
       dependencies_to_update: ${{ inputs.dependencies_to_update }}
+      with_origin_editors: true
     secrets: inherit
 
   releaser:

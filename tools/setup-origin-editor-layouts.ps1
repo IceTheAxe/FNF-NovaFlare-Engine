@@ -4,7 +4,7 @@ param([string]$AssetsRoot)
 $ErrorActionPreference = 'Stop'
 $workspace = Split-Path -Parent $PSScriptRoot
 if ([string]::IsNullOrWhiteSpace($AssetsRoot)) {
-  $AssetsRoot = Join-Path $workspace '_build\origin-editor-build-assets'
+  $AssetsRoot = Join-Path $workspace 'tools\origin-editor-layouts'
 }
 $AssetsRoot = [IO.Path]::GetFullPath($AssetsRoot)
 $manifest = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'origin-editor-layouts.json') -Raw | ConvertFrom-Json
