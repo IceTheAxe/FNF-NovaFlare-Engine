@@ -1,6 +1,20 @@
 {
   "dependencies": [
     {
+      "name": "lime",
+      "type": "git",
+      "dir": null,
+      "ref": "nf-haxelib",
+      "url": "https://github.com/IceTheAxe/lime"
+    },
+    {
+      "name": "openfl",
+      "type": "git",
+      "dir": null,
+      "ref": "NF-OpenFL-9.6.0",
+      "url": "https://github.com/TieGao/openfl"
+    },
+    {
       "name": "hxp",
       "type": "git",
       "dir": null,
