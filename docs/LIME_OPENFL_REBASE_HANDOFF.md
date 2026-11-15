@@ -232,6 +232,7 @@ NF 纯新增（直接拷贝 + Build.xml 登记）：`RenderThread.cpp/.h`、`Bac
 - **补充（同批）**：①`titleIntro.mp4` 已改 `.bak` 让本地（RDP）可启动——hxvlc 在 RDP 会话必挂（视频起播→8 秒看门狗→finishIntro 清理死锁），真机控制台会话可能正常，恢复方法=去掉 `.bak` 后缀；②启动后有一条非致命错误 `no SOUND asset "flixel/sounds/beep.ogg"`（flixel 回退音不在嵌入清单，警告后继续）——待把 beep.ogg 补回嵌入资产。
 
 ### 2026-11-15（第七批：清档后渲染线程把 GL 链打死）
+- **更正（清单机制）**：`default` 库清单是**运行时从 `bin/manifest/default.json` 读**的，生成的 `ManifestResources.cpp` 只登记字体与各库路径——所以 beep 缺不缺取决于该 json 是否被那次构建重写，不是「嵌入清单陈旧」。重建后 `manifest/default.json` 已含 `flixel/sounds/beep.ogg`。
 - **崩溃 1（缺 beep）**：hxvlc 找不到 intro 视频 → `FlxG.log.warn` → flixel 日志样式播 `flixel/sounds/beep` → 清单里没有 → `lime.utils.Assets` 的 `Log.error` 抛（`Log.throwErrors` 默认 true）→ 崩。**不是代码冲突**：`obj/src/ManifestResources.cpp`（16:37）缺 `flixel_sounds_*`，而 `haxe/ManifestResources.hx`（19:03）有 → 该编译单元没被重编/重生成。核对法：`grep -c flixel_sounds export/release/windows/obj/src/ManifestResources.cpp` 应为非 0。
 - **崩溃 2（渲染线程）**：清档后 `performanceDefaultsVersion=8` 迁移把 `renderThread` 强制设 true（默认值也是 true），worker 首绑失败（`wglMakeCurrent: 请求的资源在使用中`）→ 主线程已放 context、worker 没拿到 → `GL_VENDOR/RENDERER/VERSION=null`、`maxTextureSize 0` → 首个 shader 编译失败 `Log.error` 抛。与本文档「渲染线程默认关」的决策相反。
 - **已修**：①`ClientPrefs.renderThread` 默认 false + 迁移段改 false + `performanceDefaultsVersion` 8→9；②lime fork `OpenGLBindings::SetMultiThreaded(true)` 加回退：`WaitForContext(true,2000)` 失败则 `Stop()+MakeCurrent()` 回主线程、`isMultiThreaded` 保持 false（②需重编 ndll 才生效）。
