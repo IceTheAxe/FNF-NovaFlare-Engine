@@ -28,6 +28,8 @@ import general.shaders.MobileShaderConverter;
 	// General
 	public var framerate:Int = 1000;
 	public var drawFramerate:Int = 1000;
+	// lime 8.4 的 FrameProfile.UNCAPPED：放开绘制帧率（TPS 仍由 framerate 决定）
+	public var unlimitedFPS:Bool = false;
 	public var lockRender:Bool = true;
 	// lime 8.4 换底后渲染线程（GL worker）默认关：worker 首次接管 context 时
 	// wglMakeCurrent 可能失败（“请求的资源在使用中”），一旦失败主线程也没有
@@ -122,10 +124,12 @@ import general.shaders.MobileShaderConverter;
 
 	// Skin
 	public var noteSkin:String = 'Default';
-	public var noteRGB:Bool = true;
-	public var noteColorSwap:Bool = false;
+	// 音符着色体系三态：'auto' = 谱面皮肤优先 + 自动甄别 / 'legacy' = 沿用谱面皮肤 + 强制 HSV /
+	// 'new' = 忽略谱面皮肤（换玩家皮肤）+ 强制 RGB。取值见 general.backend.NoteSkinStyle
+	public var noteSystem:String = 'auto';
+	// splash s
 	public var splashSkin:String = 'Psych';
-	public var splashRGB:Bool = true;
+	public var splashSystem:String = 'auto';
 	public var showSplash:Bool = true;
 	public var splashAlpha:Float = 0.6;
 
@@ -222,7 +226,8 @@ import general.shaders.MobileShaderConverter;
 		[0xFF71E300, 0xFFF6FFE6, 0xFF003100],
 		[0xFFFF884E, 0xFFFFFAF5, 0xFF6C0000]
 	];
-	public var arrowHSV:Array<Array<Float>> = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];
+	// legacy 体系的每轨 HSV 偏移：16 轨（多键引擎里 10 键也够用），lane 越界由 general.shaders.NoteHSV 取模归一
+	public var arrowHSV:Array<Array<Float>> = [for (i in 0...16) [0.0, 0.0, 0.0]];
 
 	public var gameplaySettings:Map<String, Dynamic> = [
 		'scrollspeed' => 1.0,
@@ -432,6 +437,72 @@ class ClientPrefs
 
 		save.flush();
 		FlxG.log.add("Settings saved!");
+	}
+
+	/**
+	 * 无限 FPS 时 split render 的绘制上限（lime 自己的帧率归一化上限也是 10000）。
+	 */
+	public static inline final UNLIMITED_DRAW_FRAMERATE:Int = 10000;
+
+	/**
+	 * 统一应用帧率 / lime 帧调度。loadPrefs() 与设置菜单的即时生效都走这里。
+	 *
+	 * NF 的 flixel 是 variable timestep（`fixedTimestep = false`，见 InitState），逻辑
+	 * update 直接挂在 lime 主循环的 ENTER_UPDATE 上，节拍由 `window.frameRate` 决定。
+	 * 这跟 FE 那套「flixel 固定步长累加器自己守逻辑」不同，所以 lime 的
+	 * `FrameProfile.UNCAPPED` 不能照搬：它让主循环忽略 `window.frameRate`，逻辑帧会跟着
+	 * 渲染一起全速跑，而 flixel 的 dt 是毫秒取整，多出来的轮次全是 dt = 0 的空转。
+	 * 因此开无限 FPS 时先把 flixel 切回固定步长累加器，让 TPS 重新由累加器守住，只放开渲染侧。
+	 *
+	 * 渲染侧还有第二道闸：NF 的 lime fork 把 render 拆成了独立 deadline
+	 * （`lockRender` / `window.drawFrameRate`），只 uncap 主循环并不会抬高绘制频率，
+	 * 所以 drawFrameRate 要一并抬到上限。
+	 */
+	public static function applyFrameTiming():Void
+	{
+		final tps:Int = Std.int(FlxMath.bound(data.framerate, 1, 2000));
+		final fps:Int = Std.int(FlxMath.bound(data.drawFramerate, 1, UNLIMITED_DRAW_FRAMERATE));
+
+		#if (!html5 && !switch)
+		if (FlxG.stage == null || FlxG.stage.application == null)
+			return;
+
+		final app = FlxG.stage.application;
+
+		if (data.unlimitedFPS)
+		{
+			// fixedStepMS 是 Int，只能精确到毫秒：240 TPS 会落成 4ms（约 250 步/秒）。
+			// 每步 dt 固定 4ms，长时的时间推进仍然是守恒的。
+			FlxG.updateFramerate = tps;
+			FlxG.fixedStepMS = Std.int(Math.max(1, Math.round(1000 / tps)));
+			FlxG.fixedTimestep = true;
+
+			if (FlxG.game != null)
+				@:privateAccess FlxG.game._maxAccumulation = Math.max(2000 / tps, FlxG.fixedStepMS);
+
+			#if (lime >= "8.4.0")
+			app.configureFrameTiming(lime.app.FrameProfile.UNCAPPED, {uncapMode: lime.app.UncapMode.SOFT}, lime.app.VSyncMode.OFF);
+			#end
+
+			app.window.drawFrameRate = UNLIMITED_DRAW_FRAMERATE;
+			// 这里最后写 lockRender：FlxG.drawFramerate 的 setter 会强制把它置 true
+			app.window.lockRender = data.lockRender;
+			return;
+		}
+
+		FlxG.fixedTimestep = false;
+		FlxG.updateFramerate = tps;
+		FlxG.drawFramerate = fps;
+
+		#if (lime >= "8.4.0")
+		// 退出无限模式时把主循环的 profile 与 vsync 复位，否则 frameRate 仍被忽略
+		app.configureFrameTiming(lime.app.FrameProfile.BALANCED, {uncapMode: lime.app.UncapMode.OFF}, lime.app.VSyncMode.OFF);
+		#end
+
+		app.window.frameRate = tps;
+		app.window.drawFrameRate = fps;
+		app.window.lockRender = data.lockRender;
+		#end
 	}
 
 	#if sys
@@ -707,9 +778,8 @@ class ClientPrefs
 		MouseEffect.setUserEffectsEnabled(data.mouseTrailEffect);
 		#end
 
-		FlxG.updateFramerate = data.framerate;
-		FlxG.drawFramerate = data.drawFramerate;
-		FlxG.stage.application.window.lockRender = data.lockRender;
+		// 帧率 / 无限 FPS / lime 帧调度统一入口
+		applyFrameTiming();
 
 		// 分辨率设置
 		var output:Array<Float> = [];
@@ -745,12 +815,56 @@ class ClientPrefs
 		if (FlxG.save.data.mute != null)
 			FlxG.sound.muted = FlxG.save.data.mute;
 
+		normalizeNoteSystems();
+
 		#if DISCORD_ALLOWED
 		DiscordClient.check();
 		#end
 	}
 
 	// ========== 辅助函数 ==========
+
+	/**
+	 * 音符 / 溅射着色体系的三态规范化，以及从已废弃的 noteRGB / noteColorSwap / splashRGB 迁移。
+	 *
+	 * 老存档里这三个 Bool 是"强制"语义：noteColorSwap=true 等价于强制 HSV（legacy），
+	 * noteRGB=false 是同一诉求的另一种写法；splashRGB=false 同理。新存档只写 noteSystem /
+	 * splashSystem，所以只在「还没有新键」时执行迁移，不会覆盖用户后来选的 auto。
+	 */
+	static function normalizeNoteSystems():Void
+	{
+		// 16 轨：老存档只有 4 项，补到 16 项；顺手把残缺项修成三元组。
+		// 重建一份新数组，别和 defaultData 共享同一份引用（否则"重置默认值"会带上用户的改动）
+		final oldHSV:Array<Array<Float>> = data.arrowHSV;
+		final normalized:Array<Array<Float>> = [];
+		for (i in 0...16)
+		{
+			final row:Array<Float> = (oldHSV != null && i < oldHSV.length) ? oldHSV[i] : null;
+			normalized.push((row != null && row.length >= 3) ? row.copy() : [0.0, 0.0, 0.0]);
+		}
+		data.arrowHSV = normalized;
+
+		// 新存档没有 noteRGB / noteColorSwap / splashRGB 这三个键，老存档才有
+		final savedNoteSystem:Dynamic = Reflect.field(FlxG.save.data, 'noteSystem');
+		if (savedNoteSystem == null)
+		{
+			final oldSwap:Dynamic = Reflect.field(FlxG.save.data, 'noteColorSwap');
+			final oldRGB:Dynamic = Reflect.field(FlxG.save.data, 'noteRGB');
+			if (oldSwap == true || oldRGB == false)
+				data.noteSystem = NoteSkinStyle.LEGACY;
+		}
+
+		final savedSplashSystem:Dynamic = Reflect.field(FlxG.save.data, 'splashSystem');
+		if (savedSplashSystem == null)
+		{
+			final oldSplashRGB:Dynamic = Reflect.field(FlxG.save.data, 'splashRGB');
+			if (oldSplashRGB == false)
+				data.splashSystem = NoteSkinStyle.LEGACY;
+		}
+
+		data.noteSystem = NoteSkinStyle.normalizeMode(data.noteSystem);
+		data.splashSystem = NoteSkinStyle.normalizeMode(data.splashSystem);
+	}
 
 	inline public static function getGameplaySetting(name:String, defaultValue:Dynamic = null, ?customDefaultValue:Bool = false):Dynamic
 	{
