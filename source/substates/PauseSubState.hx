@@ -403,8 +403,8 @@ class PauseSubState extends MusicBeatSubstate
 		add(mismatchText);
 
 		menuText = [dataText, songText, ballText, practiceText, botText, cheatingText, engineText, formatText, mismatchText];
-	if(artistText != null) menuText.insert(3, artistText);
-	if(charterText != null) menuText.insert(artistText != null ? 4 : 3, charterText);
+		if(artistText != null) menuText.insert(3, artistText);
+		if(charterText != null) menuText.insert(artistText != null ? 4 : 3, charterText);
 
 		var curText = 0;
 		for (i in menuText)

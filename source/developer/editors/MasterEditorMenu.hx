@@ -132,14 +132,14 @@ class MasterEditorMenu extends MusicBeatState
 					MusicBeatState.switchState(new DialogueEditorState());
 				case 'Dialogue Portrait Editor':
 					MusicBeatState.switchState(new DialogueCharacterEditorState());
-			case 'Note Splash Editor':
-				MusicBeatState.switchState(new NoteSplashEditorState());
-			case 'Chart Converter':
-				MusicBeatState.switchState(new ChartConverterState());
-			case 'Character Converter':
-				MusicBeatState.switchState(new CharacterConverterState());
-			case 'Stage Converter':
-				MusicBeatState.switchState(new StageConverterState());
+				case 'Note Splash Editor':
+					MusicBeatState.switchState(new NoteSplashEditorState());
+				case 'Chart Converter':
+					MusicBeatState.switchState(new ChartConverterState());
+				case 'Character Converter':
+					MusicBeatState.switchState(new CharacterConverterState());
+				case 'Stage Converter':
+					MusicBeatState.switchState(new StageConverterState());
 			}
 			FlxG.sound.music.volume = 0;
 			FreeplayState.destroyFreeplayVocals();
