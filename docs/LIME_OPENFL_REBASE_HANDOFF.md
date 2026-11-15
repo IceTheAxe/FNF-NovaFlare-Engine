@@ -1,7 +1,7 @@
 # lime/openfl fork 换底迁移交接文档
 
 > 状态：**进行中**（长期任务，跨会话执行。每次续做前先读本文档，完成后更新「进度日志」区）
-> 创建：2026-11-15 ｜ 最后更新：2026-11-15（Phase 0 启动）
+> 创建：2026-11-15 ｜ 最后更新：2026-11-16（事件池根因与收尾）
 > 关联记忆：`nf-lime-openfl-fork-anatomy`（项目记忆，含 fork 解剖结论）
 
 ## 1. 背景与目标
@@ -243,3 +243,41 @@ NF 纯新增（直接拷贝 + Build.xml 登记）：`RenderThread.cpp/.h`、`Bac
   `GL_VENDOR=NVIDIA Corporation / RTX 2060 / 4.6.0 621.24`、`maxTextureSize 32768`（主线程查 GL 仍正常）。
   22:54–22:58 的连续首绑失败 = 旧 ndll 的竞态，已加**绑定重试**（6×20ms）兜住；失败时仍回退主线程并打日志。
 - 量化手段：`NOVAGC_PERF_TRACE=1` 时 worker 每秒打 `perf:RenderThread frames=/commands=/avg_commands=/exec_avg_ms=`，可据此判断 GL 提交是否真被分担。
+
+### 2026-11-16（第八批：`openfl_pool_events` 崩溃根因，迁移收尾）
+
+- **根因（已实证）**：hxcpp 的类静态初始化（`__boot()`）顺序不保证。`FakeCamera.instance` 是静态初始化，
+  构造 `FlxCamera` 时 `flashSprite.addChild(_scrollRect)` → `DisplayObjectContainer.__addChildAt` →
+  `#if openfl_pool_events` 的 `Event.__pool.get()`；而 `Event_obj::__boot()` 排在同一次构建的
+  `FakeCamera_obj::__boot()` **之后**（探针生成物 `__boot__.cpp`：FakeCamera 27890 行、Event 30201 行；
+  同一文件里 Rectangle 27888 紧贴 FakeCamera 之前、Point 28030 在其之后），此时 `Event.__pool` 仍为 null →
+  `ObjectPool.get()` 第一行读 `inactiveObjects` 直接 SEH（hxSehException 无消息）。
+- **为什么旧 fork 不炸**：旧 fork（openfl 9.5.x 基线）`addChildAt` 里 `Event.ADDED` 的取池段是**注释掉的**
+  （stock 9.5.2 同样如此：`get` 用 `new Event`，只有 `release` 被注掉），启动期只走分配路径；
+  `ADDED_TO_STAGE` 的取池段只在容器已挂舞台时执行。9.6.0-dev 重新启用了 ADDED 取池（sync 提交 `96838ca0f`），
+  换底后才暴露。官方 FNF 不启用该 define，所以上游没有这个用例。
+- **修复（openfl fork `70699410b`，已推 `TieGao/openfl` 的 `NF-OpenFL-9.6.0`）**：所有 `ObjectPool` 静态量改为
+  `(get, never)` 属性 + 首次使用时创建 —— Event / ProgressEvent / MouseEvent / Rectangle / Matrix / Point /
+  ColorTransform / TouchData / `DisplayObject.__tempStack`。boot 期不再构造池，与顺序无关。
+- **验证**：从 `export/release/windows/haxe/release.hxml` 复制出探针 hxml（改 `-cpp` 到 `_build/poolprobe/obj`，
+  追加 `-D openfl_pool_events -D no-compilation`）跑完整 Haxe 类型检查通过；生成物里 `Event_obj::__boot()`
+  只剩 `EventType` 常量，`get___pool()` = null 检查 + 惰性分配。`Project.xml` 已恢复
+  `<haxedef name="openfl_pool_events" if="desktop" />`。`_build/poolprobe/` 是探针产物，可随时删。
+- **行为差异提示**：9.6 起 ADDED/REMOVED 事件也走池（旧 fork 是新建实例），监听器若长期持有事件对象会看到
+  复用后的重置值；openfl/flixel 内部不持有，脚本层验收时留意。
+- 剩：用户真机跑一遍（重点：状态切换/谱面加载的 addChild/removeChild 密集段）、hmm.json 恢复 lime/openfl 条目。
+
+### 2026-11-16（第九批：CI 收敛为「只出库」）
+
+- **推送**：lime `NF-Lime-8.4.0` 从 `31592f752` 推到 `b2628e527`（5 个提交：RENDER 事件类型恢复、渲染线程绑定重试与诊断日志、AudioManager 死字段清理、CI 瘦身）。openfl `NF-OpenFL-9.6.0` 已在 `70699410b`，与本地一致无需再推。
+- **CI 红点分两类**：
+  - `docs`：`AudioManager.hx` 的 `__flashSoundTransform:SoundTransform` 是移植时带过来的死字段（全仓库零读取、无 import），`doc_gen` 下类型缺失直接编译失败。已删除。
+  - `unit tests`（linux / linux-arm64 / macos / macos-intel / windows 五平台一致红）：**不是构建失败**——`Rebuild Lime` 全绿，ndll 产物正常；本地用 `haxe <hxml> --no-output` 验证 tests/unit 的 Haxe 侧编译通过，属运行时/上游测试套件问题。
+- **决策（用户拍板）**：NF 分支的 CI 只负责出库，上游测试套件对 NF 无用。workflow 改为：
+  - 独立 job `docs` / `flash-samples` / `air-samples` / `html5-samples` / `neko-samples` / `hashlink-samples` / `hashlinkc-samples` / `vulkan-smoke` / `webassembly` 加 `if: github.ref != 'refs/heads/NF-Lime-8.4.0'`（只在 FE develop 跑）。
+  - 七个平台 job 内的测试/示例步骤（unit tests、OpenGL、WebView、窗口创建、24.8 天、video smoke、samples）同条件跳过；构建 + 上传 ndll 不受影响。
+  - `package-haxelib` 的 needs 补上 `linux-arm64`（它打包的 `LinuxArm64-NDLL` 由该 job 产出，原先没等它）。
+- **发布链**：7 平台 ndll → `package-haxelib` → `publish-haxelib-branch` 推孤儿分支 **`nf-haxelib`**（`develop` 推 `haxelib`，两者互不覆盖；`branches-ignore` 防回环）。消费端 `haxelib git lime https://github.com/IceTheAxe/lime nf-haxelib`。
+- **本地环境修复**：`lime rebuild` 曾把 `D:/HaxeToolkit/haxe/lib/lime/.current` 改成 `8.4.0` 并生成残缺版本目录（缺 `project/`），导致 `haxelib libpath lime` 指向错误路径；已改回 `git` 并把残缺目录改名为 `_stray-8,4,0-snapshot-20261116`。
+- **本地无法验证原生构建**：沙箱注入的 `tsbx.dll` 会让 NDK `clang++.exe` 崩溃（android rebuild 栈回溯可见），MSVC 路径又被 `reg.exe` 黑名单挡住。原生改动一律以 CI 为准。
+
