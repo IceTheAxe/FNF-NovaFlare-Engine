@@ -230,3 +230,10 @@ NF 纯新增（直接拷贝 + Build.xml 登记）：`RenderThread.cpp/.h`、`Bac
 - **本地构建产物现状**：bin 里 exe=最新（含 no-vulkan/池关/marker 已回退的干净重建）；lime.ndll=NF 完整版（含全部原语+RENDER 修复）；Origin 资产就位；titleIntro.mp4 已恢复原位。
 - **迁移收尾清单**：①上 CI 的 nf-haxelib 产物替换本地 ndll（或确认同源）；②intro 视频真机验收（RDP 冻结是否复现）；③池化根因与恢复评估；④polymod D 盘工作树已修为 af3daf3（嵌合体修复），第五批的"子模块待修"仍开放。
 - **补充（同批）**：①`titleIntro.mp4` 已改 `.bak` 让本地（RDP）可启动——hxvlc 在 RDP 会话必挂（视频起播→8 秒看门狗→finishIntro 清理死锁），真机控制台会话可能正常，恢复方法=去掉 `.bak` 后缀；②启动后有一条非致命错误 `no SOUND asset "flixel/sounds/beep.ogg"`（flixel 回退音不在嵌入清单，警告后继续）——待把 beep.ogg 补回嵌入资产。
+
+### 2026-11-15（第七批：清档后渲染线程把 GL 链打死）
+- **崩溃 1（缺 beep）**：hxvlc 找不到 intro 视频 → `FlxG.log.warn` → flixel 日志样式播 `flixel/sounds/beep` → 清单里没有 → `lime.utils.Assets` 的 `Log.error` 抛（`Log.throwErrors` 默认 true）→ 崩。**不是代码冲突**：`obj/src/ManifestResources.cpp`（16:37）缺 `flixel_sounds_*`，而 `haxe/ManifestResources.hx`（19:03）有 → 该编译单元没被重编/重生成。核对法：`grep -c flixel_sounds export/release/windows/obj/src/ManifestResources.cpp` 应为非 0。
+- **崩溃 2（渲染线程）**：清档后 `performanceDefaultsVersion=8` 迁移把 `renderThread` 强制设 true（默认值也是 true），worker 首绑失败（`wglMakeCurrent: 请求的资源在使用中`）→ 主线程已放 context、worker 没拿到 → `GL_VENDOR/RENDERER/VERSION=null`、`maxTextureSize 0` → 首个 shader 编译失败 `Log.error` 抛。与本文档「渲染线程默认关」的决策相反。
+- **已修**：①`ClientPrefs.renderThread` 默认 false + 迁移段改 false + `performanceDefaultsVersion` 8→9；②lime fork `OpenGLBindings::SetMultiThreaded(true)` 加回退：`WaitForContext(true,2000)` 失败则 `Stop()+MakeCurrent()` 回主线程、`isMultiThreaded` 保持 false（②需重编 ndll 才生效）。
+- 免重编验证：`NOVAFLARE_RENDER_THREAD=0`。
+- 未解：渲染线程首绑为何失败（怀疑与 Origin 兼容层 `ContextMakeCurrent(void*)` 用非 SDL 路径绑定有关，待查）。

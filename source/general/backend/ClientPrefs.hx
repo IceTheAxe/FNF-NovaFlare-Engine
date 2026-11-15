@@ -23,13 +23,16 @@ import general.shaders.MobileShaderConverter;
 	//更新这个直接原地爆破所有人设置
 	public var prefsVersion:Int = 120;
 	//更新这个能让性能相关的强制更新
-	public var performanceDefaultsVersion:Int = 8;
+	public var performanceDefaultsVersion:Int = 9;
 
 	// General
 	public var framerate:Int = 1000;
 	public var drawFramerate:Int = 1000;
 	public var lockRender:Bool = true;
-	public var renderThread:Bool = true;
+	// lime 8.4 换底后渲染线程（GL worker）默认关：worker 首次接管 context 时
+	// wglMakeCurrent 可能失败（“请求的资源在使用中”），一旦失败主线程也没有
+	// 当前 context，整条渲染链会静默失效。需要时用设置项/环境变量显式开启。
+	public var renderThread:Bool = false;
 	public var resolution:String = 'Native';
 	public var colorblindMode:String = 'None';
 	public var lowQuality:Bool = false;
@@ -645,10 +648,9 @@ class ClientPrefs
 			data.framerate = 240;
 			data.drawFramerate = 1200;
 			data.lockRender = true;
-			// Lime's GL worker keeps a bounded two-frame pipeline. Keep driver
-			// submission off the update thread; direct submission serializes UI
-			// traversal with GL commands and causes a high-FPS regression.
-			data.renderThread = true;
+			// lime 8.4 底上 GL worker 还不稳定（首次绑 context 会失败并把渲染链
+			// 打死），性能默认值不再强制开渲染线程，保持主线程直渲。
+			data.renderThread = false;
 			// Keep desktop high-FPS mode at the engine's authored resolution.
 			// Higher resolutions remain selectable, but should be an explicit
 			// image-quality choice rather than a hidden cost on every interface.
