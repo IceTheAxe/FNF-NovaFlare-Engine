@@ -50,7 +50,10 @@ class FPSCounter extends Sprite
 		{
 			if (ClientPrefs.data.rainbowFPS)
 			{
-				label.textColor = ColorReturn.transfer(DataCalc.drawFPS, ClientPrefs.data.drawFramerate);
+				// 无限 FPS 时实际绘制帧率会超过 drawFramerate，阈值要用调度上限，
+				// 否则 transfer 的 (max - data) 会算出负数、颜色乱掉
+				final maxFps:Float = ClientPrefs.data.unlimitedFPS ? ClientPrefs.UNLIMITED_DRAW_FRAMERATE : ClientPrefs.data.drawFramerate;
+				label.textColor = ColorReturn.transfer(DataCalc.drawFPS, maxFps);
 			}
 			else
 			{
@@ -70,7 +73,8 @@ class FPSCounter extends Sprite
 		}
 		else
 		{
-			this.title.text = "FPS \n " + "/ " + ClientPrefs.data.drawFramerate + ' \n';
+			final drawCap:String = ClientPrefs.data.unlimitedFPS ? 'INF' : Std.string(ClientPrefs.data.drawFramerate);
+			this.title.text = "FPS \n " + "/ " + drawCap + ' \n';
 			this.data.text = Std.string(DataCalc.drawFPS) + " ";
 		}
 	}

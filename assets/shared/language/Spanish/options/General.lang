@@ -2,6 +2,7 @@ General => General
 
 framerate => Límite de frecuencia de actualización (TPS)
 drawFramerate => Límite de fotogramas dibujados (FPS)
+unlimitedFPS => FPS ilimitados
 lockRender => Renderizado independiente
 language => Idioma del motor
 gameQuality => Calidad del juego

@@ -2,6 +2,7 @@ General => 常规设置
 
 framerate => 帧数上限
 drawFramerate => 绘制帧数上限
+unlimitedFPS => 无限帧数
 language => 切换语言
 lockRender => 帧数提升
 renderThread => 渲染独立

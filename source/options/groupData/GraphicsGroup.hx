@@ -27,6 +27,10 @@ class GraphicsGroup extends OptionCata
 		addOption(option);
 		option.onChange = onChangeDrawFramerate;
 
+		var option:Option = new Option(this, 'unlimitedFPS', BOOL);
+		addOption(option);
+		option.onChange = onChangeUnlimitedFPS;
+
 		var option:Option = new Option(this, 'lockRender', BOOL);
 		addOption(option);
 		option.onChange = onChangelockRender;
@@ -121,15 +125,15 @@ class GraphicsGroup extends OptionCata
 		applyFrameRates();
 	}
 
+	function onChangeUnlimitedFPS()
+	{
+		applyFrameRates();
+	}
+
 	function applyFrameRates()
 	{
-		// Keep update and rendering independent. The old callback assigned the
-		// TPS value to FlxG.drawFramerate, silently defeating the FPS cap.
-		FlxG.updateFramerate = ClientPrefs.data.framerate;
-		FlxG.drawFramerate = ClientPrefs.data.drawFramerate;
-		FlxG.stage.application.window.frameRate = ClientPrefs.data.framerate;
-		FlxG.stage.application.window.drawFrameRate = ClientPrefs.data.drawFramerate;
-		FlxG.stage.application.window.lockRender = ClientPrefs.data.lockRender;
+		// 帧率 / 无限 FPS / lime 帧调度统一入口（TPS 与绘制帧率保持独立）
+		ClientPrefs.applyFrameTiming();
 	}
 
 	function onChangelockRender()

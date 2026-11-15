@@ -104,7 +104,7 @@
 	<!-- ____________________________ Window Settings ___________________________ -->
 
 	<!--These window settings apply to all targets-->
-	<window width="1280" height="720" fps="60" background="#000000" hardware="true" vsync="false" allow-shaders="true" antialiasing="0" allowHighDPI="false" preserveDrawingBuffer="false" />
+	<window width="1280" height="720" fps="120" background="#000000" hardware="true" vsync="false" allow-shaders="true" antialiasing="0" allowHighDPI="false" preserveDrawingBuffer="false" />
 
 	<!--HTML5-specific-->
 	<window if="html5" resizable="true" />
@@ -280,9 +280,10 @@
 	<!-- High-rate desktop rendering depends on avoiding full-tree transform
 	     walks and per-frame Event allocation when nothing changed. -->
 	<haxedef name="openfl_enable_experimental_update_queue" if="desktop" />
-	<!-- 诊断：换底后 FakeCamera 静态初始化期间 Event.__pool.get() 触发 hxSehException，
-	     先关池化定位；确认根因后再评估恢复 -->
-	<!-- <haxedef name="openfl_pool_events" if="desktop" /> -->
+	<!-- 事件池化：addChild/removeChild/鼠标事件复用 Event 实例，省掉逐帧分配。
+	     openfl 侧已改为首次使用时创建池（静态初始化顺序未定义，FakeCamera 的静态
+	     构造会在 addChild 里取池），因此这里可以安全开启。 -->
+	<haxedef name="openfl_pool_events" if="desktop" />
 	<haxedef name="openfl_always_render" if="ios" />
 
 	<haxedef name="HXCPP_ALIGN_ALLOC"/>

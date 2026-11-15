@@ -238,7 +238,12 @@ class DataCalc
 		drawFrameTime = drawWait / currentCount;
 
 		var newFPS = Math.floor(1000 / drawFrameTime + 0.5);
-		if (lockRender) {
+		if (ClientPrefs.data.unlimitedFPS) {
+			// 无限 FPS 下绘制不再受 drawFramerate 约束，钳到调度上限（lime 归一化上限同样是 10000）
+			if (newFPS > ClientPrefs.UNLIMITED_DRAW_FRAMERATE) {
+				newFPS = ClientPrefs.UNLIMITED_DRAW_FRAMERATE;
+			}
+		} else if (lockRender) {
 			if (newFPS > drawFramerate) {
 				newFPS = drawFramerate;
 			}

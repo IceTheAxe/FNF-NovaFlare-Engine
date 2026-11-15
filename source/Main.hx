@@ -72,7 +72,7 @@ class Main extends Sprite
 		height: 720, // WINDOW height
 		initialState: InitState,
 		zoom: -1.0, // game state bounds
-		framerate: #if desktop 240 #else 60 #end, // responsive bootstrap; ClientPrefs takes over in InitState
+		framerate: 120, // responsive bootstrap; ClientPrefs takes over in InitState
 		skipSplash: true, // if the default flixel splash screen should be skipped
 		startFullscreen: false // if the game should start at fullscreen mode
 	};

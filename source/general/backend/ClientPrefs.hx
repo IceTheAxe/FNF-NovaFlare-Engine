@@ -23,11 +23,11 @@ import general.shaders.MobileShaderConverter;
 	//更新这个直接原地爆破所有人设置
 	public var prefsVersion:Int = 120;
 	//更新这个能让性能相关的强制更新
-	public var performanceDefaultsVersion:Int = 9;
+	public var performanceDefaultsVersion:Int = 10;
 
 	// General
-	public var framerate:Int = 1000;
-	public var drawFramerate:Int = 1000;
+	public var framerate:Int = 120;
+	public var drawFramerate:Int = 120;
 	// lime 8.4 的 FrameProfile.UNCAPPED：放开绘制帧率（TPS 仍由 framerate 决定）
 	public var unlimitedFPS:Bool = false;
 	public var lockRender:Bool = true;
@@ -463,6 +463,11 @@ class ClientPrefs
 		final tps:Int = Std.int(FlxMath.bound(data.framerate, 1, 2000));
 		final fps:Int = Std.int(FlxMath.bound(data.drawFramerate, 1, UNLIMITED_DRAW_FRAMERATE));
 
+		// 基础帧率对所有平台都生效（含 html5 / switch）
+		FlxG.fixedTimestep = false;
+		FlxG.updateFramerate = tps;
+		FlxG.drawFramerate = fps;
+
 		#if (!html5 && !switch)
 		if (FlxG.stage == null || FlxG.stage.application == null)
 			return;
@@ -471,14 +476,22 @@ class ClientPrefs
 
 		if (data.unlimitedFPS)
 		{
-			// fixedStepMS 是 Int，只能精确到毫秒：240 TPS 会落成 4ms（约 250 步/秒）。
-			// 每步 dt 固定 4ms，长时的时间推进仍然是守恒的。
+			// fixedStepMS 是 Int，只能精确到毫秒：240 TPS 落成 4ms（约 250 步/秒），
+			// 120 TPS 落成 8ms（125 步/秒）。每步 dt 固定，长时的时间推进仍守恒。
 			FlxG.updateFramerate = tps;
+			// 同步写 FlxG.drawFramerate：flixel 的 onFocus 会拿它回写窗口绘制上限，
+			// 只改 window.drawFrameRate 的话切出再切回就会掉回原来的 FPS 上限。
+			FlxG.drawFramerate = UNLIMITED_DRAW_FRAMERATE;
 			FlxG.fixedStepMS = Std.int(Math.max(1, Math.round(1000 / tps)));
 			FlxG.fixedTimestep = true;
 
 			if (FlxG.game != null)
+			{
 				@:privateAccess FlxG.game._maxAccumulation = Math.max(2000 / tps, FlxG.fixedStepMS);
+				// 切换瞬间旧累加器（variable timestep 下残留的真实耗时）会一次性补好几步，
+				// 清掉避免第一帧逻辑跳一下
+				@:privateAccess FlxG.game._accumulator = 0;
+			}
 
 			#if (lime >= "8.4.0")
 			app.configureFrameTiming(lime.app.FrameProfile.UNCAPPED, {uncapMode: lime.app.UncapMode.SOFT}, lime.app.VSyncMode.OFF);
@@ -489,10 +502,6 @@ class ClientPrefs
 			app.window.lockRender = data.lockRender;
 			return;
 		}
-
-		FlxG.fixedTimestep = false;
-		FlxG.updateFramerate = tps;
-		FlxG.drawFramerate = fps;
 
 		#if (lime >= "8.4.0")
 		// 退出无限模式时把主循环的 profile 与 vsync 复位，否则 frameRate 仍被忽略
@@ -604,18 +613,11 @@ class ClientPrefs
 			}
 			FlxG.save.data.modsData = modsData;
 
-			#if desktop
-			data.framerate = 240;
-			data.drawFramerate = 1200;
+			// 全平台统一 120 TPS / 120 FPS 默认（不再按刷新率或桌面/移动分档）
+			data.framerate = 120;
+			data.drawFramerate = 120;
 			Reflect.setField(FlxG.save.data, 'framerate', data.framerate);
 			Reflect.setField(FlxG.save.data, 'drawFramerate', data.drawFramerate);
-			#elseif (!html5 && !switch)
-			final refreshRate:Int = FlxG.stage.application.window.displayMode.refreshRate;
-			data.framerate = Std.int(FlxMath.bound(refreshRate * 2, 60, 1000));
-			data.drawFramerate = Std.int(FlxMath.bound(refreshRate, 60, 1000));
-			Reflect.setField(FlxG.save.data, 'framerate', data.framerate);
-			Reflect.setField(FlxG.save.data, 'drawFramerate', data.drawFramerate);
-			#end
 
 			FlxG.save.flush();
 
@@ -716,21 +718,29 @@ class ClientPrefs
 		var savedPerformanceDefaultsVersion:Dynamic = Reflect.field(FlxG.save.data, 'performanceDefaultsVersion');
 		if (savedPerformanceDefaultsVersion == null || savedPerformanceDefaultsVersion < data.performanceDefaultsVersion)
 		{
-			data.framerate = 240;
-			data.drawFramerate = 1200;
-			data.lockRender = true;
-			// lime 8.4 底上 GL worker 还不稳定（首次绑 context 会失败并把渲染链
-			// 打死），性能默认值不再强制开渲染线程，保持主线程直渲。
-			data.renderThread = false;
-			// Keep desktop high-FPS mode at the engine's authored resolution.
-			// Higher resolutions remain selectable, but should be an explicit
-			// image-quality choice rather than a hidden cost on every interface.
-			data.resolution = '720P';
+			// v10：默认调度从 240 TPS / 1200 FPS 收到 120 / 120。
+			// 这一档只动帧率，分辨率 / 独立渲染 / 渲染线程保持用户当前选择。
+			data.framerate = 120;
+			data.drawFramerate = 120;
 			Reflect.setField(FlxG.save.data, 'framerate', data.framerate);
 			Reflect.setField(FlxG.save.data, 'drawFramerate', data.drawFramerate);
-			Reflect.setField(FlxG.save.data, 'lockRender', data.lockRender);
-			Reflect.setField(FlxG.save.data, 'renderThread', data.renderThread);
-			Reflect.setField(FlxG.save.data, 'resolution', data.resolution);
+
+			// v9：性能相关的一整套默认值（只对更早的存档生效，避免 v10 反复覆盖）
+			if (savedPerformanceDefaultsVersion == null || savedPerformanceDefaultsVersion < 9)
+			{
+				data.lockRender = true;
+				// lime 8.4 底上 GL worker 还不稳定（首次绑 context 会失败并把渲染链
+				// 打死），性能默认值不再强制开渲染线程，保持主线程直渲。
+				data.renderThread = false;
+				// Keep desktop high-FPS mode at the engine's authored resolution.
+				// Higher resolutions remain selectable, but should be an explicit
+				// image-quality choice rather than a hidden cost on every interface.
+				data.resolution = '720P';
+				Reflect.setField(FlxG.save.data, 'lockRender', data.lockRender);
+				Reflect.setField(FlxG.save.data, 'renderThread', data.renderThread);
+				Reflect.setField(FlxG.save.data, 'resolution', data.resolution);
+			}
+
 			Reflect.setField(FlxG.save.data, 'performanceDefaultsVersion', data.performanceDefaultsVersion);
 			FlxG.save.flush();
 		}
@@ -742,25 +752,12 @@ class ClientPrefs
 		#if (!html5 && !switch)
 		FlxG.autoPause = data.autoPause;
 
+		// 存档缺键时的兜底：全平台统一 120，不再按桌面/移动分档
 		if (FlxG.save.data.framerate == null)
-		{
-			#if desktop
-			data.framerate = 240;
-			#else
-			final refreshRate:Int = FlxG.stage.application.window.displayMode.refreshRate * 2;
-			data.framerate = Std.int(FlxMath.bound(refreshRate, 60, 1000));
-			#end
-		}
+			data.framerate = 120;
 
 		if (FlxG.save.data.drawFramerate == null)
-		{
-			#if desktop
-			data.drawFramerate = 1200;
-			#else
-			final refreshRate:Int = FlxG.stage.application.window.displayMode.refreshRate;
-			data.drawFramerate = Std.int(FlxMath.bound(refreshRate, 60, 1000));
-			#end
-		}
+			data.drawFramerate = 120;
 		#end
 
 		var useRenderThread:Bool = data.renderThread;

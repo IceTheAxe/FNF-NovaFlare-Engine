@@ -2,6 +2,7 @@ General => General
 
 framerate => Cambia el límite de TPS.
 drawFramerate => Establece el máximo de FPS de dibujo independientemente de la frecuencia de actualización.
+unlimitedFPS => Quita el límite de FPS de dibujo con el bucle nativo uncapped de lime (el TPS se mantiene en el valor de arriba).
 language => Cambia el idioma del motor.
 lockRender => Actualiza por separado del dibujo; puede aumentar los fotogramas según el rendimiento del dispositivo.
 renderThread => Separa el hilo de renderizado y puede mejorar la velocidad de fotogramas.
