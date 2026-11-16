@@ -109,8 +109,8 @@
       "name": "hxcpp",
       "type": "git",
       "dir": null,
-      "ref": "ca655fb7b80ea0295ab55d200c3965993c9e2a5a",
-      "url": "https://github.com/TieGao/hxcpp-4.3.2-new.git"
+      "ref": "6d48dd3520eb4add66dc5499b479e9c247057d62",
+      "url": "https://github.com/TieGao/hxcpp"
     },
     {
       "name": "hxvlc",
