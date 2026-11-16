@@ -225,7 +225,10 @@ jobs:
       # 改依赖安装方式时还得记得改 N 处。FE 那边沿用 setupCommand 是因为它每个平台
       # 确实跑不同的脚本（windows.bat / unix.sh），NovaFlare 没有这层脚本。
       - name: Install Libraries
-        if: steps.cache_strategy.outputs.skip_deps_cache == 'true' || steps.cache_strategy.outputs.update_libs == 'true'
+        # 无条件跑。缓存只提供一份基础副本，不保证和当前 hmm.json 一致：hmm.json
+        # 新增依赖（比如 lime/openfl）时旧缓存里根本没有它们，跳过这一步就会一路
+        # 编到缺库报错。hmm install 本身是增量的（已满足的库直接跳过），代价只有
+        # 几十秒；下面那几个固定 reinstall 本来就不看缓存。
         shell: bash
         run: |
           set -e
