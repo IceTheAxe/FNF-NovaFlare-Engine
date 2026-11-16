@@ -25,8 +25,8 @@
       "name": "flixel",
       "type": "git",
       "dir": null,
-      "ref": "4a45067ed2c3a0df53b3c98f066e9ef155fc6f47",
-      "url": "https://github.com/NovaFlare-Engine-haxelib/flixel-5.9.0"
+      "ref": "NF-Flixel-5.9.0",
+      "url": "https://github.com/TieGao/flixel"
     },
     {
       "name": "luahscript",

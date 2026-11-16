@@ -28,6 +28,10 @@ class DataCalc
 	static public var updateTimeSave:Float = 0;
 	static public var updateMember:Float = 0;
 	static var updateInitialized:Bool = false;
+	// 逻辑步计数。无限 FPS 下 ENTER_UPDATE 每轮主循环一次，速率等于绘制帧率，
+	// 不代表逻辑推进速度；真实 TPS 要 diff FlxGame.steps。
+	static var updateSteps:Float = 0;
+	static var updateStepMark:Int = 0;
 	static var memoryTimeSave:Float = 0;
 	#if sys
 	static var memorySampleMutex:Mutex = new Mutex();
@@ -41,6 +45,7 @@ class DataCalc
 	static public function update()
 	{
 		updateMember++;
+		sampleSteps();
 
 		var time = Lib.getTimer();
 		var stamp = haxe.Timer.stamp() * 1000;
@@ -60,6 +65,8 @@ class DataCalc
 			updateTimeSave = time;
 			updateLowTime = time;
 			updateMember = 0;
+			updateSteps = 0;
+			updateStepMark = FlxG.game != null ? FlxG.game.steps : 0;
 			return;
 		}
 		if (time - updateLowTime >= 1000)
@@ -76,15 +83,19 @@ class DataCalc
 
 		var updateWait:Float = time - updateTimeSave;
 		var currentMember:Float = updateMember;
+		var currentSteps:Float = updateSteps;
 		var targetFramerate:Int = ClientPrefs.data.framerate;
 
 		updateTimeSave = time;
 		updateMember = 0;
+		updateSteps = 0;
 		/////////////////// →更新
 		// Report the real 100 ms throughput window. The previous 90% smoothing
 		// hid a 100+ ms stop-the-world hitch behind a still-high number for
 		// several seconds, which made the counter visibly disagree with motion.
-		updateFrameTime = updateWait / currentMember;
+		// 固定步长下一 tick 可能跑 0 步或多步，所以按逻辑步数算 TPS；
+		// 还没采到步数时退回 tick 计数，避免除以 0。
+		updateFrameTime = currentSteps > 0 ? updateWait / currentSteps : updateWait / currentMember;
 
 		var newFPS = Math.floor(1000 / updateFrameTime + 0.5);
 		if (newFPS > targetFramerate)
@@ -111,6 +122,18 @@ class DataCalc
 		/////////////////// →memory计算
 
 		////////////////// 数据初始化
+	}
+
+	/**
+	 * 累计逻辑步数增量。`FlxGame.steps` 单调递增，diff 一次就是本窗口内真实跑的步数。
+	 */
+	static function sampleSteps():Void
+	{
+		if (FlxG.game == null)
+			return;
+		var steps:Int = FlxG.game.steps;
+		updateSteps += steps - updateStepMark;
+		updateStepMark = steps;
 	}
 
 	/**
@@ -181,6 +204,8 @@ class DataCalc
 	// Keep the six legacy FPS/memory statics above contiguous. The external
 	// first-frame sampler deliberately reads that stable block without calling
 	// into the game process. New hitch telemetry lives after the legacy block.
+	// 下面这组按 tick 间隔统计，是卡顿探针（一次长停顿必然表现为一个长 tick），
+	// 与 updateFPS 的逻辑步速率不是同一口径，不要混着看。
 	static public var updateLowFPS:Float = 0;
 	static public var updateWorstFrameTime:Float = 0;
 	static var updateLastStamp:Float = 0;

@@ -447,12 +447,17 @@ class ClientPrefs
 	/**
 	 * 统一应用帧率 / lime 帧调度。loadPrefs() 与设置菜单的即时生效都走这里。
 	 *
-	 * NF 的 flixel 是 variable timestep（`fixedTimestep = false`，见 InitState），逻辑
-	 * update 直接挂在 lime 主循环的 ENTER_UPDATE 上，节拍由 `window.frameRate` 决定。
-	 * 这跟 FE 那套「flixel 固定步长累加器自己守逻辑」不同，所以 lime 的
-	 * `FrameProfile.UNCAPPED` 不能照搬：它让主循环忽略 `window.frameRate`，逻辑帧会跟着
-	 * 渲染一起全速跑，而 flixel 的 dt 是毫秒取整，多出来的轮次全是 dt = 0 的空转。
-	 * 因此开无限 FPS 时先把 flixel 切回固定步长累加器，让 TPS 重新由累加器守住，只放开渲染侧。
+	 * NF 的 flixel 平时是 variable timestep（`fixedTimestep = false`，见 InitState），
+	 * 逻辑 update 直接挂在 lime 主循环的 ENTER_UPDATE 上，节拍由 `window.frameRate` 决定。
+	 * 无限 FPS 下主循环被 uncap，ENTER_UPDATE 变成「每轮循环一次」，速率由渲染耗时
+	 * 决定（也就是等于绘制帧率），不能直接当逻辑时钟用：所以这时切回 flixel 的固定
+	 * 步长累加器，让逻辑按真实时间推进，只放开渲染侧。
+	 *
+	 * 累加器那边有两点是硬要求，改动 flixel 时要一起看（`FlxGame.onEnterUpdate`）：
+	 * - 步长必须精确到 `1000 / tps` 的浮点值。`fixedStepMS` 是 Int，120 TPS 会落成
+	 *   8ms（125 步/秒），逻辑整体快 4%。
+	 * - 累加器只能在单个 tick 上设追赶上限，不能夹成「一两步」。夹太紧时 tick 一稀，
+	 *   差额被永久丢弃，游戏就变成慢动作 —— 这正是「更新帧率低于目标值就慢放」的成因。
 	 *
 	 * 渲染侧还有第二道闸：NF 的 lime fork 把 render 拆成了独立 deadline
 	 * （`lockRender` / `window.drawFrameRate`），只 uncap 主循环并不会抬高绘制频率，
@@ -465,6 +470,7 @@ class ClientPrefs
 
 		// 基础帧率对所有平台都生效（含 html5 / switch）
 		FlxG.fixedTimestep = false;
+		FlxG.fixedStepMSExact = 0;
 		FlxG.updateFramerate = tps;
 		FlxG.drawFramerate = fps;
 
@@ -476,18 +482,17 @@ class ClientPrefs
 
 		if (data.unlimitedFPS)
 		{
-			// fixedStepMS 是 Int，只能精确到毫秒：240 TPS 落成 4ms（约 250 步/秒），
-			// 120 TPS 落成 8ms（125 步/秒）。每步 dt 固定，长时的时间推进仍守恒。
 			FlxG.updateFramerate = tps;
 			// 同步写 FlxG.drawFramerate：flixel 的 onFocus 会拿它回写窗口绘制上限，
 			// 只改 window.drawFrameRate 的话切出再切回就会掉回原来的 FPS 上限。
 			FlxG.drawFramerate = UNLIMITED_DRAW_FRAMERATE;
+			// 先写整型（兼容只读 fixedStepMS 的地方），再写精确值；整型 setter 会清掉精确值
 			FlxG.fixedStepMS = Std.int(Math.max(1, Math.round(1000 / tps)));
+			FlxG.fixedStepMSExact = 1000.0 / tps;
 			FlxG.fixedTimestep = true;
 
 			if (FlxG.game != null)
 			{
-				@:privateAccess FlxG.game._maxAccumulation = Math.max(2000 / tps, FlxG.fixedStepMS);
 				// 切换瞬间旧累加器（variable timestep 下残留的真实耗时）会一次性补好几步，
 				// 清掉避免第一帧逻辑跳一下
 				@:privateAccess FlxG.game._accumulator = 0;

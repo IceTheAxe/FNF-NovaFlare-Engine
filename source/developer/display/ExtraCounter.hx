@@ -84,11 +84,17 @@ class ExtraCounter extends Sprite
 
 		this.typeName.text = "Update \nDraw \nMemery \n";
 
+		// 无限 FPS 没有上限可比，只报实测值（绘制侧上限是 10000，写出来没意义）
+		var unlimited:Bool = ClientPrefs.data.unlimitedFPS;
 		var outputText:String = '';
 		var showTime:Float = Math.floor((DataCalc.updateFrameTime) * 100) / 100;
-		outputText += DataCalc.updateFPS + " / " + ClientPrefs.data.framerate + "tps (" + Display.fix(showTime, 2) + " ms) \n";
+		outputText += unlimited
+			? DataCalc.updateFPS + " tps (" + Display.fix(showTime, 2) + " ms) \n"
+			: DataCalc.updateFPS + " / " + ClientPrefs.data.framerate + "tps (" + Display.fix(showTime, 2) + " ms) \n";
 		showTime = Math.floor((DataCalc.drawFrameTime) * 100) / 100;
-		outputText += DataCalc.drawFPS + " / " + (ClientPrefs.data.lockRender ? ClientPrefs.data.drawFramerate : ClientPrefs.data.framerate) + "fps (" + Display.fix(showTime, 2) + " ms) \n";
+		outputText += unlimited
+			? DataCalc.drawFPS + " fps (" + Display.fix(showTime, 2) + " ms) \n"
+			: DataCalc.drawFPS + " / " + (ClientPrefs.data.lockRender ? ClientPrefs.data.drawFramerate : ClientPrefs.data.framerate) + "fps (" + Display.fix(showTime, 2) + " ms) \n";
 		outputText += "APP:" + Display.fix(DataCalc.appMem, 2) + " GC:" + Display.fix(DataCalc.gcMem, 2) + " MB \n";
 		this.typeData.text = outputText;
 		typeData.width = typeData.textWidth;

@@ -60,10 +60,20 @@ class FPSCounter extends Sprite
 				label.textColor = 0xFFFFFFFF;
 			}
 
-			if (!ClientPrefs.data.rainbowFPS && DataCalc.updateFPS <= ClientPrefs.data.framerate / 2)
+			// 无限 FPS 下逻辑步率恒等于目标值，掉帧只会出现在绘制侧
+			final warnFPS:Float = ClientPrefs.data.unlimitedFPS ? DataCalc.drawFPS : DataCalc.updateFPS;
+			if (!ClientPrefs.data.rainbowFPS && warnFPS <= ClientPrefs.data.framerate / 2)
 			{
 				label.textColor = 0xFFFF0000;
 			}
+		}
+
+		if (ClientPrefs.data.unlimitedFPS)
+		{
+			// 无限 FPS 没有上限可比，只报实测绘制帧率
+			this.title.text = "FPS \n";
+			this.data.text = Std.string(DataCalc.drawFPS) + " ";
+			return;
 		}
 
 		if (ClientPrefs.data.fpsDisplayMode == 'TPS')
@@ -73,8 +83,7 @@ class FPSCounter extends Sprite
 		}
 		else
 		{
-			final drawCap:String = ClientPrefs.data.unlimitedFPS ? 'INF' : Std.string(ClientPrefs.data.drawFramerate);
-			this.title.text = "FPS \n " + "/ " + drawCap + ' \n';
+			this.title.text = "FPS \n " + "/ " + ClientPrefs.data.drawFramerate + ' \n';
 			this.data.text = Std.string(DataCalc.drawFPS) + " ";
 		}
 	}
