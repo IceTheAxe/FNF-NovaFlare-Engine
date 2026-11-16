@@ -1,6 +1,8 @@
 # hxcpp 换底交接（给接手的会话）
 
-> 状态：**待执行**（2026-11-16 立）
+> 状态：**已完成**（2026-11-16 立，同日执行）
+> 结果：`TieGao/hxcpp` 分支 `nf-ci` / `nf-hxcpp-rebase` = `9af555ad`；
+> 引擎侧 `no_gameplay_gc` 已删；Windows release 构建通过，`Immix.obj` 含全部 7 个 `__hxcpp_gc_*gameplay*` 符号。
 > 目标：把 NF 在旧 hxcpp fork 上的定制功能，移植进"官方 hxcpp + 少量 NF 定制"的新基线。
 > 本文只说明**要做什么**和**已知线索**；具体实现由接手会话自行探索确认。
 
@@ -15,32 +17,33 @@ NF 的 hxcpp 从自建 fork 换到官方主线（v4.3.184 级），把 NF 真正
 |---|---|---|
 | 旧 NF fork | `NovaFlare-Engine-haxelib/hxcpp-4.3.2-new`（`3f50506`，原 hmm pin）；`TieGao/hxcpp-4.3.2-new`（`ca655fb`，同一份 + Linker 修复） | NF 的全部历史定制在这里 |
 | **新基线** | `TieGao/hxcpp` `master` = `f54b15af` | 官方 v4.3.184（`1c065ad8`）merge 进来的结果，已保留一部分 NF 定制 |
-| **CI 用分支** | `TieGao/hxcpp` `nf-ci` = `6d48dd35` | `master` + Linker 绝对路径修复（见 §4） |
-| 引擎侧 pin | `FNF-NovaFlare-Engine/hmm.json` → `TieGao/hxcpp` `6d48dd35` | 换底完成后更新 |
+| **CI 用分支** | `TieGao/hxcpp` `nf-ci` = `9af555ad` | `master` + Linker 绝对路径修复（见 §4） |
+| 引擎侧 pin | `FNF-NovaFlare-Engine/hmm.json` → `TieGao/hxcpp` `9af555ad` | 已更新 |
 
 本地工作树：`D:\HaxeToolkit\haxe\lib\hxcpp\git`（haxelib 的 `git` 条目，`.current=git`）。
 注意它当前停在 `master`（`f54b15af`），`nf-ci` 是独立分支。
 
-## 3. 已知差异（线索，需自行核实）
+## 3. 已知差异（已核实）
 
-对比"官方 v4.3.184"与"merge 后的 master"，**保留**的 NF 定制只有 30 个文件，其中真正有功能意义的：
+旧 fork 的基底实际是官方 **v4.3.90**（仓库名里的 "4.3.2" 与版本无关）。`2d8c5f6`（首提交）与 `v4.3.90`
+逐字节一致，说明 git init 之前没有 NF 改动。`2d8c5f6..ca655fb` 的 NF 净改动只有 **10 条路径**：
 
-- `include/HxcppVersion.h`：多了 `#define HXCPP_VERSION "4.3.176"`（官方没有这个宏）
-- `toolchain/msvc-arm64-setup.bat`：`VsDevCmd -arch=arm64` → `vcvarsall amd64_arm64`（Windows ARM64 必需）
-- `src/hx/cppia/ArrayBuiltin.cpp`、`CppiaCompiler.cpp`：`SLJIT_FUNC` → `SLJIT_CALL`
-- `hxcpp/Builder.hx`：349 行全删全加，实为 **CRLF/LF 行尾差异**，逻辑无变化
-- 其余是删 CI/`.gitignore`、提交预编译 `bin/*/Cppia`、`haxelib.json` 格式重排
+| 路径 | 内容 | 处理 |
+|---|---|---|
+| `src/hx/gc/Immix.cpp`、`include/hx/GC.h` | GameplayGC + Immix 优化 + 进程 RSS 统计 | 已移植 |
+| `toolchain/msvc-toolchain.xml` | 三个 linker 加 `psapi.lib` | 已移植 |
+| `tools/hxcpp/Compiler.hx`、`BuildTool.hx`、`Progress.hx`、`hxcpp.n` | 编译进度 | 已移植（并重建 `hxcpp.n`） |
+| `tools/hxcpp/Linker.hx` | 绝对路径产物不拼 libdir | 已在 `nf-ci` |
+| `src/hx/gc/GcCommon.cpp` | 移动端最小工作内存 8/4MB → 20/10MB | 未补：无实测依据，移动端常驻 +12MB |
+| `toolchain/common-defines.xml` | `HXCPP_STACK_TRACE`/`HXCPP_STACK_LINE` 去掉 `tag="haxe"` | 未补：会让全部 TU 的 `-D` 变化、编译缓存整体失效，等复现再动 |
+| `tools/hxcpp/BuildTool.hx`（macOS SDK 扫描） | 官方 `90b879ed` 已独立修同一问题 | 不补 |
 
-对比"旧 NF fork"与"官方分叉点"，**被官方覆盖**的 41 个文件里，大部分不是损失：
-
-- `include/hx/Unordered.h` 删除 + `Immix.cpp` 改 `std::unordered_set/map` → 官方 v4.3.184 也这么做了
-- `HXCPP_ARMV7` / `armv7` 支持（`BuildTool.hx`、`linux-toolchain.xml`）→ 官方已内置
-- `RunMain.hx` 的 `#if haxe4` 条件导入 → 引擎用 4.3.7，不需要
-
-**仍需逐项确认的**（这些是"被覆盖但可能还有用"的）：
 `include/hxcpp.h`、`include/hxString.h`、`src/String.cpp`、`src/hx/cppia/*`、
-`toolchain/android-toolchain-clang.xml`、`toolchain/common-defines.xml`、
-`tools/hxcpp/Compiler.hx`、`tools/hxcpp/Setup.hx`、`tools/run/RunMain.hx`。
+`toolchain/android-toolchain-clang.xml`、`tools/hxcpp/Setup.hx`、`tools/run/RunMain.hx`
+与 v4.3.90 完全一致，**从未被 NF 改过**。
+
+另：`hxcpp.n` 是仓库里跟踪的预编译构建工具，`run.n` 只在它缺失时才重建 —— `tools/hxcpp/*.hx`
+的任何改动不重建 `hxcpp.n` 就是死代码。换底时已一并重建。
 
 ## 4. 必须补的核心：GameplayGC native API
 

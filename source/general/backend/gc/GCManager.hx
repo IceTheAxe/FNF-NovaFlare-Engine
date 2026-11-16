@@ -286,7 +286,7 @@ class GameplayGC {
 	public static var active(get, never):Bool;
 
 	private static inline function get_active():Bool {
-		#if (cpp && !hxcpp_zgc && !no_gameplay_gc)
+		#if (cpp && !hxcpp_zgc)
 		return GCManager.isGameplayMode();
 		#else
 		return false;
@@ -306,7 +306,7 @@ class GameplayGC {
 	}
 
 	public static function begin():Void {
-		#if (cpp && !hxcpp_zgc && !no_gameplay_gc)
+		#if (cpp && !hxcpp_zgc)
 		// A caller may temporarily disable collection while constructing a
 		// state. Restore it even when gameplay mode was prepared earlier.
 		GCManager.enable(true);
@@ -333,7 +333,7 @@ class GameplayGC {
 	 * Enabling it is armed for the next safe begin() call.
 	 */
 	public static function applyPreference():Void {
-		#if (cpp && !hxcpp_zgc && !no_gameplay_gc)
+		#if (cpp && !hxcpp_zgc)
 		if (!ClientPrefs.data.gameplayGC)
 			stop(false);
 		#end
@@ -352,7 +352,7 @@ class GameplayGC {
 	}
 
 	private static function stop(collectNow:Bool):Void {
-		#if (cpp && !hxcpp_zgc && !no_gameplay_gc)
+		#if (cpp && !hxcpp_zgc)
 		if (!active)
 			return;
 
