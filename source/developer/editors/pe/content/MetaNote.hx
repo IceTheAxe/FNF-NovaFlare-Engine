@@ -71,7 +71,13 @@ class MetaNote extends Note
 				sustainSprite = new FlxSprite().makeGraphic(1, 1, FlxColor.WHITE);
 				sustainSprite.scrollFactor.x = 0;
 			}
-			sustainSprite.setGraphicSize(8, Math.max(PEChartingState.GRID_SIZE/4, (Math.round((v * PEChartingState.GRID_SIZE + PEChartingState.GRID_SIZE) / stepCrochet) * zoom) - PEChartingState.GRID_SIZE/2));
+			// 尾条长度对齐游戏内的 sustain 段渲染（PlayState: floorSus = floor(v/step)，
+			// 生成 floorSus+1 段、每段占一格，首段藏在 note 头下面），
+			// 否则编辑器显示会比局内恒少一格。旧公式把 +GRID_SIZE 写在了除法里
+			//（GRID_SIZE/stepCrochet 不到 1px），本意补的一整格等于没加。
+			// fixLNL 是局内生成段时的临时减免（旧编辑器同样不管它），显示不跟随。
+			var floorSus:Int = Math.floor(sustainLength / stepCrochet);
+			sustainSprite.setGraphicSize(8, Math.max(PEChartingState.GRID_SIZE/4, (floorSus + 1) * PEChartingState.GRID_SIZE * zoom - PEChartingState.GRID_SIZE/2));
 			sustainSprite.updateHitbox();
 		}
 	}
