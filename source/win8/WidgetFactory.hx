@@ -3,8 +3,8 @@ package win8;
 /**
  * 按 PanelOption 的类型造控件。
  *
- * 只保留 Win8 面板用得到的几种：BOOL / INT / FLOAT / PERCENT / STRING / ACTION。
- * （FE 那套还有 KEYBIND / COLOR，本面板用不到，没搬。）
+ * BOOL / INT / FLOAT / PERCENT / STRING / ACTION / KEYBIND。
+ * （FE 那套还有 COLOR，本面板用不到，没搬。）
  *
  * 另外这里挂三个静态标记，充当控件与面板之间的小接口 —— 避免控件反向依赖面板：
  *   popupOpen      —— 有下拉展开（面板每帧写入，滑块 / 面板自己读）
@@ -39,6 +39,9 @@ class WidgetFactory
 
 			case STRING:
 				return new StringSelect(0, 0, widgetW, 32, opt, overlay);
+
+			case KEYBIND:
+				return new KeybindButton(0, 0, widgetW, 32, opt);
 		}
 	}
 
@@ -70,6 +73,8 @@ class WidgetFactory
 			cast(widget, NumButton).refreshValue();
 		else if (Std.isOfType(widget, StringSelect))
 			cast(widget, StringSelect).refreshValue();
+		else if (Std.isOfType(widget, KeybindButton))
+			cast(widget, KeybindButton).refreshValue();
 	}
 
 	/** 收掉控件自己展开的弹层（只有带下拉的那种有） */

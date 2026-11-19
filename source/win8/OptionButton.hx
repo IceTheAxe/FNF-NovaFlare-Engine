@@ -52,7 +52,9 @@ class OptionButton extends FlxSpriteGroup
 		if (follow.actionLabel != null && follow.actionLabel != '')
 			return follow.actionLabel;
 
-		return isReset ? 'Reset' : 'Open';
+		return isReset
+			? Language.getPhrase('win8_reset', 'Reset')
+			: Language.getPhrase('win8_open', 'Open');
 	}
 
 	inline function baseColor():FlxColor
@@ -130,7 +132,7 @@ class OptionButton extends FlxSpriteGroup
 				{
 					confirmPending = true;
 					confirmTimer = 1.5;
-					actionText.text = 'Confirm?';
+					actionText.text = Language.getPhrase('win8_confirm', 'Confirm?');
 					actionText.color = Theme.danger();
 					FlxG.sound.play(Paths.sound('scrollMenu'), 0.6);
 				}

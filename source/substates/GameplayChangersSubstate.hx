@@ -35,22 +35,23 @@ class GameplayChangersSubstate extends Panel
 		var opts:Array<PanelOption> = [];
 		for (o in optionsArray) opts.push(o);
 
-		var resetOpt:PanelOption = new PanelOption('Reset Gameplay Changers', 'reset', ACTION, null,
-			'Restore every gameplay changer to its default value');
-		resetOpt.actionLabel = 'Reset';
+		var resetOpt:PanelOption = new PanelOption(Language.getPhrase('gc_reset_title', 'Reset Gameplay Changers'),
+			'reset', ACTION, null,
+			Language.getPhrase('gc_reset_title_desc', 'Restore every gameplay changer to its default value'));
+		resetOpt.actionLabel = Language.getPhrase('win8_reset', 'Reset');
 		resetOpt.action = resetAll;
 
 		return [
 			{
 				id: 'gameplay',
-				title: 'Gameplay Changers',
-				description: 'Scroll speed, health multipliers, instakill, botplay and more',
+				title: Language.getPhrase('gc_title', 'Gameplay Changers'),
+				description: Language.getPhrase('gc_desc', 'Scroll speed, health multipliers, instakill, botplay and more'),
 				options: opts
 			},
 			{
 				id: 'reset',
-				title: 'Reset',
-				description: 'Put every gameplay changer back to its default value',
+				title: Language.getPhrase('gc_reset_section', 'Reset'),
+				description: Language.getPhrase('gc_reset_desc', 'Put every gameplay changer back to its default value'),
 				options: [resetOpt]
 			}
 		];
@@ -60,10 +61,10 @@ class GameplayChangersSubstate extends Panel
 	// 单页模式的总标题
 	// =========================================================
 	override public function getPageTitle():String
-		return 'Gameplay Changers';
+		return Language.getPhrase('gc_title', 'Gameplay Changers');
 
 	override public function getPageDescription():String
-		return 'Scroll speed, health multipliers, instakill, botplay and more';
+		return Language.getPhrase('gc_desc', 'Scroll speed, health multipliers, instakill, botplay and more');
 
 	// =========================================================
 	// 选项表（与旧实现一致）
@@ -72,9 +73,14 @@ class GameplayChangersSubstate extends Panel
 	{
 		optionsArray = [];
 
-		var scrollType:GameplayOption = new GameplayOption('Scroll Type', 'scrolltype', STRING, 'multiplicative',
-			["multiplicative", "constant"],
-			'How the scroll speed is interpreted');
+		var scrollType:GameplayOption = new GameplayOption(Language.getPhrase('gc_scrolltype', 'Scroll Type'), 'scrolltype',
+			STRING, 'multiplicative', ["multiplicative", "constant"],
+			Language.getPhrase('gc_scrolltype_desc', 'How the scroll speed is interpreted'));
+		// 下拉里的两个取值也走翻译键（gc_scrolltype_multiplicative / _constant）
+		scrollType.getOptionText = function(value:Dynamic):String {
+			var raw:String = (value == null) ? '' : Std.string(value);
+			return Language.getPhrase('gc_scrolltype_$raw', raw);
+		};
 		scrollType.onChange = function() {
 			applyScrollType();
 			// 取值上限 / 显示格式变了，控件要按新配置重建
@@ -82,16 +88,16 @@ class GameplayChangersSubstate extends Panel
 		};
 		optionsArray.push(scrollType);
 
-		var speed:GameplayOption = new GameplayOption('Scroll Speed', 'scrollspeed', FLOAT, 1, null,
-			'How fast the notes scroll');
+		var speed:GameplayOption = new GameplayOption(Language.getPhrase('gc_scrollspeed', 'Scroll Speed'), 'scrollspeed',
+			FLOAT, 1, null, Language.getPhrase('gc_scrollspeed_desc', 'How fast the notes scroll'));
 		speed.minValue = 0.35;
 		speed.changeValue = 0.05;
 		speed.decimals = 2;
 		optionsArray.push(speed);
 
 		#if FLX_PITCH
-		var rate:GameplayOption = new GameplayOption('Playback Rate', 'songspeed', FLOAT, 1, null,
-			'Speed multiplier of the whole song');
+		var rate:GameplayOption = new GameplayOption(Language.getPhrase('gc_rate', 'Playback Rate'), 'songspeed',
+			FLOAT, 1, null, Language.getPhrase('gc_rate_desc', 'Speed multiplier of the whole song'));
 		rate.minValue = 0.5;
 		rate.maxValue = 3.0;
 		rate.changeValue = 0.01;
@@ -100,28 +106,30 @@ class GameplayChangersSubstate extends Panel
 		optionsArray.push(rate);
 		#end
 
-		var healthGain:GameplayOption = new GameplayOption('Health Gain Multiplier', 'healthgain', FLOAT, 1, null,
-			'How much health you gain when hitting a note');
+		var healthGain:GameplayOption = new GameplayOption(Language.getPhrase('gc_healthgain', 'Health Gain Multiplier'),
+			'healthgain', FLOAT, 1, null,
+			Language.getPhrase('gc_healthgain_desc', 'How much health you gain when hitting a note'));
 		healthGain.minValue = 0;
 		healthGain.maxValue = 5;
 		healthGain.changeValue = 0.1;
 		healthGain.displayFormat = '%vX';
 		optionsArray.push(healthGain);
 
-		var healthLoss:GameplayOption = new GameplayOption('Health Loss Multiplier', 'healthloss', FLOAT, 1, null,
-			'How much health you lose when missing a note');
+		var healthLoss:GameplayOption = new GameplayOption(Language.getPhrase('gc_healthloss', 'Health Loss Multiplier'),
+			'healthloss', FLOAT, 1, null,
+			Language.getPhrase('gc_healthloss_desc', 'How much health you lose when missing a note'));
 		healthLoss.minValue = 0.5;
 		healthLoss.maxValue = 5;
 		healthLoss.changeValue = 0.1;
 		healthLoss.displayFormat = '%vX';
 		optionsArray.push(healthLoss);
 
-		optionsArray.push(new GameplayOption('Instakill on Miss', 'instakill', BOOL, false, null,
-			'Missing a single note kills you'));
-		optionsArray.push(new GameplayOption('Practice Mode', 'practice', BOOL, false, null,
-			'Practice mode: no death, you can retry sections'));
-		optionsArray.push(new GameplayOption('Botplay', 'botplay', BOOL, false, null,
-			'Let the engine play the chart for you'));
+		optionsArray.push(new GameplayOption(Language.getPhrase('gc_instakill', 'Instakill on Miss'), 'instakill',
+			BOOL, false, null, Language.getPhrase('gc_instakill_desc', 'Missing a single note kills you')));
+		optionsArray.push(new GameplayOption(Language.getPhrase('gc_practice', 'Practice Mode'), 'practice',
+			BOOL, false, null, Language.getPhrase('gc_practice_desc', 'Practice mode: no death, you can retry sections')));
+		optionsArray.push(new GameplayOption(Language.getPhrase('gc_botplay', 'Botplay'), 'botplay',
+			BOOL, false, null, Language.getPhrase('gc_botplay_desc', 'Let the engine play the chart for you')));
 
 		// Scroll Type 会影响 Scroll Speed 的取值范围 / 显示格式
 		applyScrollType();

@@ -15,3 +15,6 @@ Watermark => 水印设置
 
 showWatermark => 显示水印
 watermarkScale => 大小
+wideScreen => 宽屏模式
+
+edgeSafeOffset => 边缘安全区偏移

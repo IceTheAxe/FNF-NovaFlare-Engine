@@ -4,3 +4,12 @@ ResetConfirm => Tem certeza?
 back => Voltar
 tapToSearch => Pesquisar configurações
 Target => Alvo
+
+// ===== Painel Win8 / Configurações de Mod =====
+win8_open => Abrir
+win8_reset => Redefinir
+win8_confirm => Confirmar?
+mod_settings_title => Configurações
+mod_settings_desc => Configurações fornecidas por este mod
+mod_settings_none => Este mod não tem configurações para mostrar
+controls_rebinding_wait => Pressione uma tecla...

@@ -1,5 +1,6 @@
 package win8;
 
+import flixel.math.FlxRect;
 import flixel.tweens.FlxTween;
 
 import general.backend.MetroEase;
@@ -120,6 +121,13 @@ class Panel extends MusicBeatSubstate
 
 	/** 点面板之外的地方是否收起整个面板 */
 	public var dismissOnOutsideClick:Bool = true;
+
+	/**
+	 * 模态控件（如 KeybindButton 正在等按键）置 true：面板这一轮的键鼠操作全部让路，
+	 * 否则"按方向键选键位"会同时滚动列表、"按回车选键位"会顺手触发别的选项、ESC 会把面板关掉。
+	 * 宿主子类在 update() 开头写这个字段即可（参考 ModSettingsSubState）。
+	 */
+	public var inputModal:Bool = false;
 
 	/** 待重建标记：0 = 无，1 = 面板内容，2 = 整块重建 */
 	var pendingRebuild:Int = 0;
@@ -341,6 +349,10 @@ class Panel extends MusicBeatSubstate
 		if (footerDivider != null) footerDivider.x = panelX + panelOffset;
 		if (footerText != null) footerText.x = footerBaseX + panelOffset;
 		if (contentGroup != null) contentGroup.x = panelOffset;
+
+		// 组 x 变了（= 所有叶子的世界坐标变了），帧坐标下的 clipRect 必须跟着重算，
+		// 否则滑入/滑出动画期间会留一帧旧裁剪。
+		refreshRowClipping();
 	}
 
 	/** 面板整体滑入 / 滑出（targetOffset = 0 是最终位置，panelW 是屏幕外） */
@@ -529,7 +541,9 @@ class Panel extends MusicBeatSubstate
 	 */
 	function makeActionOption(entry:PanelEntry):PanelOption
 	{
-		var label:String = (entry.actionLabel != null && entry.actionLabel != '') ? entry.actionLabel : 'Open';
+		var label:String = (entry.actionLabel != null && entry.actionLabel != '')
+			? entry.actionLabel
+			: Language.getPhrase('win8_open', 'Open');
 
 		var opt:PanelOption = new PanelOption(entry.title, entry.id, ACTION, null, entry.description);
 		opt.actionLabel = label;
@@ -590,6 +604,81 @@ class Panel extends MusicBeatSubstate
 			row.visible = visible;
 			row.active = visible;
 		}
+
+		refreshRowClipping();
+	}
+
+	// =========================================================
+	// 滚动区上/下边缘的真裁剪（FE Win8CharmSettings 同款）
+	// =========================================================
+	/**
+	 * 滚动区上/下边缘的真裁剪：顶部裁在标题栏之下、底部裁在说明栏之上，
+	 * 两边都不让滚动行的文字压到标题 / 说明文字上（半截露在外面的行按边缘切齐）。
+	 *
+	 * 只裁上下。左右放宽到屏幕外 —— 面板滑入/滑出时内容整体右移最多 panelW，
+	 * 放宽后不会被误裁，也省掉每帧按 panelOffset 换算左右边界。
+	 * 下拉弹层挂在 overlayContainer 上，不在这里，展开时必须完整显示。
+	 *
+	 * 三态：整行在外 / 整行在内 → 清掉旧 clipRect（防止 stale 裁剪跟着行跑）；
+	 * 只露出一截 → 递归到叶子逐个裁。
+	 */
+	function refreshRowClipping():Void
+	{
+		if (rows.length == 0 && sections.length == 0) return;
+
+		var top:Float = HEADER_H;
+		var bottom:Float = FlxG.height - FOOTER_H;
+		var left:Float = -1000;
+		var right:Float = FlxG.width + panelW + 1000;
+
+		for (s in sections) applyRowClip(s, s.y, s.rowH, left, top, right, bottom);
+		for (r in rows) applyRowClip(r, r.y, r.rowH, left, top, right, bottom);
+	}
+
+	/** 行与视口的三态处理；组级 visible/active 的 culling 由 applyScroll() 负责，这里只管 clipRect */
+	function applyRowClip(target:FlxSpriteGroup, y:Float, h:Float,
+		left:Float, top:Float, right:Float, bottom:Float):Void
+	{
+		if (target == null) return;
+
+		var outside:Bool = (y + h <= top) || (y >= bottom);
+		var inside:Bool = !outside && (y >= top) && (y + h <= bottom);
+
+		applyLeafClip(target, !outside && !inside, left, top, right, bottom);
+	}
+
+	/** 递归到真正的 FlxSprite 叶子；apply = false 时只清旧裁剪 */
+	function applyLeafClip(target:FlxSprite, apply:Bool,
+		left:Float, top:Float, right:Float, bottom:Float):Void
+	{
+		if (target == null) return;
+
+		var group:FlxSpriteGroup = Std.downcast(target, FlxSpriteGroup);
+		if (group != null)
+		{
+			for (m in group.members)
+				if (m != null) applyLeafClip(m, apply, left, top, right, bottom);
+			return;
+		}
+
+		if (apply) target.clipRect = paneClipRect(target, left, top, right, bottom);
+		else if (target.clipRect != null) target.clipRect = null;
+	}
+
+	/**
+	 * 视口矩形 → sprite 帧坐标系的 clipRect；完全在视口外返回零矩形（全裁空）。
+	 * clipRect 是帧坐标，要除回 scale（Rect 这类 makeGraphic(1,1) 拉伸的底板在这里才能裁对）。
+	 */
+	function paneClipRect(m:FlxSprite, left:Float, top:Float, right:Float, bottom:Float):FlxRect
+	{
+		var sx:Float = (m.scale.x != 0) ? m.scale.x : 1;
+		var sy:Float = (m.scale.y != 0) ? m.scale.y : 1;
+		var cx:Float = Math.max((left - m.x) / sx, 0);
+		var cy:Float = Math.max((top - m.y) / sy, 0);
+		var cr:Float = Math.min((right - m.x) / sx, m.frameWidth);
+		var cb:Float = Math.min((bottom - m.y) / sy, m.frameHeight);
+		if (cr <= cx || cb <= cy) return FlxRect.get(0, 0, 0, 0);
+		return FlxRect.get(cx, cy, cr - cx, cb - cy);
 	}
 
 	function updateSelectionVisual():Void
@@ -719,7 +808,7 @@ class Panel extends MusicBeatSubstate
 				opt.setValue(opt.type == INT ? Math.round(v) : FlxMath.roundDecimal(v, opt.decimals));
 			case STRING:
 				cycleString(opt, dir);
-			case ACTION:
+			case ACTION, KEYBIND:
 				return;
 		}
 
@@ -740,6 +829,11 @@ class Panel extends MusicBeatSubstate
 			case ACTION:
 				if (opt.action != null) opt.action();
 				return;
+			case KEYBIND:
+				// 键位行：回车 = 开始等按键（跟鼠标点控件同一条路）
+				var w:FlxSpriteGroup = rows[selectedRow].widget;
+				if (Std.isOfType(w, KeybindButton)) cast(w, KeybindButton).startCapture();
+				return;
 			case BOOL:
 				opt.setValue(!(opt.getValue() == true));
 			case INT, FLOAT, PERCENT, STRING:
@@ -758,6 +852,22 @@ class Panel extends MusicBeatSubstate
 	{
 		var opt:PanelOption = selectedOption();
 		if (opt == null) return;
+
+		if (opt.type == KEYBIND)
+		{
+			// 键位行：默认值不是 defaultValue（那是占位），真正该恢复的是
+			// settings.json 里声明的 keyboard / gamepad（按当前键鼠模式取一边）
+			var d:String = null;
+			if (opt.defaultKeys != null)
+				d = Controls.instance.controllerMode ? opt.defaultKeys.gamepad : opt.defaultKeys.keyboard;
+
+			opt.setValue((d != null && d.length > 0) ? d : 'NONE');
+			opt.change();
+			opt.saveCurrentValue();
+			refreshSelectedWidget();
+			FlxG.sound.play(Paths.sound('cancelMenu'), 0.4);
+			return;
+		}
 
 		opt.setValue(opt.defaultValue);
 		if (opt.type == STRING && opt.options != null)
@@ -865,7 +975,7 @@ class Panel extends MusicBeatSubstate
 		WidgetFactory.suspendScroll = false;
 
 		if (scroller != null)
-			scroller.inputAllow = !WidgetFactory.popupOpen && panelVisible && !suspend;
+			scroller.inputAllow = !WidgetFactory.popupOpen && panelVisible && !suspend && !inputModal;
 
 		super.update(elapsed);
 
@@ -875,7 +985,9 @@ class Panel extends MusicBeatSubstate
 		if (scrollHolder.value != scroll)
 			scrollHolder.value = scroll;
 
-		if (isAnimating || closing) return;
+		// 模态控件等按键期间面板整体让路 —— 键位捕获需要独自消费键盘事件，
+		// 滚动 / 选中 / 关闭面板都必须挂起（行也不能滚出可视区，否则捕获控件停更、永远结束不了）。
+		if (isAnimating || closing || inputModal) return;
 
 		// ---------- 返回：ESC / 右键 / 顶部返回按钮走同一条路 ----------
 		if (controls.BACK || FlxG.mouse.justPressedRight)

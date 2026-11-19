@@ -1,144 +1,66 @@
-﻿package options.base;
+package options.base;
 
 import flixel.input.keyboard.FlxKey;
 import flixel.input.gamepad.FlxGamepadInputID;
 
-import games.objects.Character;
+import win8.Panel;
+import win8.PanelOption;
+import win8.OptionType;
+import win8.KeybindButton;
 
-class ModSettingsSubState extends BaseOptionsMenu
+/**
+ * Mod Settings —— Win8 风格设置面板（FE 同名实现的移植）。
+ *
+ * 继承 win8.Panel，内容来自 mod 的 data/settings.json：
+ *   { name, description, save, type, options, translation_key,
+ *     value, min, max, step, scroll, decimals, format, keyboard, gamepad }
+ * 值存进 FlxG.save.data.modSettings[folder]，关闭时写回存档。
+ * 存档结构跟旧版（BaseOptionsMenu 版）完全一致：普通选项存标量，键位存 {keyboard, gamepad}。
+ *
+ * 对外接口：构造签名 (options, folder, name)、类名、HScript 注册名
+ * 'options.ModSettingsSubState' —— ModsMenuState 和脚本代理都按这个找，不要改。
+ *
+ * ⚠️ 选项必须在**构造函数**里解析，不能拖到 create()：win8.Panel.create() 会立刻
+ *   调 buildEntries()，而 create() 要到下一帧才跑 —— 拖过去等于每次多一次重建。
+ *   副作用是解析失败能在构造阶段就报出来（见 _crashed）。
+ */
+class ModSettingsSubState extends Panel
 {
+	/** 本 mod 的设置存档，写回 FlxG.save.data.modSettings[folder] */
 	var save:Map<String, Dynamic> = new Map<String, Dynamic>();
-	var folder:String;
-	private var _crashed:Bool = false;
+	var folder:String = '';
+	var modName:String = '';
+
+	/** 构造阶段解析好的选项，buildEntries() 直接把它交给面板 */
+	var builtOptions:Array<PanelOption> = [];
+
+	/** settings.json 解析失败 → create() 里不建面板，直接退出 */
+	var _crashed:Bool = false;
+	/** 已经写回过存档（close / destroy 只写一次） */
+	var _persisted:Bool = false;
 
 	public function new(options:Array<Dynamic>, folder:String, name:String)
 	{
-		this.folder = folder;
+		super();
 
-		title = '';
-		// title = name;
-		rpcTitle = 'Mod Settings ($name)'; // for Discord Rich Presence
+		this.folder = folder;
+		this.modName = (name != null && name != '') ? name : folder;
 
 		if (FlxG.save.data.modSettings == null)
 			FlxG.save.data.modSettings = new Map<String, Dynamic>();
 		else
 		{
 			var saveMap:Map<String, Dynamic> = FlxG.save.data.modSettings;
-			save = saveMap[folder] != null ? saveMap[folder] : [];
+			if (saveMap[folder] != null) save = saveMap[folder];
 		}
 
-		// save = []; //reset for debug purposes
+		#if DISCORD_ALLOWED
+		DiscordClient.changePresence('Mod Settings ($modName)', null);
+		#end
+
 		try
 		{
-			for (option in options)
-			{
-				var newOption = new OptionBase(option.name != null ? option.name : option.save,
-					option.description != null ? option.description : 'No description provided.', option.save, option.type, option.options);
-
-				switch (newOption.type)
-				{
-					case 'keybind':
-						// Defaulting and error checking
-						var keyboardStr:String = option.keyboard;
-						var gamepadStr:String = option.gamepad;
-						if (keyboardStr == null)
-							keyboardStr = 'NONE';
-						if (gamepadStr == null)
-							gamepadStr = 'NONE';
-
-						newOption.defaultKeys.keyboard = keyboardStr;
-						newOption.defaultKeys.gamepad = gamepadStr;
-						if (save.get(option.save) == null)
-						{
-							newOption.keys.keyboard = newOption.defaultKeys.keyboard;
-							newOption.keys.gamepad = newOption.defaultKeys.gamepad;
-							save.set(option.save, newOption.keys);
-						}
-
-						// getting inputs and checking
-						var keyboardKey:FlxKey = cast FlxKey.fromString(keyboardStr);
-						var gamepadKey:FlxGamepadInputID = cast FlxGamepadInputID.fromString(gamepadStr);
-						// trace('${keyboardStr}: $keyboardKey, ${gamepadStr}: $gamepadKey');
-
-						@:privateAccess
-						{
-							newOption.getValue = function()
-							{
-								var data = save.get(newOption.variable);
-								if (data == null)
-									return 'NONE';
-								return !Controls.instance.controllerMode ? data.keyboard : data.gamepad;
-							};
-							newOption.setValue = function(value:Dynamic)
-							{
-								var data = save.get(newOption.variable);
-								if (data == null)
-									data = {keyboard: 'NONE', gamepad: 'NONE'};
-
-								if (!controls.controllerMode)
-									data.keyboard = value;
-								else
-									data.gamepad = value;
-								save.set(newOption.variable, data);
-							};
-						}
-
-					default:
-						if (option.value != null)
-							newOption.defaultValue = option.value;
-
-						@:privateAccess
-						{
-							newOption.getValue = function() return save.get(newOption.variable);
-							newOption.setValue = function(value:Dynamic) save.set(newOption.variable, value);
-						}
-				}
-
-				if (option.type != 'keybind')
-				{
-					if (option.format != null)
-						newOption.displayFormat = option.format;
-					if (option.min != null)
-						newOption.minValue = option.min;
-					if (option.max != null)
-						newOption.maxValue = option.max;
-					if (option.step != null)
-						newOption.changeValue = option.step;
-
-					if (option.scroll != null)
-						newOption.scrollSpeed = option.scroll;
-					if (option.decimals != null)
-						newOption.decimals = option.decimals;
-
-					var myValue:Dynamic = null;
-					if (save.get(option.save) != null)
-					{
-						myValue = save.get(option.save);
-						if (newOption.type != 'keybind')
-							newOption.setValue(myValue);
-						else
-							newOption.setValue(!Controls.instance.controllerMode ? myValue.keyboard : myValue.gamepad);
-					}
-					else
-					{
-						myValue = newOption.getValue();
-						if (myValue == null)
-							myValue = newOption.defaultValue;
-					}
-
-					switch (newOption.type)
-					{
-						case 'string':
-							var num:Int = newOption.options.indexOf(myValue);
-							if (num > -1)
-								newOption.curOption = num;
-					}
-
-					save.set(option.save, myValue);
-				}
-				addOption(newOption);
-				// updateTextFrom(newOption);
-			}
+			buildOptions(options);
 		}
 		catch (e:Dynamic)
 		{
@@ -149,33 +71,228 @@ class ModSettingsSubState extends BaseOptionsMenu
 			#end
 			trace('$errorTitle - $errorMsg');
 
+			// 注意：这里**不能**直接 close() —— 构造阶段 _parentState 还没挂上，
+			// FlxSubState.close() 是空操作。真正的退出在 create() 里做。
 			_crashed = true;
-			close();
-			return;
 		}
-
-		super();
-
-		bg.alpha = 0.75;
-		bg.color = FlxColor.WHITE;
-		reloadCheckboxes();
 	}
 
-	override public function update(elapsed:Float)
+	// =========================================================
+	// 生命周期
+	// =========================================================
+	override function create():Void
 	{
 		if (_crashed)
 		{
+			// settings.json 没解析成功：别建面板（否则会先闪一下空面板再关）。
+			// 这里 _parentState 已经挂好了（resetSubState 里先赋值再调 create），
+			// 所以 close() 这次是真的生效。
 			close();
 			return;
 		}
+
+		super.create();
+	}
+
+	override function update(elapsed:Float)
+	{
+		// 键位控件正在等按键 → 面板自己的键鼠操作全部挂起，
+		// 否则按方向键会同时滚动列表、按回车会顺手触发别的选项、按 ESC 会把整个界面关掉
+		inputModal = (KeybindButton.capturing != null);
+
 		super.update(elapsed);
 	}
 
-	override public function close()
+	override public function close():Void
 	{
+		persist();
+		super.close();
+	}
+
+	override function destroy():Void
+	{
+		// 兜底：万一不是走 close() 退出（比如宿主界面被直接切走），也别把改动丢了
+		persist();
+		super.destroy();
+	}
+
+	/** 把设置写回存档，只写一次 */
+	function persist():Void
+	{
+		if (_persisted || _crashed) return;
+		_persisted = true;
+
 		FlxG.save.data.modSettings.set(folder, save);
 		FlxG.save.flush();
-		super.close();
+	}
+
+	// =========================================================
+	// 面板声明
+	// =========================================================
+	override public function buildEntries():Array<PanelEntry>
+	{
+		// settings.json 里没有分组信息，所以整页就一组
+		if (builtOptions.length == 0) return [];
+
+		return [
+			{
+				id: 'mod_settings',
+				title: Language.getPhrase('mod_settings_title', 'Settings'),
+				description: getPageDescription(),
+				options: builtOptions
+			}
+		];
+	}
+
+	/** 面板顶部的标题 = mod 名字 */
+	override public function getPageTitle():String
+		return modName;
+
+	override public function getPageDescription():String
+	{
+		if (builtOptions.length == 0)
+			return Language.getPhrase('mod_settings_none', 'This mod has no settings to show');
+
+		return Language.getPhrase('mod_settings_desc', 'Settings provided by this mod');
+	}
+
+	// =========================================================
+	// 解析 settings.json
+	// =========================================================
+	function buildOptions(defs:Array<Dynamic>):Void
+	{
+		if (defs == null) return;
+
+		for (def in defs)
+		{
+			// save 是唯一的键，没有它这条设置没法存也没法读
+			if (def == null || def.save == null) continue;
+
+			var rawName:String = (def.name != null) ? def.name : def.save;
+			var rawDesc:String = (def.description != null) ? def.description : 'No description provided.';
+
+			// mod 可以带 translation_key 走语言文件；没带就用 JSON 里的原文
+			var tk:String = (def.translation_key != null && def.translation_key != '') ? def.translation_key : null;
+			var name:String = (tk != null) ? Language.getPhrase('setting_$tk', rawName) : rawName;
+			var desc:String = (tk != null) ? Language.getPhrase('description_$tk', rawDesc) : rawDesc;
+
+			var newOption:ModOption = new ModOption(name, def.save, convertType(def.type), def.options, desc);
+
+			// 下拉项文字也走翻译键（setting_<tk>-<原始值>），没带 tk 就原样显示
+			if (tk != null)
+				newOption.getOptionText = function(value:Dynamic):String {
+					var raw:String = (value == null) ? '' : Std.string(value);
+					return Language.getPhrase('setting_$tk-$raw', raw);
+				};
+
+			switch (newOption.type)
+			{
+				case KEYBIND:
+					// 键位存的是 {keyboard: 'A', gamepad: 'NONE'} 这种结构，
+					// 不是单一值，所以 get/set 都得自己接管（跟随键鼠模式存取一边）
+					var keyboardStr:String = (def.keyboard != null) ? def.keyboard : 'NONE';
+					var gamepadStr:String = (def.gamepad != null) ? def.gamepad : 'NONE';
+
+					newOption.defaultKeys = {keyboard: keyboardStr, gamepad: gamepadStr};
+
+					if (save.get(def.save) == null)
+					{
+						newOption.keys = {keyboard: keyboardStr, gamepad: gamepadStr};
+						save.set(def.save, newOption.keys);
+					}
+
+					newOption.getValue = function():Dynamic
+					{
+						var data:Dynamic = save.get(newOption.variable);
+						if (data == null) return 'NONE';
+						return !Controls.instance.controllerMode ? data.keyboard : data.gamepad;
+					};
+					newOption.setValue = function(value:Dynamic):Void
+					{
+						var data:Dynamic = save.get(newOption.variable);
+						if (data == null) data = {keyboard: 'NONE', gamepad: 'NONE'};
+
+						if (!Controls.instance.controllerMode) data.keyboard = value;
+						else data.gamepad = value;
+						save.set(newOption.variable, data);
+					};
+
+				default:
+					if (def.value != null) newOption.defaultValue = def.value;
+
+					newOption.getValue = function():Dynamic
+						return save.get(newOption.variable);
+					newOption.setValue = function(value:Dynamic):Void
+						save.set(newOption.variable, value);
+			}
+
+			if (newOption.type != KEYBIND)
+			{
+				if (def.format != null) newOption.displayFormat = def.format;
+				if (def.min != null) newOption.minValue = def.min;
+				if (def.max != null) newOption.maxValue = def.max;
+				if (def.step != null) newOption.changeValue = def.step;
+				if (def.decimals != null) newOption.decimals = def.decimals;
+
+				var myValue:Dynamic = null;
+				if (save.get(def.save) != null)
+				{
+					myValue = save.get(def.save);
+					newOption.setValue(myValue);
+				}
+				else
+				{
+					myValue = newOption.getValue();
+					if (myValue == null) myValue = newOption.defaultValue;
+				}
+
+				if (newOption.type == STRING && newOption.options != null)
+				{
+					var num:Int = newOption.options.indexOf(Std.string(myValue));
+					if (num > -1) newOption.curOption = num;
+				}
+
+				save.set(def.save, myValue);
+			}
+
+			builtOptions.push(newOption);
+		}
+	}
+
+	private function convertType(str:String):OptionType
+	{
+		// 没写 type 就当开关处理（跟 FE 一致：原来会在这里抛异常，把整页设置一起带崩）
+		if (str == null) return BOOL;
+
+		switch (str.toLowerCase().trim())
+		{
+			case 'bool':
+				return BOOL;
+			case 'int', 'integer':
+				return INT;
+			case 'float', 'fl':
+				return FLOAT;
+			case 'percent':
+				return PERCENT;
+			case 'string', 'str':
+				return STRING;
+			case 'keybind', 'key':
+				return KEYBIND;
+		}
+
+		FlxG.log.error("Could not find option type: " + str);
+		return BOOL;
 	}
 }
 
+/**
+ * mod 设置的数据模型。值读写全部走闭包（构造时按类型挂上），
+ * 指向 FlxG.save.data.modSettings[folder] 里的对应键。
+ */
+class ModOption extends PanelOption
+{
+	public function new(name:String, variable:String, type:OptionType, ?options:Array<String>, ?description:String = null)
+	{
+		super(name, variable, type, options, description);
+	}
+}

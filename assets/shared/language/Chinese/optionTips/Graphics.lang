@@ -15,3 +15,6 @@ Watermark => 水印设置
 
 showWatermark => 显示水印
 watermarkScale => 水印大小
+wideScreen => 用手机屏幕的实际比例铺满画面，不再左右留黑边。开关即时生效，画布尺寸变化需重启游戏。
+
+edgeSafeOffset => 在自动检测的刘海/挖孔安全区基础上再向内收缩的像素（0-80）。改后下一个界面生效。

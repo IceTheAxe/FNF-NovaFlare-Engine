@@ -257,6 +257,8 @@
 	<config:android extension="funkin.extensions.CallbackUtil" if="android" />
 	<config:android extension="funkin.extensions.FNFLoaderExtension" if="android" />
 	<config:android extension="funkin.extensions.AudioSession" if="android" />
+	<!-- 允许窗口延伸进刘海/挖孔区（shortEdges），否则 Display.safeArea 恒等于全屏、安全区适配失效（FE 移动版同款） -->
+	<config:android layoutInDisplayCutoutMode="shortEdges" if="android" />
 	<!-- 本机 gradle 缓存里只有 8.14.4 + AGP 8.7.3 这套，指过去就不用联网下分发包 -->
 	<config:android gradle-version="8.14.4" gradle-plugin="8.7.3" if="android" />
 	<config:android if="android">
@@ -338,7 +340,7 @@
 	<haxedef name="HXC_LIBVLC_LOGGING" if="debug hxCodec" />
 	
 	<!--Disable the Flixel core debugger. Automatically gets set whenever you compile in release mode!-->
-	<haxedef name="FLX_NO_DEBUG" unless="debug || origin_editors" />
+	<haxedef name="FLX_NO_DEBUG" unless="debug" />
 
 	<!--Enable this for Nape release builds for a serious peformance improvement-->
 	<haxedef name="NAPE_RELEASE_BUILD" unless="debug" />

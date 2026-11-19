@@ -37,7 +37,16 @@ private class LayoutMetrics
 	public static inline function contentVisibleHeight():Float return contentBottom() - contentTop();
 
 	// ---- 水平方向 ----
-	public static inline function naviWidth():Float return FlxG.width * 0.2;
+	// 宽屏下 navi 栏纳入左缘安全距（BG/内容区起点跟随右移），16:9 信箱模式恒 0 布局不变
+	public static inline function naviSafeLeft():Float
+	{
+		#if mobile
+		return mobile.backend.SafeArea.get().left;
+		#else
+		return 0;
+		#end
+	}
+	public static inline function naviWidth():Float return FlxG.width * 0.2 + naviSafeLeft();
 	public static inline function contentLeft():Float return naviWidth();
 	public static inline function contentWidth():Float return FlxG.width - contentLeft();
 	public static inline function cataWidth():Float return FlxG.width * (0.8 - (0.8 / 20 * 2));
@@ -152,7 +161,7 @@ class OptionsState extends MusicBeatState
 		for (i in 0...naviArray.length)
 		{
 			var naviSprite = new NaviGroup(
-				LayoutMetrics.naviTop(),
+				LayoutMetrics.naviTop() + LayoutMetrics.naviSafeLeft(),
 				LayoutMetrics.naviTop() + i * LayoutMetrics.naviItemHeight(),
 				LayoutMetrics.naviWidth() - LayoutMetrics.naviTop(),
 				LayoutMetrics.naviItemHeight() * 0.9,
@@ -196,7 +205,7 @@ class OptionsState extends MusicBeatState
 		add(tipButton);
 
 		specButton = new FuncButton(
-			FlxG.width - LayoutMetrics.specButtonWidth() - LayoutMetrics.tipButtonGap(),
+			FlxG.width - LayoutMetrics.specButtonWidth() - LayoutMetrics.tipButtonGap() #if mobile - mobile.backend.SafeArea.get().right #end,
 			downBG.y + LayoutMetrics.tipButtonGap(),
 			LayoutMetrics.specButtonWidth(),
 			LayoutMetrics.tipButtonHeight(),

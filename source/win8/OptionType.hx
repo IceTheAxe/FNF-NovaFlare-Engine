@@ -3,7 +3,8 @@ package win8;
 /**
  * Win8 面板里选项的类型。
  *
- * 只保留面板用得到的那几种：ACTION 是"动作按钮"，KEYBIND / COLOR 不搬（NF 的 GameplayChanger 没有这类选项）。
+ * KEYBIND 供 mod 设置用（就地捕获键位，控件见 KeybindButton）。
+ * COLOR 仍是 FE 独有，没搬。
  */
 enum OptionType
 {
@@ -13,4 +14,5 @@ enum OptionType
 	PERCENT;
 	STRING;
 	ACTION;
+	KEYBIND;
 }

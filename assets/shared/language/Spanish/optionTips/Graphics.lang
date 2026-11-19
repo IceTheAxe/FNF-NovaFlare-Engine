@@ -11,3 +11,6 @@ fpsDisplayMode => Alterna el contador entre TPS y FPS.
 Watermark => Marca de agua
 showWatermark => Muestra u oculta la marca de agua.
 watermarkScale => Cambia el tamaño de la marca de agua.
+wideScreen => Rellena la pantalla con la proporción real del dispositivo en lugar de bandas negras 16:9. El interruptor aplica al instante; reinicia el juego para cambiar el tamaño del lienzo.
+
+edgeSafeOffset => Espacio extra (0-80 px) añadido sobre la detección automática del notch. Se aplica en la siguiente pantalla.

@@ -14,4 +14,9 @@ msInErrorBar => Mostre o erro de temporização atual em milissegundos direto na
 pointerType => Escolha o formato do ponteiro na barra de erro de hit.
 guideLineAlpha => Controle a opacidade (transparência) das linhas guia.
 noteOffsetChangingAllowed => Aplique o offset de nota gravado no replay ao reproduzi-lo.
-peChartEditor => Use o editor de chart do Psych Engine 1.0.4 em vez do editor clássico do NovaFlare.
+peChartEditor => Use o editor de chart do Psych Engine 1.0.4 em vez do editor clássico do NovaFlare.pauseSkipFadeIn => O menu de pausa aparece instantaneamente, sem deslizar para dentro.
+pauseSkipFadeOut => Fechar o menu de pausa termina instantaneamente, sem animação de saída.
+pauseDoubleEnterSkip => Pressionar confirmar novamente enquanto o menu fecha pula a animação de saída.
+pauseUnlockInputDuringAnim => Permite interagir com o menu de pausa antes da animação de entrada terminar.
+relaxIdleMinutes => Entra automaticamente no player Relax após ficar ocioso por este número de minutos. 0 = desligado.
+startInfoTime => Por quantos segundos o aviso de informações aparece ao começar a música. 0 = desativado.

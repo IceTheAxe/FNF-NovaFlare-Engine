@@ -91,6 +91,12 @@ class FPSViewer extends Sprite
 
 		this.x = 10 - FlxG.game.x;
 		this.y = 10 - FlxG.game.y;
+		#if mobile
+		// 窗口左上角锚定，避开刘海/挖孔（stage 域安全区，16:9 信箱模式下也生效）
+		var ins = mobile.backend.SafeArea.getStage();
+		this.x += ins.left;
+		this.y += ins.top;
+		#end
 	}
 
 	private function draw(e:Event)

@@ -4,3 +4,11 @@ ResetConfirm => 再次点击确认
 back => 返回
 tapToSearch => 搜索设置
 Target => 变量名称
+// ===== Win8 面板通用 / Mod 设置 =====
+win8_open => 打开
+win8_reset => 重置
+win8_confirm => 确认？
+mod_settings_title => 设置
+mod_settings_desc => 该 mod 提供的设置
+mod_settings_none => 这个 mod 没有可用的设置
+controls_rebinding_wait => 按下任意键…

@@ -15,3 +15,6 @@ Watermark => Marca d'água
 
 showWatermark => Visível
 watermarkScale => Escala
+wideScreen => Preenche a tela com a proporção real do aparelho em vez das barras pretas 16:9. A alternância aplica na hora; reinicie o jogo para mudar o tamanho da tela.
+
+edgeSafeOffset => Espaço extra (0-80 px) somado à detecção automática do notch. Aplica na próxima tela.

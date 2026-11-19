@@ -315,13 +315,22 @@ class MainMenuState extends MusicBeatState
 			}
 		}); */
 
-		var versionShit:FlxText = new FlxText(12, FlxG.height - 44, 400, Language.get('novaFlareEngine', 'mainmenu') + " v " + novaFlareEngineVersion, 12);
+		// 左下角版本行贴边，宽屏下避让刘海/圆角/Home 条
+		var cornerX:Float = 12;
+		var cornerBottom:Float = 0;
+		#if mobile
+		var cornerIns = mobile.backend.SafeArea.get();
+		cornerX += cornerIns.left;
+		cornerBottom = cornerIns.bottom;
+		#end
+
+		var versionShit:FlxText = new FlxText(cornerX, FlxG.height - 44 - cornerBottom, 400, Language.get('novaFlareEngine', 'mainmenu') + " v " + novaFlareEngineVersion, 12);
 		versionShit.scrollFactor.set();
 		versionShit.setFormat(Paths.font(Language.get('fontName', 'main') + '.ttf'), 16, FlxColor.WHITE, LEFT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
 		versionShit.antialiasing = ClientPrefs.data.antialiasing;
 		add(versionShit);
 		versionShit.cameras = [camHUD];
-		var versionShit:FlxText = new FlxText(12, FlxG.height - 24, 0, Language.get('fridayNightFunkin', 'mainmenu') + " v " + '0.2.8', 12);
+		var versionShit:FlxText = new FlxText(cornerX, FlxG.height - 24 - cornerBottom, 0, Language.get('fridayNightFunkin', 'mainmenu') + " v " + '0.2.8', 12);
 		versionShit.scrollFactor.set();
 		versionShit.setFormat(Paths.font(Language.get('fontName', 'main') + '.ttf'), 16, FlxColor.WHITE, LEFT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
 		add(versionShit);

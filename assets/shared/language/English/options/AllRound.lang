@@ -4,3 +4,11 @@ ResetConfirm => Sure?
 back => Back
 tapToSearch => Search settings
 Target => Target
+// ===== Win8 Panel Common / Mod Settings =====
+win8_open => Open
+win8_reset => Reset
+win8_confirm => Confirm?
+mod_settings_title => Settings
+mod_settings_desc => Settings provided by this mod
+mod_settings_none => This mod has no settings to show
+controls_rebinding_wait => Press a key...

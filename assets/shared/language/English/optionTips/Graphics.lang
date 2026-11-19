@@ -15,3 +15,6 @@ Watermark => Watermark
 
 showWatermark => Visible
 watermarkScale => Scale
+wideScreen => Fills the screen with your display's real aspect ratio instead of 16:9 letterboxing. Toggle switches instantly; restart the game to change the canvas size.
+
+edgeSafeOffset => Extra inset (0-80 px) added on top of the automatic notch/cutout detection. Applies on the next screen.

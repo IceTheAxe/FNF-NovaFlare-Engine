@@ -13,3 +13,6 @@ Watermark => Marca de agua
 
 showWatermark => Mostrar marca de agua
 watermarkScale => Tamaño de la marca de agua
+wideScreen => Pantalla ancha
+
+edgeSafeOffset => Desplazamiento de borde seguro

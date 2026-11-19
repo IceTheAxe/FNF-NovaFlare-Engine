@@ -726,7 +726,12 @@ class PlayState extends MusicBeatState
 		scoreTxt.visible = !ClientPrefs.data.hideHud;
 		add(scoreTxt);
 
-		judgementCounter_S = new JudgementCounter(10, 0);
+		var judgeX:Float = 10;
+		#if mobile
+		// 左缘贴边，宽屏下避让刘海/挖孔
+		judgeX += mobile.backend.SafeArea.get().left;
+		#end
+		judgementCounter_S = new JudgementCounter(judgeX, 0);
 		judgementCounter_S.visible = (ClientPrefs.data.judgementCounter
 			&& !ClientPrefs.data.hideHud
 			&& !ClientPrefs.getGameplaySetting('botplay'));
@@ -745,7 +750,15 @@ class PlayState extends MusicBeatState
 
 		if (ClientPrefs.data.pauseButton)
 		{
-			pauseButton_menu = new TouchSpriteButton(2, 2);
+			var pauseBtnX:Float = 2;
+			var pauseBtnY:Float = 2;
+			#if mobile
+			// 左上角触摸暂停键避开刘海/挖孔
+			var pauseIns = mobile.backend.SafeArea.get();
+			pauseBtnX += pauseIns.left;
+			pauseBtnY += pauseIns.top;
+			#end
+			pauseButton_menu = new TouchSpriteButton(pauseBtnX, pauseBtnY);
 			pauseButton_menu.loadGraphic(Paths.image('menuExtend/PlayState/pauseButton'));
 			pauseButton_menu.setGraphicSize(100, 100);
 			pauseButton_menu.alpha = 0.5;

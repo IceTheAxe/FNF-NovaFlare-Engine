@@ -14,4 +14,9 @@ msInErrorBar => 在打击误差条上直接显示当前偏差的毫秒数。
 pointerType => 选择打击误差条上指针的外观。
 guideLineAlpha => 控制引导线的不透明度（透明度）。
 noteOffsetChangingAllowed => 播放回放时套用回放里记录的 Note Offset。
-peChartEditor => 开启后用 Psych Engine 1.0.4 版谱面编辑器，关闭则用 NovaFlare 原版编辑器。
+peChartEditor => 开启后用 Psych Engine 1.0.4 版谱面编辑器，关闭则用 NovaFlare 原版编辑器。pauseSkipFadeIn => 开启后暂停界面直接出现，不播放滑入动画。
+pauseSkipFadeOut => 开启后关闭暂停界面瞬间完成，不播放滑出动画。
+pauseDoubleEnterSkip => 暂停界面关闭动画期间再按一次确认键，可以立即跳过动画关闭。
+pauseUnlockInputDuringAnim => 暂停界面滑入动画还没播完时就允许直接操作。
+relaxIdleMinutes => 闲置指定分钟数后自动进入 Relax 播放器，0 = 关闭。
+startInfoTime => 进入游戏时显示开局信息提示的秒数，0 = 关闭。

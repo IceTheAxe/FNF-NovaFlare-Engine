@@ -15,3 +15,6 @@ Watermark => Watermark
 
 showWatermark => Show Watermark
 watermarkScale => Watermark Scale
+wideScreen => Wide Screen
+
+edgeSafeOffset => Edge Safe Offset

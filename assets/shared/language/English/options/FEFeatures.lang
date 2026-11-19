@@ -20,3 +20,7 @@ pauseType_Psych => Psych
 peChartEditor => PE Chart Editor
 relaxIdleMinutes => Auto Relax When Idle (Minutes, 0 = Off)
 startInfoTime => Start Info Popup (Seconds, 0 = Off)
+pauseSkipFadeIn => Skip Pause Slide-In
+pauseSkipFadeOut => Skip Pause Slide-Out
+pauseDoubleEnterSkip => Double-Tap Accept to Close Instantly
+pauseUnlockInputDuringAnim => Allow Input During Animations

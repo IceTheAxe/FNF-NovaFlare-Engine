@@ -223,21 +223,25 @@ class StrumNote extends FlxSprite
 	public function centerStrum(maniaThresh:Int, padding:Float)
 	{
 		var sWidth = /*(PlayState.isPixelStage && PlayState.SONG.mania > maniaThresh) ? (180 + ((10 + (5 * (PlayState.SONG.mania - maniaThresh))) * (PlayState.SONG.mania - maniaThresh))) : */ Note.swagWidthUnscaled;
+		// 宽屏模式适配：按屏幕四分点/二分点定位（1280 宽时与旧硬编码值 320/960/640 完全一致，16:9 无变化）
+		var quarterX:Float = FlxG.width / 4;
+		var threeQuarterX:Float = FlxG.width - quarterX;
+		var halfX:Float = FlxG.width / 2;
 		if (!ClientPrefs.data.middleScroll)
 		{
-			x = player == 0 ? 320 : 960;
+			x = player == 0 ? quarterX : threeQuarterX;
 			x += ((sWidth * trackedScale) - padding) * (-((PlayState.SONG.mania + 1) / 2) + noteData);
 		}
 		else
 		{
 			var controlledPlayer:Int = ClientPrefs.data.playOpponent ? 0 : 1;
 			if (player == controlledPlayer)
-				x = 640;
+				x = halfX;
 			else
 			{
-				x = 320;
+				x = quarterX;
 				if (noteData > Math.floor((PlayState.SONG.mania / 2)))
-					x = 960;
+					x = threeQuarterX;
 			}
 			x += ((sWidth * trackedScale) - padding) * (-((PlayState.SONG.mania + 1) / 2) + noteData);
 		}

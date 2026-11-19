@@ -82,41 +82,58 @@ class SUtil
 	#if android
 	public static function doPermissionsShit():Void
 	{
-		if (AndroidVersion.SDK_INT >= AndroidVersionCode.R) // Android 11 (API 30) and above
+		// 按 Android 版本分流（移植自 FE Mobile StorageUtil）：
+		//   API 30+  —— 只认「所有文件访问权限」，isExternalStorageManager 在这区间才有意义
+		//   API 29-  —— 只认运行时存储权限；isExternalStorageManager 在这区间恒 true，
+		//              拿它判断会让整段权限检查失效，目录能建出来但写不进去
+		if (AndroidVersion.SDK_INT >= AndroidVersionCode.R)
 		{
 			if (!AndroidEnvironment.isExternalStorageManager())
 				AndroidSettings.requestSetting('MANAGE_APP_ALL_FILES_ACCESS_PERMISSION');
 		}
-		else // Android 10 and below
-		{
-			if (!AndroidPermissions.getGrantedPermissions().contains('android.permission.READ_EXTERNAL_STORAGE')
-				|| !AndroidPermissions.getGrantedPermissions().contains('android.permission.WRITE_EXTERNAL_STORAGE'))
-			{
-				AndroidPermissions.requestPermissions(['READ_EXTERNAL_STORAGE', 'WRITE_EXTERNAL_STORAGE']);
-			}
-		}
-
-		if ((AndroidVersion.SDK_INT >= AndroidVersionCode.R
-			&& !AndroidEnvironment.isExternalStorageManager())
-			|| (AndroidVersion.SDK_INT < AndroidVersionCode.R
-				&& (!AndroidPermissions.getGrantedPermissions().contains('android.permission.READ_EXTERNAL_STORAGE')
-					|| !AndroidPermissions.getGrantedPermissions().contains('android.permission.WRITE_EXTERNAL_STORAGE'))))
-			showPopUp('If you accepted the permissions you are all good!' + '\nIf you didn\'t then expect a crash' + '\nPress OK to see what happens',
-				'Notice!');
+		else
+			AndroidPermissions.requestPermissions(['READ_EXTERNAL_STORAGE', 'WRITE_EXTERNAL_STORAGE']);
 
 		try
 		{
-			if (!FileSystem.exists(SUtil.getStorageDirectory()))
-				FileSystem.createDirectory(SUtil.getStorageDirectory());
+			// 去掉尾部斜杠再 mkdir：FUSE 上带斜杠的路径个别 ROM 会拒绝
+			var root:String = getStorageDirectory();
+			if (root.endsWith('/'))
+				root = root.substr(0, root.length - 1);
+			if (!FileSystem.exists(root))
+				FileSystem.createDirectory(root);
+
+			// 写探针：目录建得出来不代表写得进去（scoped storage / 运行时权限被拒）。
+			// 写不进去时后续复制和 zip 解压都会静默全失败，玩家看到的是「目录是空的」。
+			var probe:String = root + '/.nf_write_probe';
+			File.saveContent(probe, 'ok');
+			FileSystem.deleteFile(probe);
 		}
 		catch (e:Dynamic)
 		{
-			showPopUp("Please create folder to\n"
-				+ #if EXTERNAL "/storage/emulated/0/."
-				+ lime.app.Application.current.meta.get('file') #elseif MEDIA "/storage/emulated/0/Android/media/"
-				+ lime.app.Application.current.meta.get('packageName') #else SUtil.getStorageDirectory() #end
-				+ "\nPress OK to close the game",
-				"Error!");
+			// 区分「权限没给」和「真的建不出来」：提示必须把人送去能解决问题的那一页，
+			// 否则玩家看到的是「请手动创建文件夹」，而真正缺的是权限。
+			if (AndroidVersion.SDK_INT >= AndroidVersionCode.R)
+			{
+				if (!AndroidEnvironment.isExternalStorageManager())
+				{
+					AndroidSettings.requestSetting('MANAGE_APP_ALL_FILES_ACCESS_PERMISSION');
+					showPopUp('The engine needs "All files access" to create\n'
+						+ getStorageDirectory()
+						+ '\n\nTurn it on in the settings page that just opened, then reopen the game.', 'Error!');
+				}
+				else
+					showPopUp('Please create folder to\n' + getStorageDirectory() + '\nPress OK to close the game', 'Error!');
+			}
+			else
+			{
+				// Android 10 及以下没有「所有文件访问权限」开关，缺的是运行时存储权限
+				AndroidPermissions.requestPermissions(['READ_EXTERNAL_STORAGE', 'WRITE_EXTERNAL_STORAGE']);
+				AndroidSettings.requestSetting('APPLICATION_DETAILS_SETTINGS');
+				showPopUp('The engine needs storage permission to write\n'
+					+ getStorageDirectory()
+					+ '\n\nAllow "Storage" for this app in the settings page that just opened, then reopen the game.', 'Error!');
+			}
 			LimeSystem.exit(1);
 		}
 	}

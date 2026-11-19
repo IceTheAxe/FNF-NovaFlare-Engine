@@ -20,3 +20,7 @@ pauseType_Psych => Psych
 peChartEditor => 使用 PE 谱面编辑器
 relaxIdleMinutes => 闲置自动进入 Relax（分钟，0 = 关闭）
 startInfoTime => 开局信息提示（秒，0 = 关闭）
+pauseSkipFadeIn => 跳过暂停滑入动画
+pauseSkipFadeOut => 跳过暂停滑出动画
+pauseDoubleEnterSkip => 双击确认跳过关闭动画
+pauseUnlockInputDuringAnim => 动画期间允许操作

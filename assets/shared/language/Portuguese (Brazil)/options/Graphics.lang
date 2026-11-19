@@ -15,3 +15,6 @@ Watermark => Marca d'água
 
 showWatermark => Mostrar Marca d'água
 watermarkScale => Tamanho da Marca d'água
+wideScreen => Tela Larga
+
+edgeSafeOffset => Deslocamento da Borda Segura

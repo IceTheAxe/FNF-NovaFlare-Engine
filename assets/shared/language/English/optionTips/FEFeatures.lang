@@ -14,4 +14,9 @@ msInErrorBar => Show the current timing error in milliseconds directly on the hi
 pointerType => Choose the shape of the pointer on the hit error bar.
 guideLineAlpha => Control the opacity (transparency) of the guide lines.
 noteOffsetChangingAllowed => Apply the note offset recorded in the replay when playing it back.
-peChartEditor => Use the Psych Engine 1.0.4 chart editor instead of the classic NovaFlare one.
+peChartEditor => Use the Psych Engine 1.0.4 chart editor instead of the classic NovaFlare one.pauseSkipFadeIn => The pause menu appears instantly instead of sliding in.
+pauseSkipFadeOut => Closing the pause menu finishes instantly instead of sliding out.
+pauseDoubleEnterSkip => Pressing accept again while the pause menu is closing skips the exit animation.
+pauseUnlockInputDuringAnim => Lets you interact with the pause menu before the slide-in animation finishes.
+relaxIdleMinutes => Automatically enter the Relax player after being idle for this many minutes. 0 = off.
+startInfoTime => How long the start info popup shows when a song begins, in seconds. 0 = off.

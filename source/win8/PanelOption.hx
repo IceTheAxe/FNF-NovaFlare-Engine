@@ -1,6 +1,17 @@
 package win8;
 
 /**
+ * 键位选项的存档结构（键盘 / 手柄各一个枚举名字符串）。
+ * 与 options.base.OptionBase.Keybind 结构一致 —— 匿名结构直接结构化兼容，
+ * win8 包不需要反向 import options 包。
+ */
+typedef Win8Keybind =
+{
+	keyboard:String,
+	gamepad:String
+}
+
+/**
  * Win8 面板里一个选项的数据模型。
  *
  * 只管"值 + 元数据 + 回调"，本身不含任何显示对象 —— 控件由 WidgetFactory 按 type 造，
@@ -30,6 +41,12 @@ class PanelOption
 	public var action:Void->Void = null;
 	public var actionLabel:String = '';
 
+	// KEYBIND：settings.json 里声明的默认键位，以及当前键位结构的初始存档
+	/** 恢复默认用（跟随当前键鼠模式取 keyboard / gamepad 之一） */
+	public var defaultKeys:Win8Keybind = null;
+	/** 首次进存档时写入的初始结构 */
+	public var keys:Win8Keybind = null;
+
 	/** 面板滑动 / 有弹层展开时置 false，控件就不响应输入 */
 	public var allowUpdate:Bool = true;
 
@@ -56,6 +73,8 @@ class PanelOption
 				decimals = 2;
 			case STRING:
 				defaultValue = (options != null && options.length > 0) ? options[0] : '';
+			case KEYBIND:
+				defaultValue = 'NONE';
 			case ACTION:
 				defaultValue = null;
 		}
@@ -66,8 +85,8 @@ class PanelOption
 		if (onChange != null) onChange();
 	}
 
-	/** 下拉里某一项的显示文字。默认原样返回，子类可以换成翻译过的名字 */
-	public function getOptionText(value:Dynamic):String
+	/** 下拉里某一项的显示文字。默认原样返回；声明成 dynamic，调用方可以按实例换成翻译过的名字 */
+	dynamic public function getOptionText(value:Dynamic):String
 	{
 		if (value == null) return '';
 		return Std.string(value);

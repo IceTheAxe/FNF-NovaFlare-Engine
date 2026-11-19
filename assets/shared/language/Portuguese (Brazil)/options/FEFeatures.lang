@@ -20,3 +20,7 @@ pauseType_Psych => Psych (Psicológico)
 peChartEditor => Editor de Chart PE
 relaxIdleMinutes => Relax Automático ao Ocioso (Min, 0 = Desligado)
 startInfoTime => Aviso de Informações Iniciais (Segundos, 0 = Desativado)
+pauseSkipFadeIn => Pular Entrada Deslizante da Pausa
+pauseSkipFadeOut => Pular Saída Deslizante da Pausa
+pauseDoubleEnterSkip => Toque Duas Vezes em Confirmar para Fechar
+pauseUnlockInputDuringAnim => Permitir Input Durante Animações

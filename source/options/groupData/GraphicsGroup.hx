@@ -1,8 +1,13 @@
 package options.groupData;
 
+import flixel.FlxG;
 import lime.graphics.opengl.GL;
 import openfl.Lib;
 import lime.system.Display;
+
+#if mobile
+import mobile.backend.MobileScaleMode;
+#end
 
 #if mobile
 import general.shaders.MobileShaderConverter;
@@ -42,10 +47,21 @@ class GraphicsGroup extends OptionCata
 		var option:Option = new Option(this, 'lowQuality', BOOL);
 		addOption(option);
 
-		var resolutionArray:Array<Array<String>> = resoData();
-		var option:Option = new Option(this, 'resolution', STRING, resolutionArray);
-		addOption(option);
-		option.onChange = onChangeResolution;
+			var resolutionArray:Array<Array<String>> = resoData();
+			var option:Option = new Option(this, 'resolution', STRING, resolutionArray);
+			addOption(option);
+			option.onChange = onChangeResolution;
+
+			#if mobile
+			// 宽屏画布（FE 移动版同款）：铺满/信箱立即切换，画布真正变宽需重启游戏
+			var option:Option = new Option(this, 'wideScreen', BOOL);
+			addOption(option);
+			option.onChange = () -> FlxG.scaleMode = new MobileScaleMode();
+
+			// 边缘安全区额外内缩，改后下一个界面生效
+			var option:Option = new Option(this, 'edgeSafeOffset', INT, [0, 80]);
+			addOption(option);
+			#end
 
 		var option:Option = new Option(this, 'gameQuality', INT, [0, 3]);
 		addOption(option);
@@ -109,8 +125,12 @@ class GraphicsGroup extends OptionCata
 		//Main.fpsVar.change();
 		if (Main.watermark != null)
 		{
+			var wmBottom:Float = 5;
+			#if mobile
+			wmBottom += mobile.backend.SafeArea.getStage().bottom;
+			#end
 			Main.watermark.scaleX = Main.watermark.scaleY = ClientPrefs.data.watermarkScale;
-			Main.watermark.y = Lib.current.stage.stageHeight - 5 - Main.watermark.scaleY * Main.watermark.bitmapData.height;
+			Main.watermark.y = Lib.current.stage.stageHeight - wmBottom - Main.watermark.scaleY * Main.watermark.bitmapData.height;
 			Main.watermark.visible = ClientPrefs.data.showWatermark;
 		}
 	}

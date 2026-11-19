@@ -47,6 +47,11 @@ import general.shaders.MobileShaderConverter;
 	public var gcFreeZone:Bool = true;
 	#if mobile
 	public var autoOrientation:Bool = false;
+	// 宽屏模式：画布按手机屏幕实际比例铺满（不开则 16:9 信箱居中）。改后重启游戏画布才真正变宽。
+	public var wideScreen:Bool = false;
+	// 边缘安全区额外内缩(画布 px)：刘海/灵动岛/挖孔自动检测之外的补充量。
+	// 仅 wideScreen 下与自动检测叠加生效(16:9 画布够不到刘海,恒 0);改后下一个界面生效。
+	public var edgeSafeOffset:Int = 0;
 	public var autoShaderConversion:Bool = true;
 	public var mouseTrailEffect:Bool = true;
 	#end

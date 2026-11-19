@@ -39,6 +39,7 @@ import general.objects.screen.MouseEffect;
 import general.objects.ReplayOverlay;
 #if mobile
 import general.shaders.MobileShaderConverter;
+import mobile.backend.MobileScaleMode;
 #end
 
 import states.titleState.TitleState;
@@ -253,8 +254,27 @@ class Main extends Sprite
 		ExtraKeysHandler.instance = new ExtraKeysHandler();
 		ClientPrefs.loadDefaultKeys();
 
-		var flxGame:FlxGame = new FlxGame(#if (openfl >= "9.2.0") 1280, 720 #else gameConfig.width, gameConfig.height #end,gameConfig.initialState, #if (flixel < "5.0.0") gameConfig.zoom, #end gameConfig.framerate, gameConfig.framerate, gameConfig.skipSplash, gameConfig.startFullscreen);
+		#if mobile
+		// ClientPrefs.loadPrefs() 要到 InitState 才跑，这里反射预读宽屏设置来定画布尺寸（FE 移动版同款）：
+		// 宽屏开 → 画布 = 屏幕实际比例（gameConfig 已按窗口比例算好）；关 → 保持 1280x720，交给 MobileScaleMode 信箱。
+		FlxG.save.bind('controls_v4', general.backend.CoolUtil.getSavePath());
+		var wideScreen:Bool = false;
+		if (FlxG.save.data != null && Reflect.hasField(FlxG.save.data, 'wideScreen'))
+			wideScreen = Reflect.field(FlxG.save.data, 'wideScreen');
+		var flxWidth:Int = wideScreen ? gameConfig.width : 1280;
+		var flxHeight:Int = wideScreen ? gameConfig.height : 720;
+		#else
+		var flxWidth:Int = 1280;
+		var flxHeight:Int = 720;
+		#end
+
+		var flxGame:FlxGame = new FlxGame(#if (openfl >= "9.2.0") flxWidth, flxHeight #else gameConfig.width, gameConfig.height #end,gameConfig.initialState, #if (flixel < "5.0.0") gameConfig.zoom, #end gameConfig.framerate, gameConfig.framerate, gameConfig.skipSplash, gameConfig.startFullscreen);
 		addChild(flxGame);
+
+		#if mobile
+		// FlxGame 默认 RatioScaleMode 启动，首个 State 就绪后换挂 MobileScaleMode（宽屏铺满 / 关闭信箱）。
+		FlxG.signals.postGameStart.addOnce(() -> FlxG.scaleMode = new MobileScaleMode());
+		#end
 
 		fpsVar = new FPSViewer(0, 0);
 		FlxG.addChildBelowMouse(fpsVar);
@@ -270,18 +290,27 @@ class Main extends Sprite
 
 		var image:String = Paths.modFolders('images/menuExtend/Others/watermark.png');
 
+		// 左下角水印锚点，宽屏/信箱模式下都避让 Home 条/圆角（stage 域安全区）
+		var wmX:Float = 5;
+		var wmBottom:Float = 5;
+		#if mobile
+		var wmIns = mobile.backend.SafeArea.getStage();
+		wmX += wmIns.left;
+		wmBottom += wmIns.bottom;
+		#end
+
 		if (FileSystem.exists(image))
 		{
 			if (watermark != null)
 				removeChild(watermark);
-			watermark = new Watermark(5, Lib.current.stage.stageHeight - 5, 0.4);
+			watermark = new Watermark(wmX, Lib.current.stage.stageHeight - wmBottom, 0.4);
 			addChild(watermark);
 			watermark.y -= watermark.bitmapData.height;
 		}
 		if (watermark != null)
 		{
 			watermark.scaleX = watermark.scaleY = ClientPrefs.data.watermarkScale;
-			watermark.y = Lib.current.stage.stageHeight - 5 - watermark.scaleY * watermark.bitmapData.height;
+			watermark.y = Lib.current.stage.stageHeight - wmBottom - watermark.scaleY * watermark.bitmapData.height;
 			watermark.visible = ClientPrefs.data.showWatermark;
 		}
 
