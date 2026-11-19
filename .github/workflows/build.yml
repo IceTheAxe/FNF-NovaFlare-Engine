@@ -250,7 +250,11 @@ jobs:
           #   restore-key 命中旧快照时项目 .haxelib 里还是旧库，hmm install 增量跳过
           #   不会换新，Windows/Linux 全平台 "Type not found: json2object.JsonWriterParams"
           #   就是它（2026-11-17 排查）。
-          for library in polymod thx.core thx.semver FlxPartialSound json2object; do
+          # - flixel / lime / openfl：ref 是**分支名**，分支前进不会改变 hmm.json 的
+          #   hash，deps 缓存按 hash 键控会永远冻在旧快照（且 hxcpp 注释同款 PCH 连坐）
+          #   —— 2026-11-19 排查：flixel 084fccf 引入 FlxGame.steps 后，
+          #   缓存旧 flixel 让 Win/Linux 报 "FlxGame has no field steps"。
+          for library in polymod thx.core thx.semver FlxPartialSound json2object flixel lime openfl; do
             haxelib --global run hmm reinstall --force "$library"
           done
 
