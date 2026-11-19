@@ -210,13 +210,18 @@ jobs:
             ${{ env.HAXELIB_ROOT }}
             ~/.gradle
 
+      # hxcpp 缓存 key 必须绑 hmm.json hash：deps 缓存 miss（hmm.json 变化 → 全新
+      # 装了新 hxcpp）而 hxcpp 缓存按旧 key 命中时，恢复出来的 PCH 是拿旧 hxcpp.h
+      # 预编译的，新库一来就 "hxcpp.h has been modified since the precompiled
+      # header was built" fatal（iOS 就栽在这）。绑上 hash 后 deps 换代 → hxcpp
+      # 缓存 key/前缀一起换 → 不会拿旧 PCH 配新库；deps 没变时缓存照常命中。
       - name: Restore hxcpp cache
         if: inputs.use_cache
         uses: actions/cache/restore@v4
         with:
-          key: nf-hxcpp-${{ runner.os }}-${{ runner.arch }}-${{ steps.cache_strategy.outputs.slug }}-${{ github.run_id }}
+          key: nf-hxcpp-${{ runner.os }}-${{ runner.arch }}-${{ steps.cache_strategy.outputs.slug }}-${{ hashFiles('hmm.json') }}-${{ github.run_id }}
           restore-keys: |
-            nf-hxcpp-${{ runner.os }}-${{ runner.arch }}-${{ steps.cache_strategy.outputs.slug }}-
+            nf-hxcpp-${{ runner.os }}-${{ runner.arch }}-${{ steps.cache_strategy.outputs.slug }}-${{ hashFiles('hmm.json') }}-
           path: .hxcpp_cache
 
       # 装依赖的逻辑对所有目标其实是一样的（hmm + hmm.json），按平台分叉的只有
@@ -237,10 +242,15 @@ jobs:
           haxelib --global run hmm install
 
           # 缓存的 haxelib git checkout 会漂到上游默认分支，即使 hmm.json 钉了 commit。
-          # 这四个库 NovaFlare 打过兼容补丁（polymod 的加载器、thx 的运行时改写、
-          # FlxPartialSound 的部分混音），必须回到钉住的那个版本，否则编出来能跑、
-          # 运行时才炸。所以**每次**装完都无条件钉一遍，不看缓存。
-          for library in polymod thx.core thx.semver FlxPartialSound; do
+          # 这些库必须回到钉住的那个版本，所以**每次**装完都无条件钉一遍，不看缓存：
+          # - polymod：NF 的加载器补丁
+          # - thx.core / thx.semver：运行时改写
+          # - FlxPartialSound：部分混音补丁
+          # - json2object：FunkinCrew fork 的重写版（JsonWriterParams 等）——依赖缓存
+          #   restore-key 命中旧快照时项目 .haxelib 里还是旧库，hmm install 增量跳过
+          #   不会换新，Windows/Linux 全平台 "Type not found: json2object.JsonWriterParams"
+          #   就是它（2026-11-17 排查）。
+          for library in polymod thx.core thx.semver FlxPartialSound json2object; do
             haxelib --global run hmm reinstall --force "$library"
           done
 
