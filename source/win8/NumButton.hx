@@ -18,6 +18,8 @@ class NumButton extends FlxSpriteGroup
 	public var rod:Rect;
 	var valueText:FlxText;
 	var valueTextWidth:Float = 80;
+	/** 透明扩大的触控热区：轨道只有 3px 高，点跳转/悬停用它（拖滑块仍认 rod） */
+	var hitArea:Rect;
 
 	var max:Float;
 	var min:Float;
@@ -29,6 +31,14 @@ class NumButton extends FlxSpriteGroup
 	public var onFocus:Bool = false;
 
 	var savePending:Bool = false;
+
+	/** 键盘选中宿主行时由 OptionRow 置位：让滑块看起来和鼠标悬停一样（只参与配色） */
+	public var keyboardHighlight:Bool = false;
+
+	public function setKeyboardHighlight(v:Bool):Void
+	{
+		keyboardHighlight = v;
+	}
 
 	public function new(X:Float, Y:Float, width:Float, height:Float, follow:PanelOption)
 	{
@@ -42,6 +52,11 @@ class NumButton extends FlxSpriteGroup
 		var trackH:Float = 3;
 		var rodH:Float = Math.min(height, 18);
 		var rodW:Float = 8;
+
+		// 透明扩大的触控热区：整个控件四周扩一圈（轨道只有 3px 高，移动端手指没法点）
+		hitArea = new Rect(-Theme.TOUCH_PAD_X, -Theme.TOUCH_PAD_Y,
+			width + Theme.TOUCH_PAD_X * 2, height + Theme.TOUCH_PAD_Y * 2, 0, 0, 0x00000000, 0);
+		add(hitArea);
 
 		moveBG = new Rect(0, 0, width, trackH, 0, 0, Theme.track(), 1.0);
 		moveBG.y += (height - moveBG.height) / 2;
@@ -57,7 +72,7 @@ class NumButton extends FlxSpriteGroup
 		add(rod);
 
 		valueText = new FlxText(0, 0, valueTextWidth, '', 12);
-		valueText.setFormat(Paths.font('montserrat.ttf'), 12, Theme.text(), LEFT);
+		valueText.setFormat(Theme.uiFont(), 12, Theme.text(), LEFT);
 		valueText.borderStyle = NONE;
 		valueText.antialiasing = ClientPrefs.data.antialiasing;
 		valueText.y = (height - valueText.height) * 0.5;
@@ -87,12 +102,13 @@ class NumButton extends FlxSpriteGroup
 		var mouse = FlxG.mouse;
 
 		// ---------- 悬浮 / 按下 的颜色反馈 ----------
+		// 轨道只有 3px 高：hover / 点跳转都认扩大的热区，只有"按住滑块拖"认 rod 本体
 		var hoverRod:Bool = Input.overlaps(rod);
-		var hoverBG:Bool = Input.overlaps(moveBG);
+		var hoverBG:Bool = Input.overlaps(hitArea);
 
 		if (mouse.pressed && (onFocus || hoverRod || hoverBG))
 			setRodColor(Theme.knobPress());
-		else if (hoverRod || hoverBG)
+		else if (hoverRod || hoverBG || keyboardHighlight)
 			setRodColor(Theme.knobHover());
 		else
 			setRodColor(Theme.knob());

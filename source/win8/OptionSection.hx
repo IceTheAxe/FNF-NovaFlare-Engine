@@ -31,7 +31,7 @@ class OptionSection extends FlxSpriteGroup
 		this.entryId = id;
 
 		label = new FlxText(PAD_X, 12, w - PAD_X * 2, text != null ? text : '', 13);
-		label.setFormat(Paths.font('montserrat.ttf'), 13, Theme.textSecondary(), LEFT);
+		label.setFormat(Theme.uiFont(), 13, Theme.textSecondary(), LEFT);
 		label.borderStyle = NONE;
 		label.antialiasing = ClientPrefs.data.antialiasing;
 		add(label);

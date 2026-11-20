@@ -484,13 +484,13 @@ class TileView extends FlxSpriteGroup
 		add(shade);
 
 		title = new FlxText(0, 0, 100, data.title != null ? data.title : '');
-		title.setFormat(Paths.font('montserrat.ttf'), 12, 0xFFFFFFFF, LEFT);
+		title.setFormat(Theme.uiFont(), 12, 0xFFFFFFFF, LEFT);
 		title.borderStyle = NONE;
 		title.antialiasing = ClientPrefs.data.antialiasing;
 		add(title);
 
 		subtitle = new FlxText(0, 0, 100, (data.subtitle != null) ? data.subtitle : '');
-		subtitle.setFormat(Paths.font('montserrat.ttf'), 10, 0xFFCCCCCC, LEFT);
+		subtitle.setFormat(Theme.uiFont(), 10, 0xFFCCCCCC, LEFT);
 		subtitle.borderStyle = NONE;
 		subtitle.antialiasing = ClientPrefs.data.antialiasing;
 		subtitle.visible = false;
@@ -549,7 +549,7 @@ class TileView extends FlxSpriteGroup
 		var titleSize:Int = Std.int(Math.max(10, size * 0.082));
 		if (titleSize != lastTitleSize)
 		{
-			title.setFormat(Paths.font('montserrat.ttf'), titleSize, 0xFFFFFFFF, LEFT);
+			title.setFormat(Theme.uiFont(), titleSize, 0xFFFFFFFF, LEFT);
 			lastTitleSize = titleSize;
 		}
 
@@ -565,7 +565,7 @@ class TileView extends FlxSpriteGroup
 			subtitle.fieldWidth = size - pad * 2;
 			if (subSize != lastSubSize)
 			{
-				subtitle.setFormat(Paths.font('montserrat.ttf'), subSize, 0xFFCCCCCC, LEFT);
+				subtitle.setFormat(Theme.uiFont(), subSize, 0xFFCCCCCC, LEFT);
 				lastSubSize = subSize;
 			}
 			subtitle.x = x0 + pad;

@@ -1,0 +1,51 @@
+// ============================================
+// Editor-embedded Win8 settings panels (Chart Minimap etc.) - English
+// ============================================
+
+win8_go => Go
+
+// ===== Chart Minimap settings =====
+minimap_title => Chart Minimap
+minimap_layout => Layout
+minimap_layout_desc => Bar position, size and safe margins
+minimap_orientation => Orientation
+minimap_orientation_desc => Vertical bar sits on the right edge, horizontal along the bottom
+minimap_value_vertical => Vertical
+minimap_value_horizontal => Horizontal
+minimap_length => Length (px, 0 = auto)
+minimap_length_auto => Auto
+minimap_length_desc => Bar length along its axis; Auto fills the screen minus both safe margins
+minimap_thickness => Thickness (px)
+minimap_thickness_desc => How wide the bar is across its axis
+minimap_margin => Safe margin (px)
+minimap_margin_desc => Empty space kept at both ends of the bar
+minimap_density_section => Density Colors
+minimap_density_section_desc => Color sections by notes-per-second
+minimap_density => Density colors
+minimap_density_desc => Color every track inside a section by its own note density instead of a flat color
+minimap_value_on => On
+minimap_value_off => Off
+minimap_tier1 => Low / medium (nps)
+minimap_tier1_desc => Notes per second on one track where green turns yellow-green
+minimap_tier2 => Medium / high (nps)
+minimap_tier2_desc => Notes per second on one track where yellow-green turns yellow
+minimap_tier3 => High / very high (nps)
+minimap_tier3_desc => Notes per second on one track where yellow turns orange
+minimap_tier4 => Very high / extreme (nps)
+minimap_tier4_desc => Notes per second on one track where orange turns orange-red
+minimap_tier5 => Extreme+ (nps)
+minimap_tier5_desc => Notes per second on one track where orange-red turns red
+minimap_reset => Reset Defaults
+minimap_reset_desc => Restore every setting and snap the bar back to the screen edge
+minimap_view_section => View
+minimap_view_section_desc => Timeline zoom and playhead follow
+minimap_zoom => Zoom (1 = full song)
+minimap_zoom_desc => 1 shows the whole song, 16 shows one sixteenth
+minimap_follow => Follow playhead
+minimap_follow_desc => Scroll the zoomed window with the playhead
+minimap_zoom_in => Zoom In
+minimap_zoom_in_desc => Double the timeline zoom around the playhead
+minimap_zoom_out => Zoom Out
+minimap_zoom_out_desc => Halve the timeline zoom around the playhead
+minimap_reset_view => Reset View
+minimap_reset_view_desc => Back to the whole song at 1x

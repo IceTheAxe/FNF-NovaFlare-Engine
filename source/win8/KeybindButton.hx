@@ -40,9 +40,18 @@ class KeybindButton extends FlxSpriteGroup
 	var bg:Rect;
 	var border:FlxSprite;
 	var dis:FlxText;
+	var hitArea:Rect; // 透明扩大的触控热区
 
 	var hover:Bool = false;
 	var pressing:Bool = false;
+
+	/** 键盘选中宿主行时由 OptionRow 置位：让条看起来和鼠标悬停一样（只参与配色） */
+	public var keyboardHighlight:Bool = false;
+
+	public function setKeyboardHighlight(v:Bool):Void
+	{
+		keyboardHighlight = v;
+	}
 
 	/** 长按计时（ESC / 退格） */
 	var holdTime:Float = 0;
@@ -52,6 +61,11 @@ class KeybindButton extends FlxSpriteGroup
 		super(X, Y);
 
 		this.follow = follow;
+
+		// 透明扩大的触控热区：条只有 32px 高，移动端手指更容易点准
+		hitArea = new Rect(-Theme.TOUCH_PAD_X, -Theme.TOUCH_PAD_Y,
+			width + Theme.TOUCH_PAD_X * 2, height + Theme.TOUCH_PAD_Y * 2, 0, 0, 0x00000000, 0);
+		add(hitArea);
 
 		bg = new Rect(0, 0, width, height, 0, 0, Theme.face(), 1);
 		bg.antialiasing = ClientPrefs.data.antialiasing;
@@ -63,7 +77,7 @@ class KeybindButton extends FlxSpriteGroup
 		add(border);
 
 		dis = new FlxText(10, 0, width - 20, '', 16);
-		dis.setFormat(Paths.font('montserrat.ttf'), 16, textColor(), LEFT);
+		dis.setFormat(Theme.uiFont(), 16, textColor(), LEFT);
 		dis.borderStyle = NONE;
 		dis.antialiasing = ClientPrefs.data.antialiasing;
 		dis.y = (height - dis.height) * 0.5;
@@ -76,13 +90,13 @@ class KeybindButton extends FlxSpriteGroup
 	// 配色
 	// =========================================================
 	function textColor():FlxColor
-		return (hover || isCapturing()) ? Theme.accent() : Theme.text();
+		return (hover || keyboardHighlight || isCapturing()) ? Theme.accent() : Theme.text();
 
 	function borderColor():FlxColor
-		return (hover || isCapturing()) ? Theme.accent() : Theme.border();
+		return (hover || keyboardHighlight || isCapturing()) ? Theme.accent() : Theme.border();
 
 	inline function mainColor():FlxColor
-		return pressing ? Theme.facePress() : (hover ? Theme.faceHover() : Theme.face());
+		return pressing ? Theme.facePress() : ((hover || keyboardHighlight) ? Theme.faceHover() : Theme.face());
 
 	// =========================================================
 	// 值
@@ -172,7 +186,7 @@ class KeybindButton extends FlxSpriteGroup
 
 		var mouse = FlxG.mouse;
 		var wasHover = hover;
-		hover = Input.overlaps(bg);
+		hover = Input.overlaps(hitArea);
 
 		if (hover != wasHover)
 		{
@@ -214,7 +228,7 @@ class KeybindButton extends FlxSpriteGroup
 			return;
 		}
 
-		if (FlxG.mouse.justPressed && !Input.overlaps(bg))
+		if (FlxG.mouse.justPressed && !Input.overlaps(hitArea))
 		{
 			cancelCapture();
 			return;

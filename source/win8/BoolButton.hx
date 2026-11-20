@@ -20,6 +20,14 @@ class BoolButton extends FlxSpriteGroup
 	var hover:Bool = false;
 	var pressing:Bool = false;
 
+	/** 键盘选中宿主行时由 OptionRow 置位：让轨道看起来和鼠标悬停一样（只参与配色） */
+	public var keyboardHighlight:Bool = false;
+
+	public function setKeyboardHighlight(v:Bool):Void
+	{
+		keyboardHighlight = v;
+	}
+
 	/**
 	 * 方形滑块的两个停靠点（相对本组左上角的局部坐标）。
 	 * 用"绝对目标"而不是"相对位移"，updateDisplay() 被重复调用时才不会累积漂移
@@ -46,8 +54,9 @@ class BoolButton extends FlxSpriteGroup
 
 		var on:Bool = (follow.getValue() == true);
 
-		// 整块区域的透明命中区：铺满整个控件尺寸
-		hitArea = new Rect(0, 0, width, height, 0, 0, 0x00000000, 0);
+		// 整块区域的透明命中区：控件本体四周扩一圈（移动端手指更容易点准）
+		hitArea = new Rect(-Theme.TOUCH_PAD_X, -Theme.TOUCH_PAD_Y,
+			width + Theme.TOUCH_PAD_X * 2, height + Theme.TOUCH_PAD_Y * 2, 0, 0, 0x00000000, 0);
 		add(hitArea);
 
 		// 滑块边长
@@ -131,7 +140,7 @@ class BoolButton extends FlxSpriteGroup
 		var base:FlxColor = follow.getValue() ? getOnColor() : getOffColor();
 
 		if (pressing) return Theme.pressTint(base);
-		else if (hover) return Theme.hoverTint(base);
+		else if (hover || keyboardHighlight) return Theme.hoverTint(base);
 
 		return base;
 	}

@@ -1,0 +1,51 @@
+// ============================================
+// Painéis de configuração Win8 no editor (Chart Minimap etc.) - Português (BR)
+// ============================================
+
+win8_go => Ir
+
+// ===== Configurações do Chart Minimap =====
+minimap_title => Chart Minimap
+minimap_layout => Layout
+minimap_layout_desc => Posição, tamanho e margens de segurança da barra
+minimap_orientation => Orientação
+minimap_orientation_desc => Barra vertical fica na borda direita, horizontal na parte inferior
+minimap_value_vertical => Vertical
+minimap_value_horizontal => Horizontal
+minimap_length => Comprimento (px, 0 = auto)
+minimap_length_auto => Auto
+minimap_length_desc => Comprimento da barra no seu eixo; Auto preenche a tela menos as margens
+minimap_thickness => Espessura (px)
+minimap_thickness_desc => Largura da barra através do seu eixo
+minimap_margin => Margem de segurança (px)
+minimap_margin_desc => Espaço vazio mantido nas duas pontas da barra
+minimap_density_section => Cores de Densidade
+minimap_density_section_desc => Colore seções por notas por segundo
+minimap_density => Cores de densidade
+minimap_density_desc => Colore cada trilha de uma seção pela própria densidade de notas em vez de uma cor única
+minimap_value_on => Ligado
+minimap_value_off => Desligado
+minimap_tier1 => Baixa / média (nps)
+minimap_tier1_desc => Notas por segundo em uma trilha onde o verde vira verde-amarelado
+minimap_tier2 => Média / alta (nps)
+minimap_tier2_desc => Notas por segundo em uma trilha onde o verde-amarelado vira amarelo
+minimap_tier3 => Alta / muito alta (nps)
+minimap_tier3_desc => Notas por segundo em uma trilha onde o amarelo vira laranja
+minimap_tier4 => Muito alta / extrema (nps)
+minimap_tier4_desc => Notas por segundo em uma trilha onde o laranja vira laranja-vermelho
+minimap_tier5 => Extrema+ (nps)
+minimap_tier5_desc => Notas por segundo em uma trilha onde o laranja-vermelho vira vermelho
+minimap_reset => Restaurar Padrões
+minimap_reset_desc => Restaura todas as configurações e encosta a barra de volta na borda da tela
+minimap_view_section => Visualização
+minimap_view_section_desc => Zoom da timeline e acompanhamento do playhead
+minimap_zoom => Zoom (1 = música inteira)
+minimap_zoom_desc => 1 mostra a música inteira, 16 mostra um dezesseis avos
+minimap_follow => Seguir playhead
+minimap_follow_desc => Rola a janela com zoom junto com o playhead
+minimap_zoom_in => Ampliar
+minimap_zoom_in_desc => Dobra o zoom da timeline ancorado no playhead
+minimap_zoom_out => Reduzir
+minimap_zoom_out_desc => Corta o zoom da timeline pela metade ancorado no playhead
+minimap_reset_view => Resetar Visualização
+minimap_reset_view_desc => Volta para a música inteira em 1x

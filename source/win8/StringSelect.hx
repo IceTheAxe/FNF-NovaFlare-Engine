@@ -25,6 +25,7 @@ class StringSelect extends FlxSpriteGroup
 	var bg:Rect;          // 当前值的条
 	var border:FlxSprite; // Win8 描边
 	var dis:FlxText;
+	var hitArea:Rect;     // 透明扩大的触控热区（覆盖主条四周）
 
 	var popup:FlxSpriteGroup;   // 展开的下拉
 	var popupBg:Rect;
@@ -36,6 +37,17 @@ class StringSelect extends FlxSpriteGroup
 
 	public var isOpen(default, set):Bool = false;
 
+	/**
+	 * 键盘选中宿主行时由 OptionRow 置位：让主条看起来和鼠标悬停一样。
+	 * ⚠️ 只参与**配色**计算，不能并进 `hover` —— 那个字段同时是"正在按下"的状态。
+	 */
+	public var keyboardHighlight:Bool = false;
+
+	public function setKeyboardHighlight(v:Bool):Void
+	{
+		keyboardHighlight = v;
+	}
+
 	var mainW:Float;
 	var mainH:Float;
 
@@ -46,6 +58,10 @@ class StringSelect extends FlxSpriteGroup
 	// 下拉项尺寸 / 边缘留白
 	static inline var ITEM_H:Float = 32.0;
 	static inline var EDGE_MARGIN:Float = 4.0;
+
+	// 键盘逐项选：当前高亮的项（-1 = 没有）；popupScrollOffset = 弹层顶部滚出的行数
+	var keyIndex:Int = -1;
+	var popupScrollOffset:Int = 0;
 
 	// 手动绘制的箭头
 	var arrowGfx:FlxSprite;
@@ -59,6 +75,12 @@ class StringSelect extends FlxSpriteGroup
 		mainW = width;
 		mainH = height;
 
+		// 透明扩大的触控热区：控件条只有 32px 高，移动端手指很难点准，
+		// 四周扩一圈（移动端 FlxG.mouse 由触屏驱动，扩鼠标热区 = 扩触控范围）
+		hitArea = new Rect(-Theme.TOUCH_PAD_X, -Theme.TOUCH_PAD_Y,
+			width + Theme.TOUCH_PAD_X * 2, height + Theme.TOUCH_PAD_Y * 2, 0, 0, 0x00000000, 0);
+		add(hitArea);
+
 		bg = new Rect(0, 0, width, height, 0, 0, Theme.face(), 1);
 		bg.antialiasing = ClientPrefs.data.antialiasing;
 		add(bg);
@@ -69,7 +91,7 @@ class StringSelect extends FlxSpriteGroup
 		add(border);
 
 		dis = new FlxText(10, 0, width - 30, '', 16);
-		dis.setFormat(Paths.font('montserrat.ttf'), 16, textColor(), LEFT);
+		dis.setFormat(Theme.uiFont(), 16, textColor(), LEFT);
 		dis.borderStyle = NONE;
 		dis.antialiasing = ClientPrefs.data.antialiasing;
 		dis.y = (height - dis.height) * 0.5;
@@ -124,10 +146,10 @@ class StringSelect extends FlxSpriteGroup
 		return Theme.textSecondary();
 
 	inline function textColor():FlxColor
-		return (hover || isOpen) ? accentColor() : mainTextColor();
+		return (hover || isOpen || keyboardHighlight) ? accentColor() : mainTextColor();
 
 	function borderColor():FlxColor
-		return (hover || isOpen) ? Theme.accent() : Theme.border();
+		return (hover || isOpen || keyboardHighlight) ? Theme.accent() : Theme.border();
 
 	public function refreshValue():Void
 	{
@@ -137,12 +159,13 @@ class StringSelect extends FlxSpriteGroup
 		if (border != null) border.color = borderColor();
 	}
 
-	/** 下拉可视行数：显示全部选项 */
+	/** 下拉可视行数：全部选项，但弹层不能超出屏幕（长列表靠滚动看剩下的） */
 	function visibleRows():Int
 	{
 		var opts:Array<String> = follow.options;
 		if (opts == null) return 0;
-		return opts.length;
+		var maxRows:Int = Std.int(Math.max(3, (FlxG.height - EDGE_MARGIN * 2 - 8) / ITEM_H));
+		return Std.int(Math.min(opts.length, maxRows));
 	}
 
 	function getPopupHeight():Float
@@ -164,18 +187,155 @@ class StringSelect extends FlxSpriteGroup
 	function applyPopupScroll():Void
 	{
 		var oy:Float = (popup != null) ? popup.y : 0;
+		var visN:Int = visibleRows();
 
 		for (i in 0...popupItems.length)
 		{
-			var y:Float = oy + 4 + i * ITEM_H;
+			var inView:Bool = (i >= popupScrollOffset && i < popupScrollOffset + visN);
+			var y:Float = oy + 4 + (i - popupScrollOffset) * ITEM_H;
 
 			popupItems[i].y = y;
 			if (i < popupTexts.length)
 				popupTexts[i].y = y + (ITEM_H - popupTexts[i].height) * 0.5;
 
-			popupItems[i].visible = true;
-			if (i < popupTexts.length) popupTexts[i].visible = true;
+			popupItems[i].visible = inView;
+			if (i < popupTexts.length) popupTexts[i].visible = inView;
+
+			// 键盘 / 鼠标共享同一份高亮：keyIndex 项铺强调色，其余透明
+			if (i == keyIndex)
+			{
+				popupItems[i].color = Theme.accent();
+				popupItems[i].alpha = 1.0;
+			}
+			else
+			{
+				popupItems[i].color = popupItemColor();
+				popupItems[i].alpha = 0.0;
+			}
 		}
+	}
+
+	/** 把某个项滚进弹层可视区（键盘逐项选时用） */
+	function scrollToShow(idx:Int):Void
+	{
+		if (idx < 0) return;
+
+		var visN:Int = visibleRows();
+		var total:Int = (follow.options != null) ? follow.options.length : 0;
+		if (total <= visN)
+		{
+			popupScrollOffset = 0;
+			return;
+		}
+
+		if (idx < popupScrollOffset) popupScrollOffset = idx;
+		else if (idx >= popupScrollOffset + visN) popupScrollOffset = idx - visN + 1;
+
+		if (popupScrollOffset < 0) popupScrollOffset = 0;
+		if (popupScrollOffset > total - visN) popupScrollOffset = total - visN;
+	}
+
+	/** 当前值对应的选项下标（找不到 = -1） */
+	function currentOptionIndex():Int
+	{
+		var opts:Array<String> = follow.options;
+		if (opts == null) return -1;
+		return opts.indexOf(Std.string(follow.getValue()));
+	}
+
+	/**
+	 * 下拉展开时接管键盘：上下选、回车确认、ESC 关闭、R 复位（FE 同款）。
+	 *
+	 * 宿主面板在键鼠处理之前调用；返回 true 表示这次按键已经被下拉吃掉，
+	 * 宿主不要再拿它去动行选中 / 关界面。
+	 */
+	public function handleKeyNav():Bool
+	{
+		if (!isOpen) return false;
+
+		var c:Controls = Controls.instance;
+		if (c == null) return false;
+
+		// TAB 让给宿主：先收起下拉，再让它去切区域
+		if (FlxG.keys.justPressed.TAB)
+		{
+			closePopup();
+			return false;
+		}
+
+		if (c.UI_UP_P) moveKey(-1);
+		if (c.UI_DOWN_P) moveKey(1);
+
+		if (c.ACCEPT)
+		{
+			confirmKeySelection();
+			return true;
+		}
+
+		if (c.BACK)
+		{
+			closePopup();
+			FlxG.sound.play(Paths.sound('cancelMenu'), 0.6);
+			return true;
+		}
+
+		if (c.RESET)
+		{
+			resetToDefault();
+			keyIndex = currentOptionIndex();
+			scrollToShow(keyIndex);
+			applyPopupScroll();
+			return true;
+		}
+
+		return true;
+	}
+
+	/** 键盘在下拉里上下移动高亮项 */
+	function moveKey(dir:Int):Void
+	{
+		var opts:Array<String> = follow.options;
+		if (opts == null || opts.length == 0) return;
+
+		var idx:Int = (keyIndex < 0) ? currentOptionIndex() : keyIndex;
+		var next:Int = Std.int(FlxMath.bound(idx + dir, 0, opts.length - 1));
+		if (next == keyIndex) return;
+
+		keyIndex = next;
+		scrollToShow(keyIndex);
+		applyPopupScroll();
+		FlxG.sound.play(Paths.sound('scrollMenu'), 0.4);
+	}
+
+	/** 回车：把高亮项写成当前值并收起下拉 */
+	function confirmKeySelection():Void
+	{
+		var opts:Array<String> = follow.options;
+		var idx:Int = keyIndex;
+		if (opts == null || idx < 0 || idx >= opts.length) return;
+
+		follow.setValue(opts[idx]);
+		follow.curOption = idx;
+		follow.change();
+		follow.saveCurrentValue();
+		refreshValue();
+		closePopup();
+		FlxG.sound.play(Paths.sound('confirmMenu'), 0.6);
+	}
+
+	/** R 键复位到默认值（下拉展开时 RESET 被 handleKeyNav 拦住走这里） */
+	function resetToDefault():Void
+	{
+		follow.setValue(follow.defaultValue);
+		if (follow.options != null)
+		{
+			var idx:Int = follow.options.indexOf(Std.string(follow.getValue()));
+			follow.curOption = idx < 0 ? 0 : idx;
+		}
+		follow.change();
+		follow.saveCurrentValue();
+		refreshValue();
+		FlxG.sound.play(Paths.sound('cancelMenu'), 0.5);
 	}
 
 	function syncPopupPosition():Void
@@ -238,7 +398,7 @@ class StringSelect extends FlxSpriteGroup
 		var cy:Float = h * 0.5;
 		var dir:Float = isOpen ? -1.0 : 1.0;
 
-		var c:FlxColor = (hover || isOpen) ? accentColor() : iconColor();
+		var c:FlxColor = (hover || isOpen || keyboardHighlight) ? accentColor() : iconColor();
 
 		drawThickLine(bmd,
 			cx - size, cy - size * 0.4 * dir,
@@ -341,7 +501,7 @@ class StringSelect extends FlxSpriteGroup
 			popupItems.push(item);
 
 			var t:FlxText = new FlxText(12, 4 + i * ITEM_H, popupW - 24, follow.getOptionText(opts[i]), 15);
-			t.setFormat(Paths.font('montserrat.ttf'), 15, mainTextColor(), LEFT);
+			t.setFormat(Theme.uiFont(), 15, mainTextColor(), LEFT);
 			t.borderStyle = NONE;
 			t.antialiasing = ClientPrefs.data.antialiasing;
 			popup.add(t);
@@ -353,7 +513,7 @@ class StringSelect extends FlxSpriteGroup
 
 	function computeMainColor():FlxColor
 	{
-		return pressing ? Theme.facePress() : (hover ? Theme.faceHover() : Theme.face());
+		return pressing ? Theme.facePress() : ((hover || keyboardHighlight) ? Theme.faceHover() : Theme.face());
 	}
 
 	override function update(elapsed:Float)
@@ -368,9 +528,9 @@ class StringSelect extends FlxSpriteGroup
 		// 鼠标在下拉弹层上时，主条不再抢悬停（避免覆盖时误判）
 		var overPopup:Bool = isOpen && popup.visible && popupBg != null && Input.overlaps(popupBg);
 
-		// ---- 主条悬浮 / 按下反馈 ----
+		// ---- 主条悬浮 / 按下反馈（判定用扩大的热区，手指更容易点准） ----
 		var wasHover:Bool = hover;
-		hover = Input.overlaps(bg) && !overPopup;
+		hover = Input.overlaps(hitArea) && !overPopup;
 
 		if (hover != wasHover)
 		{
@@ -401,12 +561,18 @@ class StringSelect extends FlxSpriteGroup
 			if (isOpen)
 			{
 				buildPopup();
+				// 键盘 / 鼠标共享高亮：打开时光标落在当前值上，列表滚到它可见
+				keyIndex = currentOptionIndex();
+				popupScrollOffset = 0;
+				scrollToShow(keyIndex);
 				syncPopupPosition();
+				applyPopupScroll();
 				popup.visible = true;
 				openedThisFrame = true;
 			}
 			else
 			{
+				keyIndex = -1;
 				popup.visible = false;
 			}
 			FlxG.sound.play(Paths.sound('scrollMenu'), 0.6);
@@ -429,9 +595,14 @@ class StringSelect extends FlxSpriteGroup
 		for (i in 0...popupItems.length)
 		{
 			var it:Rect = popupItems[i];
-			var itHover:Bool = Input.overlaps(it);
+			var itHover:Bool = it.visible && Input.overlaps(it);
 
-			it.alpha = itHover ? 1.0 : 0.0;
+			// 鼠标悬停项同步成高亮项（和键盘共用一份高亮）
+			if (itHover && keyIndex != i)
+			{
+				keyIndex = i;
+				applyPopupScroll();
+			}
 
 			if (itHover && mouse.justReleased)
 			{
@@ -441,6 +612,7 @@ class StringSelect extends FlxSpriteGroup
 				follow.saveCurrentValue();
 				refreshValue();
 				isOpen = false;
+				keyIndex = -1;
 				popup.visible = false;
 				redrawArrow();
 				FlxG.sound.play(Paths.sound('confirmMenu'), 0.6);
@@ -449,9 +621,10 @@ class StringSelect extends FlxSpriteGroup
 		}
 
 		// 点外面关闭（主条和弹窗都不算外面）
-		if (mouse.justPressed && !Input.overlaps(bg) && !overPopup)
+		if (mouse.justPressed && !Input.overlaps(hitArea) && !overPopup)
 		{
 			isOpen = false;
+			keyIndex = -1;
 			popup.visible = false;
 			redrawArrow();
 			refreshValue();
@@ -463,6 +636,7 @@ class StringSelect extends FlxSpriteGroup
 	{
 		if (!isOpen) return;
 		isOpen = false;
+		keyIndex = -1;
 		if (popup != null) popup.visible = false;
 		redrawArrow();
 		refreshValue();

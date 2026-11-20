@@ -14,11 +14,20 @@ class OptionButton extends FlxSpriteGroup
 	var bg:Rect;
 	var border:FlxSprite;
 	var actionText:FlxText;
+	var hitArea:Rect; // 透明扩大的触控热区
 
 	var isReset:Bool;
 
 	var hover:Bool = false;
 	var pressing:Bool = false;
+
+	/** 键盘选中宿主行时由 OptionRow 置位：让按钮看起来和鼠标悬停一样（只参与配色） */
+	public var keyboardHighlight:Bool = false;
+
+	public function setKeyboardHighlight(v:Bool):Void
+	{
+		keyboardHighlight = v;
+	}
 
 	var confirmPending:Bool = false;
 	var confirmTimer:Float = 0;
@@ -31,6 +40,11 @@ class OptionButton extends FlxSpriteGroup
 		this.follow = follow;
 		this.isReset = isReset;
 
+		// 透明扩大的触控热区：按钮只有 35~40px 高，移动端手指更容易点准
+		hitArea = new Rect(-Theme.TOUCH_PAD_X, -Theme.TOUCH_PAD_Y,
+			width + Theme.TOUCH_PAD_X * 2, height + Theme.TOUCH_PAD_Y * 2, 0, 0, 0x00000000, 0);
+		add(hitArea);
+
 		bg = new Rect(0, 0, width, height, 0, 0, baseColor(), 1);
 		bg.antialiasing = ClientPrefs.data.antialiasing;
 		add(bg);
@@ -40,7 +54,7 @@ class OptionButton extends FlxSpriteGroup
 		add(border);
 
 		actionText = new FlxText(0, 0, width - 20, getActionText(), fontSize);
-		actionText.setFormat(Paths.font('montserrat.ttf'), fontSize, Theme.text(), CENTER);
+		actionText.setFormat(Theme.uiFont(), fontSize, Theme.text(), CENTER);
 		actionText.borderStyle = NONE;
 		actionText.antialiasing = ClientPrefs.data.antialiasing;
 		actionText.y = bg.y + (height - actionText.height) * 0.5;
@@ -63,23 +77,23 @@ class OptionButton extends FlxSpriteGroup
 	function borderColor():FlxColor
 	{
 		if (isReset) return Theme.danger();
-		return (hover || pressing) ? Theme.accent() : Theme.border();
+		return (hover || pressing || keyboardHighlight) ? Theme.accent() : Theme.border();
 	}
 
 	/** 根据状态计算目标背景色 */
 	function computeTargetColor():FlxColor
 	{
 		if (isReset)
-			return pressing ? Theme.dangerPress() : (hover ? Theme.dangerHover() : Theme.dangerBase());
+			return pressing ? Theme.dangerPress() : ((hover || keyboardHighlight) ? Theme.dangerHover() : Theme.dangerBase());
 
-		return pressing ? Theme.accent() : (hover ? Theme.faceHover() : Theme.face());
+		return pressing ? Theme.accent() : ((hover || keyboardHighlight) ? Theme.faceHover() : Theme.face());
 	}
 
 	/** 文字颜色（按下时底色是强调色，文字转白） */
 	function computeTextColor():FlxColor
 	{
 		if (isReset) return confirmPending ? Theme.danger() : Theme.text();
-		return pressing ? Theme.onAccent() : (hover ? Theme.accent() : Theme.text());
+		return pressing ? Theme.onAccent() : ((hover || keyboardHighlight) ? Theme.accent() : Theme.text());
 	}
 
 	override function update(elapsed:Float)
@@ -89,7 +103,7 @@ class OptionButton extends FlxSpriteGroup
 
 		var mouse = FlxG.mouse;
 		var wasHover = hover;
-		hover = Input.overlaps(bg);
+		hover = Input.overlaps(hitArea);
 
 		// 悬浮状态变化 → tween 渐变
 		if (hover != wasHover)

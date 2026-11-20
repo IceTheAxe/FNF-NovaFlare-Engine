@@ -16,6 +16,22 @@ class Theme
 	/** Win8 控件的描边粗细 */
 	public static inline var BORDER_THICKNESS:Float = 2;
 
+	/**
+	 * 触控热区外扩量（px）。
+	 *
+	 * 控件条只有 24~32px 高，手指在移动端很难点准；每个控件用一块透明 hitArea
+	 * 把可点区域往四周扩一圈。水平外扩小一点，避免相邻控件的热区互相抢占。
+	 */
+	public static inline var TOUCH_PAD_X:Float = 6;
+	public static inline var TOUCH_PAD_Y:Float = 8;
+
+	/**
+	 * 面板 UI 的统一字体入口：跟随语言设置（中文等非拉丁文字用 main.lang 里的 fontName）。
+	 * 之前硬编码 montserrat.ttf，接上汉化后中文会缺字形。
+	 */
+	public static function uiFont():String
+		return Paths.font(Language.get('fontName', 'main') + '.ttf');
+
 	// ---------------------------------------------------------
 	// 强调色（= NF 的主色）
 	// ---------------------------------------------------------

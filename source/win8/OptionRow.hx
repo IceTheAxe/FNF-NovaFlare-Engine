@@ -43,7 +43,7 @@ class OptionRow extends FlxSpriteGroup
 		add(bg);
 
 		title = new FlxText(0, 0, w - PAD_X * 2, opt.name, 18);
-		title.setFormat(Paths.font('montserrat.ttf'), 18, Theme.text(), LEFT);
+		title.setFormat(Theme.uiFont(), 18, Theme.text(), LEFT);
 		title.borderStyle = NONE;
 		title.antialiasing = ClientPrefs.data.antialiasing;
 		add(title);
@@ -77,6 +77,17 @@ class OptionRow extends FlxSpriteGroup
 
 		if (title != null)
 			title.color = selected ? Theme.accent() : Theme.text();
+
+		// 控件跟着一起高亮（FE 的 keyboardHighlight 联动）：
+		// 键盘选中行时，行里的控件也亮成悬停态，操作者能看清"这次左右/回车会动哪个控件"
+		if (widget != null)
+		{
+			if (Std.isOfType(widget, NumButton)) cast(widget, NumButton).setKeyboardHighlight(v);
+			else if (Std.isOfType(widget, BoolButton)) cast(widget, BoolButton).setKeyboardHighlight(v);
+			else if (Std.isOfType(widget, StringSelect)) cast(widget, StringSelect).setKeyboardHighlight(v);
+			else if (Std.isOfType(widget, OptionButton)) cast(widget, OptionButton).setKeyboardHighlight(v);
+			else if (Std.isOfType(widget, KeybindButton)) cast(widget, KeybindButton).setKeyboardHighlight(v);
+		}
 	}
 
 	public function isSelected():Bool

@@ -1,0 +1,51 @@
+// ============================================
+// 编辑器内嵌 Win8 设置面板（轨道缩略图等）- 中文
+// ============================================
+
+win8_go => 执行
+
+// ===== 轨道缩略图设置 =====
+minimap_title => 轨道缩略图
+minimap_layout => 布局
+minimap_layout_desc => 条的位置、尺寸与安全边距
+minimap_orientation => 方向
+minimap_orientation_desc => 竖向贴屏幕右缘，横向沿屏幕底部
+minimap_value_vertical => 竖向
+minimap_value_horizontal => 横向
+minimap_length => 长度（px，0 = 自动）
+minimap_length_auto => 自动
+minimap_length_desc => 条沿轴向的长度；自动 = 填满屏幕减去两侧安全边距
+minimap_thickness => 粗细（px）
+minimap_thickness_desc => 条横跨轴线的宽度
+minimap_margin => 安全边距（px）
+minimap_margin_desc => 条两端保留的空白
+minimap_density_section => 密度配色
+minimap_density_section_desc => 按每秒音符数给分段上色
+minimap_density => 密度配色
+minimap_density_desc => 分段内每条轨道按自身音符密度上色，而不是整段一个颜色
+minimap_value_on => 开
+minimap_value_off => 关
+minimap_tier1 => 低/中 (nps)
+minimap_tier1_desc => 单轨每秒音符数达到该值时绿色变黄绿
+minimap_tier2 => 中/高 (nps)
+minimap_tier2_desc => 单轨每秒音符数达到该值时黄绿变黄
+minimap_tier3 => 高/很高 (nps)
+minimap_tier3_desc => 单轨每秒音符数达到该值时黄变橙
+minimap_tier4 => 很高/极高 (nps)
+minimap_tier4_desc => 单轨每秒音符数达到该值时橙变橙红
+minimap_tier5 => 极高+ (nps)
+minimap_tier5_desc => 单轨每秒音符数达到该值时橙红变红
+minimap_reset => 恢复默认
+minimap_reset_desc => 恢复全部设置并把条贴回屏幕边缘
+minimap_view_section => 视图
+minimap_view_section_desc => 时间轴缩放与播放头跟随
+minimap_zoom => 缩放（1 = 整首歌）
+minimap_zoom_desc => 1 显示整首歌，16 显示十六分之一
+minimap_follow => 跟随播放头
+minimap_follow_desc => 缩放窗口随播放头滚动
+minimap_zoom_in => 放大
+minimap_zoom_in_desc => 以播放头为锚把时间轴缩放加倍
+minimap_zoom_out => 缩小
+minimap_zoom_out_desc => 以播放头为锚把时间轴缩放减半
+minimap_reset_view => 重置视图
+minimap_reset_view_desc => 回到 1x 显示整首歌

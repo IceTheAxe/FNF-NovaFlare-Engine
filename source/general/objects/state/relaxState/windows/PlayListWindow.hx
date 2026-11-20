@@ -99,13 +99,13 @@ class PlayListWindow extends FlxSpriteGroup
 		add(backHit);
 
 		headerTitle = new FlxText(0, PANEL_TOP + 14, panelW - PAD * 2, '', 20);
-		headerTitle.setFormat(Paths.font('montserrat.ttf'), 20, Theme.text(), LEFT);
+		headerTitle.setFormat(Theme.uiFont(), 20, Theme.text(), LEFT);
 		headerTitle.borderStyle = NONE;
 		headerTitle.antialiasing = ClientPrefs.data.antialiasing;
 		add(headerTitle);
 
 		headerCrumb = new FlxText(0, PANEL_TOP + 40, panelW - PAD * 2, '', 11);
-		headerCrumb.setFormat(Paths.font('montserrat.ttf'), 11, Theme.textSecondary(), LEFT);
+		headerCrumb.setFormat(Theme.uiFont(), 11, Theme.textSecondary(), LEFT);
 		headerCrumb.borderStyle = NONE;
 		headerCrumb.antialiasing = ClientPrefs.data.antialiasing;
 		add(headerCrumb);

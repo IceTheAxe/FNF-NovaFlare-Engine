@@ -930,60 +930,82 @@ class ChartMinimapPanel extends Panel
 	}
 
 	override public function getPageTitle():String
-		return 'Chart Minimap';
+		return Language.getPhrase('minimap_title', 'Chart Minimap');
 
 	override public function buildEntries():Array<PanelEntry>
 	{
 		return [
 			{
 				id: 'layout',
-				title: 'Layout',
-				description: 'Bar position, size and safe margins',
+				title: Language.getPhrase('minimap_layout', 'Layout'),
+				description: Language.getPhrase('minimap_layout_desc', 'Bar position, size and safe margins'),
 				options: [
-					makeOption('Orientation', 'orientation', STRING, ['Vertical', 'Horizontal'],
+					makeOption(Language.getPhrase('minimap_orientation', 'Orientation'), 'orientation', STRING,
+						['Vertical', 'Horizontal'], 'minimap_value',
 						function() return ChartMinimapSettings.vertical ? 'Vertical' : 'Horizontal',
 						function(v) ChartMinimapSettings.vertical = (v == 'Vertical'),
-						'Vertical bar sits on the right edge, horizontal along the bottom'),
-					makeNum('Length (px, 0 = auto)', 'length', ChartMinimapSettings.length, 0, 4000, 20, 0,
+						Language.getPhrase('minimap_orientation_desc',
+							'Vertical bar sits on the right edge, horizontal along the bottom')),
+					makeNum(Language.getPhrase('minimap_length', 'Length (px, 0 = auto)'), 'length',
+						ChartMinimapSettings.length, 0, 4000, 20, 0,
 						function(v) ChartMinimapSettings.length = v,
-						function(v:Float) return v <= 0 ? 'Auto' : Std.int(v) + 'px',
-						'Bar length along its axis; Auto fills the screen minus both safe margins'),
-					makeNum('Thickness (px)', 'thickness', ChartMinimapSettings.thickness, 40, 150, 5, 0,
+						function(v:Float) return v <= 0
+							? Language.getPhrase('minimap_length_auto', 'Auto')
+							: Std.int(v) + 'px',
+						Language.getPhrase('minimap_length_desc',
+							'Bar length along its axis; Auto fills the screen minus both safe margins')),
+					makeNum(Language.getPhrase('minimap_thickness', 'Thickness (px)'), 'thickness',
+						ChartMinimapSettings.thickness, 40, 150, 5, 0,
 						function(v) ChartMinimapSettings.thickness = v, null,
-						'How wide the bar is across its axis'),
-					makeNum('Safe margin (px)', 'margin', ChartMinimapSettings.margin, 8, 300, 2, 0,
+						Language.getPhrase('minimap_thickness_desc', 'How wide the bar is across its axis')),
+					makeNum(Language.getPhrase('minimap_margin', 'Safe margin (px)'), 'margin',
+						ChartMinimapSettings.margin, 8, 300, 2, 0,
 						function(v) ChartMinimapSettings.margin = v, null,
-						'Empty space kept at both ends of the bar')
+						Language.getPhrase('minimap_margin_desc', 'Empty space kept at both ends of the bar'))
 				]
 			},
 			{
 				id: 'density',
-				title: 'Density Colors',
-				description: 'Color sections by notes-per-second',
+				title: Language.getPhrase('minimap_density_section', 'Density Colors'),
+				description: Language.getPhrase('minimap_density_section_desc', 'Color sections by notes-per-second'),
 				options: [
-					makeOption('Density colors', 'density', STRING, ['On', 'Off'],
+					makeOption(Language.getPhrase('minimap_density', 'Density colors'), 'density', STRING,
+						['On', 'Off'], 'minimap_value',
 						function() return ChartMinimapSettings.densityColors ? 'On' : 'Off',
 						function(v) ChartMinimapSettings.densityColors = (v == 'On'),
-						'Color every track inside a section by its own note density instead of a flat color'),
-					makeNum('Low / medium (nps)', 'tier1', ChartMinimapSettings.tier1, 0.5, 30, 0.5, 1,
+						Language.getPhrase('minimap_density_desc',
+							'Color every track inside a section by its own note density instead of a flat color')),
+					makeNum(Language.getPhrase('minimap_tier1', 'Low / medium (nps)'), 'tier1',
+						ChartMinimapSettings.tier1, 0.5, 30, 0.5, 1,
 						function(v) ChartMinimapSettings.tier1 = v, null,
-						'Notes per second on one track where green turns yellow-green'),
-					makeNum('Medium / high (nps)', 'tier2', ChartMinimapSettings.tier2, 1, 40, 0.5, 1,
+						Language.getPhrase('minimap_tier1_desc',
+							'Notes per second on one track where green turns yellow-green')),
+					makeNum(Language.getPhrase('minimap_tier2', 'Medium / high (nps)'), 'tier2',
+						ChartMinimapSettings.tier2, 1, 40, 0.5, 1,
 						function(v) ChartMinimapSettings.tier2 = v, null,
-						'Notes per second on one track where yellow-green turns yellow'),
-					makeNum('High / very high (nps)', 'tier3', ChartMinimapSettings.tier3, 2, 60, 0.5, 1,
+						Language.getPhrase('minimap_tier2_desc',
+							'Notes per second on one track where yellow-green turns yellow')),
+					makeNum(Language.getPhrase('minimap_tier3', 'High / very high (nps)'), 'tier3',
+						ChartMinimapSettings.tier3, 2, 60, 0.5, 1,
 						function(v) ChartMinimapSettings.tier3 = v, null,
-						'Notes per second on one track where yellow turns orange'),
-					makeNum('Very high / extreme (nps)', 'tier4', ChartMinimapSettings.tier4, 3, 80, 0.5, 1,
+						Language.getPhrase('minimap_tier3_desc',
+							'Notes per second on one track where yellow turns orange')),
+					makeNum(Language.getPhrase('minimap_tier4', 'Very high / extreme (nps)'), 'tier4',
+						ChartMinimapSettings.tier4, 3, 80, 0.5, 1,
 						function(v) ChartMinimapSettings.tier4 = v, null,
-						'Notes per second on one track where orange turns orange-red'),
-					makeNum('Extreme+ (nps)', 'tier5', ChartMinimapSettings.tier5, 4, 100, 0.5, 1,
+						Language.getPhrase('minimap_tier4_desc',
+							'Notes per second on one track where orange turns orange-red')),
+					makeNum(Language.getPhrase('minimap_tier5', 'Extreme+ (nps)'), 'tier5',
+						ChartMinimapSettings.tier5, 4, 100, 0.5, 1,
 						function(v) ChartMinimapSettings.tier5 = v, null,
-						'Notes per second on one track where orange-red turns red'),
+						Language.getPhrase('minimap_tier5_desc',
+							'Notes per second on one track where orange-red turns red')),
 					{
-						var reset:PanelOption = new PanelOption('Reset Defaults', 'reset_defaults', ACTION, null,
-							'Restore every setting and snap the bar back to the screen edge');
-						reset.actionLabel = 'Reset';
+						var reset:PanelOption = new PanelOption(
+							Language.getPhrase('minimap_reset', 'Reset Defaults'), 'reset_defaults', ACTION, null,
+							Language.getPhrase('minimap_reset_desc',
+								'Restore every setting and snap the bar back to the screen edge'));
+						reset.actionLabel = Language.getPhrase('win8_reset', 'Reset');
 						reset.action = function()
 						{
 							ChartMinimapSettings.reset();
@@ -996,30 +1018,47 @@ class ChartMinimapPanel extends Panel
 			},
 			{
 				id: 'view',
-				title: 'View',
-				description: 'Timeline zoom and playhead follow',
+				title: Language.getPhrase('minimap_view_section', 'View'),
+				description: Language.getPhrase('minimap_view_section_desc', 'Timeline zoom and playhead follow'),
 				options: [
 					makeZoomNum(),
-					makeOption('Follow playhead', 'follow', STRING, ['On', 'Off'],
+					makeOption(Language.getPhrase('minimap_follow', 'Follow playhead'), 'follow', STRING,
+						['On', 'Off'], 'minimap_value',
 						function() return ChartMinimapSettings.followPlayhead ? 'On' : 'Off',
 						function(v) ChartMinimapSettings.followPlayhead = (v == 'On'),
-						'Scroll the zoomed window with the playhead'),
-					makeAction('Zoom In', 'zoom_in', 'Double the timeline zoom around the playhead',
+						Language.getPhrase('minimap_follow_desc', 'Scroll the zoomed window with the playhead')),
+					makeAction(Language.getPhrase('minimap_zoom_in', 'Zoom In'), 'zoom_in',
+						Language.getPhrase('minimap_zoom_in_desc', 'Double the timeline zoom around the playhead'),
 						function() { if (bar != null) bar.zoomBy(2); }),
-					makeAction('Zoom Out', 'zoom_out', 'Halve the timeline zoom around the playhead',
+					makeAction(Language.getPhrase('minimap_zoom_out', 'Zoom Out'), 'zoom_out',
+						Language.getPhrase('minimap_zoom_out_desc', 'Halve the timeline zoom around the playhead'),
 						function() { if (bar != null) bar.zoomBy(0.5); }),
-					makeAction('Reset View', 'reset_view', 'Back to the whole song at 1x',
+					makeAction(Language.getPhrase('minimap_reset_view', 'Reset View'), 'reset_view',
+						Language.getPhrase('minimap_reset_view_desc', 'Back to the whole song at 1x'),
 						function() { if (bar != null) bar.resetView(); })
 				]
 			}
 		];
 	}
 
-	/** 通用桥接项：getter/setter 闭包 + onChange 即时落盘并重摆条 */
+	/**
+	 * 通用桥接项：getter/setter 闭包 + onChange 即时落盘并重摆条。
+	 * valuePrefix 不为 null 时，下拉项文字走 getPhrase('前缀-原始值')（显示层翻译，
+	 * 存进 ChartMinimapSettings 的还是 'On'/'Off'/'Vertical'…这些原始枚举值）。
+	 */
 	function makeOption(name:String, variable:String, type:OptionType, options:Array<String>,
-		getter:Void->Dynamic, setter:Dynamic->Void, ?description:String):PanelOption
+		?valuePrefix:String, getter:Void->Dynamic, setter:Dynamic->Void, ?description:String):PanelOption
 	{
 		var opt:MinimapOption = new MinimapOption(name, variable, type, options, getter, setter, description);
+
+		if (valuePrefix != null)
+		{
+			opt.getOptionText = function(value:Dynamic):String {
+				var raw:String = (value == null) ? '' : Std.string(value);
+				return Language.getPhrase(valuePrefix + '_' + raw.toLowerCase(), raw);
+			};
+		}
+
 		opt.onChange = applyToBar;
 		opt.onSave = persistSettings;
 		return opt;
@@ -1045,10 +1084,11 @@ class ChartMinimapPanel extends Panel
 	/** Zoom 项：改值要以播放头为锚重算窗口，不能走默认的 applyToBar */
 	function makeZoomNum():PanelOption
 	{
-		var opt:MinimapOption = new MinimapOption('Zoom (1 = full song)', 'zoom', FLOAT, null,
+		var opt:MinimapOption = new MinimapOption(
+			Language.getPhrase('minimap_zoom', 'Zoom (1 = full song)'), 'zoom', FLOAT, null,
 			function() return ChartMinimapSettings.zoom,
 			function(v) ChartMinimapSettings.zoom = v,
-			'1 shows the whole song, 16 shows one sixteenth');
+			Language.getPhrase('minimap_zoom_desc', '1 shows the whole song, 16 shows one sixteenth'));
 		opt.defaultValue = 1;
 		opt.minValue = 1;
 		opt.maxValue = 16;
@@ -1064,7 +1104,7 @@ class ChartMinimapPanel extends Panel
 	function makeAction(name:String, variable:String, description:String, act:Void->Void):PanelOption
 	{
 		var opt:PanelOption = new PanelOption(name, variable, ACTION, null, description);
-		opt.actionLabel = 'Go';
+		opt.actionLabel = Language.getPhrase('win8_go', 'Go');
 		opt.action = act;
 		return opt;
 	}

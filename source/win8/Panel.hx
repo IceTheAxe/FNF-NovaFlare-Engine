@@ -42,6 +42,10 @@ class Panel extends MusicBeatSubstate
 	/** 两组之间的额外间距 */
 	static inline var SECTION_GAP:Float = 12;
 
+	// 键盘左右长按连发改值的节奏（FE KEOption 同款）：先憋 0.5s，再以 0.05s 间隔连发
+	static inline var KEY_HOLD_DELAY:Float = 0.5;
+	static inline var KEY_HOLD_REPEAT:Float = 0.05;
+
 	public static inline var ANIM_IN:Float = 0.34;
 	public static inline var ANIM_OUT:Float = 0.24;
 
@@ -63,6 +67,11 @@ class Panel extends MusicBeatSubstate
 	public var rows:Array<OptionRow> = [];
 	/** 键盘选中的行 */
 	public var selectedRow:Int = 0;
+
+	// 键盘左右长按连发的状态（adjustSelected 用）
+	var adjustDir:Int = 1;
+	var adjustHoldTime:Float = 0;
+	var adjustRepeatTimer:Float = 0;
 
 	// =========================================================
 	// UI
@@ -280,14 +289,14 @@ class Panel extends MusicBeatSubstate
 		var titleW:Float = panelW - 60 - PANEL_PAD;
 
 		panelTitle = new FlxText(titleBaseX, 20, titleW, '', 20);
-		panelTitle.setFormat(Paths.font('montserrat.ttf'), 20, Theme.text(), LEFT);
+		panelTitle.setFormat(Theme.uiFont(), 20, Theme.text(), LEFT);
 		panelTitle.borderStyle = NONE;
 		panelTitle.antialiasing = ClientPrefs.data.antialiasing;
 		panelTitle.scrollFactor.set();
 		add(panelTitle);
 
 		panelDesc = new FlxText(titleBaseX, 48, titleW, '', 11);
-		panelDesc.setFormat(Paths.font('montserrat.ttf'), 11, Theme.textSecondary(), LEFT);
+		panelDesc.setFormat(Theme.uiFont(), 11, Theme.textSecondary(), LEFT);
 		panelDesc.borderStyle = NONE;
 		panelDesc.antialiasing = ClientPrefs.data.antialiasing;
 		panelDesc.scrollFactor.set();
@@ -311,7 +320,7 @@ class Panel extends MusicBeatSubstate
 		footerBaseX = panelX + PANEL_PAD + 2;
 
 		footerText = new FlxText(footerBaseX, 0, panelW - PANEL_PAD * 2 - 4, '', 12);
-		footerText.setFormat(Paths.font('montserrat.ttf'), 12, Theme.accent(), LEFT);
+		footerText.setFormat(Theme.uiFont(), 12, Theme.accent(), LEFT);
 		footerText.borderStyle = NONE;
 		footerText.antialiasing = ClientPrefs.data.antialiasing;
 		footerText.y = FlxG.height - FOOTER_H + 10;
@@ -783,8 +792,11 @@ class Panel extends MusicBeatSubstate
 		return rows[selectedRow].option;
 	}
 
-	/** 调整当前选中项的值；dir = -1 / +1 */
-	public function adjustSelected(dir:Int):Void
+	/**
+	 * 调整当前选中项的值；dir = -1 / +1。
+	 * silent = 连发期间的调用（键盘长按），音量放低，不然每 0.05s 一响会很吵。
+	 */
+	public function adjustSelected(dir:Int, silent:Bool = false):Void
 	{
 		var opt:PanelOption = selectedOption();
 		if (opt == null) return;
@@ -815,7 +827,7 @@ class Panel extends MusicBeatSubstate
 		opt.change();
 		opt.saveCurrentValue();
 		refreshSelectedWidget();
-		FlxG.sound.play(Paths.sound('scrollMenu'), 0.4);
+		FlxG.sound.play(Paths.sound('scrollMenu'), silent ? 0.2 : 0.4);
 	}
 
 	/** 回车：BOOL 切换、ACTION 执行、其它等同于往右调整一次 */
@@ -892,6 +904,18 @@ class Panel extends MusicBeatSubstate
 	{
 		for (r in rows)
 			WidgetFactory.closePopup(r.widget);
+	}
+
+	/** 找出正在展开的字符串下拉（键盘逐项选时宿主要把按键让给它） */
+	function findOpenStringSelect():StringSelect
+	{
+		for (r in rows)
+		{
+			var w:FlxSpriteGroup = r.widget;
+			if (w != null && Std.isOfType(w, StringSelect) && cast(w, StringSelect).isOpen)
+				return cast(w, StringSelect);
+		}
+		return null;
 	}
 
 	function cycleString(opt:PanelOption, dir:Int):Void
@@ -985,9 +1009,19 @@ class Panel extends MusicBeatSubstate
 		if (scrollHolder.value != scroll)
 			scrollHolder.value = scroll;
 
+		// 控件每帧可能改 scale / 帧 / 文字，裁剪必须在最终 transform 之后重算，
+		// 否则拖拽、按下动画时会留一帧旧裁剪。放在早退分支之前，
+		// 动画中和等按键（inputModal）期间也要保持裁剪正确。
+		refreshRowClipping();
+
 		// 模态控件等按键期间面板整体让路 —— 键位捕获需要独自消费键盘事件，
 		// 滚动 / 选中 / 关闭面板都必须挂起（行也不能滚出可视区，否则捕获控件停更、永远结束不了）。
 		if (isAnimating || closing || inputModal) return;
+
+		// 字符串下拉展开时，方向键 / 回车 / ESC 归它自己 —— 键盘也能开列表逐项选。
+		// 放在返回分支之前：否则 ESC 会去收整个面板，而不是先收起下拉。
+		var openSel:StringSelect = findOpenStringSelect();
+		if (openSel != null && openSel.handleKeyNav()) return;
 
 		// ---------- 返回：ESC / 右键 / 顶部返回按钮走同一条路 ----------
 		if (controls.BACK || FlxG.mouse.justPressedRight)
@@ -995,6 +1029,9 @@ class Panel extends MusicBeatSubstate
 			onBackAction();
 			return;
 		}
+
+		// 面板收在屏幕外时，面板里的键盘 / 鼠标操作全部跳过
+		if (!panelVisible) return;
 
 		// ---------- 键盘 ----------
 		// 换行前先收掉展开的下拉：行一旦滚出可视区就会被置 active = false，
@@ -1009,8 +1046,37 @@ class Panel extends MusicBeatSubstate
 		// 免得一边开着弹层一边把值改掉、弹层里显示的却还是旧列表。
 		if (!WidgetFactory.popupOpen && rows.length > 0)
 		{
-			if (controls.UI_LEFT_P) adjustSelected(-1);
-			if (controls.UI_RIGHT_P) adjustSelected(1);
+			// 左右改值支持长按连发（FE KEOption 的节奏）：
+			// 首次按下立即改一格；持续按住 0.5s 后以 0.05s 间隔连续改，连发时音量放低
+			if (controls.UI_LEFT_P || controls.UI_RIGHT_P)
+			{
+				adjustDir = controls.UI_LEFT_P ? -1 : 1;
+				adjustHoldTime = 0;
+				adjustRepeatTimer = 0;
+				adjustSelected(adjustDir);
+			}
+			else if (controls.UI_LEFT || controls.UI_RIGHT)
+			{
+				// 两只键同时按住时沿用开始连发前的那边
+				adjustDir = (controls.UI_LEFT && controls.UI_RIGHT) ? adjustDir
+					: (controls.UI_LEFT ? -1 : 1);
+				adjustHoldTime += elapsed;
+				if (adjustHoldTime > KEY_HOLD_DELAY)
+				{
+					adjustRepeatTimer += elapsed;
+					while (adjustRepeatTimer >= KEY_HOLD_REPEAT)
+					{
+						adjustRepeatTimer -= KEY_HOLD_REPEAT;
+						adjustSelected(adjustDir, true);
+					}
+				}
+			}
+			else
+			{
+				adjustHoldTime = 0;
+				adjustRepeatTimer = 0;
+			}
+
 			if (controls.ACCEPT) activateSelected();
 			if (controls.RESET) resetSelected();
 		}
