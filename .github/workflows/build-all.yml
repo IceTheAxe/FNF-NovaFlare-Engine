@@ -1,13 +1,8 @@
 name: Build All
 
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - 'docs/'
-      - 'example_mods/'
-      - 'README.md'
-      - '.github/workflows/hxcpp-cache.yml'
+  # 2026-11-20 起 push 触发移交给 MobileBuild.yml（日常 push 只快速验证移动端，
+  # 全平台矩阵 7 个 runner 每次都跑太重）；本文件退为 PR / 手动触发。
   pull_request:
     branches: [main]
   workflow_dispatch:
