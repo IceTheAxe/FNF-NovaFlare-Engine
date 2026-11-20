@@ -83,15 +83,16 @@ class EditorPlayState extends MusicBeatSubstate
 		return -1;
 	}
 
-	public function new(noteList:Array<Note>, allVocals:Array<FlxSound>)
+	public function new(noteList:Array<Note>, allVocals:Array<FlxSound>, ?startTimeMs:Float)
 	{
 		super();
-		
+
 		/* setting up some important data */
 		this.vocals = allVocals[0];
 		this.opponentVocals = allVocals[1];
 		this._noteList = noteList;
-		this.startPos = Conductor.songPosition;
+		// 从编辑器当前播放位置续播：调用方传 FlxG.sound.music.time + Conductor.offset
+		this.startPos = startTimeMs != null ? startTimeMs : Conductor.songPosition;
 		Conductor.songPosition = startPos;
 
 		#if FLX_PITCH

@@ -412,8 +412,60 @@ class Paths
 		return 'assets/songs/$key.$SOUND_EXT';
 	}
 
+	/**
+	 * 谱面编辑器音频挂点（FE currentChartInstPath/currentChartDirectory 的最小等价）：
+	 * 显式音轨文件优先，其次谱面同目录通用名扫描。由 PE 编辑器回填、loadChart 重置，
+	 * 两字段为 null 时零行为变化。音频向导落地文件能被编辑器与 PlayState（playtest）同时解析到。
+	 */
+	public static var chartInstPath:Null<String> = null;
+	public static var chartAudioDir:Null<String> = null;
+
+	/** 谱面编辑器音频解析：chartInstPath 显式文件（仅 inst）优先，其次 chartAudioDir 同目录通用名扫描。 */
+	static function getChartEditorSound(kind:String, ?postfix:String):Sound
+	{
+		#if sys
+		if(kind == 'inst' && chartInstPath != null && chartInstPath.length > 0 && FileSystem.exists(chartInstPath))
+			return Sound.fromFile(chartInstPath);
+
+		var dir:String = chartAudioDir;
+		if(dir == null || dir.length < 1) return null;
+		if(!dir.endsWith('/')) dir += '/';
+
+		var names:Array<String> = [];
+		if(kind == 'inst')
+		{
+			names = ['inst.ogg', 'Inst.ogg', 'inst.mp3', 'audio.ogg', 'Audio.ogg', 'audio.mp3'];
+		}
+		else
+		{
+			if(postfix != null && postfix.length > 0)
+			{
+				names.push('voices-' + postfix.toLowerCase() + '.ogg');
+				names.push('Voices-' + postfix + '.ogg');
+				names.push('voices-' + postfix.toLowerCase() + '.mp3');
+				names.push('Voices-' + postfix + '.mp3');
+			}
+			names.push('voices.ogg');
+			names.push('Voices.ogg');
+			names.push('vocals.ogg');
+			names.push('Vocals.ogg');
+			names.push('voices.mp3');
+		}
+		for (name in names)
+		{
+			var p:String = dir + name;
+			if(FileSystem.exists(p)) return Sound.fromFile(p);
+		}
+		#end
+		return null;
+	}
+
 	inline static public function voices(song:String, postfix:String = null):Any
 	{
+		#if sys
+		var chartSnd:Sound = getChartEditorSound('voices', postfix);
+		if(chartSnd != null) return chartSnd;
+		#end
 		var songKey:String = '${formatToSongPath(song)}/Voices';
 		if (postfix != null)
 			songKey += '-' + postfix;
@@ -424,6 +476,10 @@ class Paths
 
 	inline static public function inst(song:String):Any
 	{
+		#if sys
+		var chartSnd:Sound = getChartEditorSound('inst');
+		if(chartSnd != null) return chartSnd;
+		#end
 		var songKey:String = '${formatToSongPath(song)}/Inst';
 		var inst = returnSound(null, songKey, 'songs');
 		return inst;
