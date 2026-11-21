@@ -35,10 +35,6 @@
 	<!-- 换底初期锁 OpenGL（lime-vulkan 为上游新默认；openfl/flixel 渲染链仍走 GL，
 	     Vulkan 上下文会黑屏。稳定后单独评估再放开） -->
 	<define name="no-vulkan"/>
-	<!-- lime 的 WebView 走 StageWebView：Linux 要 GTK3 + WebKitGTK，Windows 链接时
-	     会和 hxcpp 的绝对缓存库路径拼错。引擎用的是 extension.webviewcore，不经过
-	     lime 这一层，直接关掉。 -->
-	<define name="no-webview"/>
 	<!-- Origin 编辑器布局的分阶段资源（95 份 XML/CSS，编译期内嵌）。
 	     随仓库提供，CI 与本地共用同一份；运行时完整 Origin 资源包另配。
 	     tools/setup-origin-editor-layouts.ps1 用于从上游 funkin.assets 重新提取。 -->

@@ -427,17 +427,26 @@ jobs:
         run: |
           set -e
           cd export/release/ios/build/Release-iphoneos
+          # bundle 名取自 Project.xml 的 app.file（"NovaFlare Engine"，带空格），
+          # 与 job 级 PROJECT_NAME=NovaFlareEngine 不一致 —— 不能拿 PROJECT_NAME 拼
+          # .app 路径（PlistBuddy 会在错误路径建出假 plist、Add 全落空，Print 断言炸掉
+          # 整个 step，2026-11-21 CI 实录）。一律用 glob 解析，与下面的 mv *.app 同一手法。
+          APP_DIR="$(ls -d *.app | head -1)"
+          if [ -z "$APP_DIR" ]; then
+            echo "ERROR: no .app bundle under $(pwd)"; ls -la; exit 1
+          fi
+          echo "--- 注入目标: $APP_DIR/Info.plist ---"
           # iOS 文件共享：lime 8.4 底没有旧 NF fork 的 ios.file-sharing 机制（换底丢失），
           # 打包时用 PlistBuddy 把两个 key 注进 Info.plist —— 否则 IPA 装上后在
           # 文件/Finder 里看不到沙盒目录（FE Mobile cache-build.yml 同款做法）。
           # key 已存在时 Add 非零退出，用 Set 兜底；最后 Print 进日志留证。
-          /usr/libexec/PlistBuddy -c "Add :UIFileSharingEnabled bool true" "${{ env.PROJECT_NAME }}.app/Info.plist" 2>/dev/null \
-            || /usr/libexec/PlistBuddy -c "Set :UIFileSharingEnabled true" "${{ env.PROJECT_NAME }}.app/Info.plist"
-          /usr/libexec/PlistBuddy -c "Add :LSSupportsOpeningDocumentsInPlace bool true" "${{ env.PROJECT_NAME }}.app/Info.plist" 2>/dev/null \
-            || /usr/libexec/PlistBuddy -c "Set :LSSupportsOpeningDocumentsInPlace true" "${{ env.PROJECT_NAME }}.app/Info.plist"
+          /usr/libexec/PlistBuddy -c "Add :UIFileSharingEnabled bool true" "$APP_DIR/Info.plist" 2>/dev/null \
+            || /usr/libexec/PlistBuddy -c "Set :UIFileSharingEnabled true" "$APP_DIR/Info.plist"
+          /usr/libexec/PlistBuddy -c "Add :LSSupportsOpeningDocumentsInPlace bool true" "$APP_DIR/Info.plist" 2>/dev/null \
+            || /usr/libexec/PlistBuddy -c "Set :LSSupportsOpeningDocumentsInPlace true" "$APP_DIR/Info.plist"
           echo "--- Info.plist 文件共享 key ---"
-          /usr/libexec/PlistBuddy -c "Print :UIFileSharingEnabled" "${{ env.PROJECT_NAME }}.app/Info.plist"
-          /usr/libexec/PlistBuddy -c "Print :LSSupportsOpeningDocumentsInPlace" "${{ env.PROJECT_NAME }}.app/Info.plist"
+          /usr/libexec/PlistBuddy -c "Print :UIFileSharingEnabled" "$APP_DIR/Info.plist"
+          /usr/libexec/PlistBuddy -c "Print :LSSupportsOpeningDocumentsInPlace" "$APP_DIR/Info.plist"
           rm -rf Payload
           mkdir Payload
           mv *.app Payload

@@ -135,12 +135,20 @@ class GameplayChangersSubstate extends Panel
 		applyScrollType();
 	}
 
+	/**
+	 * 按名字找选项。
+	 *
+	 * ⚠️ 先按 **variable（存档键）** 匹配，再按显示名兜底 —— 显示名是走 Language 翻译的，
+	 * 中文环境下 "Scroll Speed" 这种英文名根本匹配不上，FE 当年就踩过这个坑
+	 * （applyScrollType 全靠它找 Scroll Type / Scroll Speed，找不到会把流速上限
+	 * 锁死在 3 且永远带 X 后缀）。内部调用一律传 variable。
+	 */
 	public function getOptionByName(name:String):GameplayOption
 	{
 		for (i in optionsArray)
 		{
 			var opt:GameplayOption = i;
-			if (opt.name == name)
+			if (opt.variable == name || opt.name == name)
 				return opt;
 		}
 		return null;
@@ -152,8 +160,8 @@ class GameplayChangersSubstate extends Panel
 	 */
 	function applyScrollType():Void
 	{
-		var st:GameplayOption = getOptionByName('Scroll Type');
-		var sp:GameplayOption = getOptionByName('Scroll Speed');
+		var st:GameplayOption = getOptionByName('scrolltype');
+		var sp:GameplayOption = getOptionByName('scrollspeed');
 		if (sp == null) return;
 
 		var constant:Bool = (st != null && st.getValue() == 'constant');
