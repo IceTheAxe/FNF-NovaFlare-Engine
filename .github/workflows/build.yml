@@ -268,14 +268,17 @@ jobs:
           # - deps 缓存 restore-key 命中旧快照、或缓存由失败 run 存出（save 步骤在
           #   2026-11-21 之前没有 success 门禁）都会带来漂移的工作树。
           # 干净缓存下这段零成本：每库两次本地 rev-parse；只有真漂了才付 hmm 重装的钱。
-          # 注意：ref 是**分支名**的库不适用这段（rev-parse 只能对到本地已有的旧 tip），
+          # 路径注意：hmm install 是 `haxelib --never newrepo` 装进**工作区项目本地仓库**
+          # （.haxelib/<lib>/git），不是全局 $HAXELIB_ROOT —— 第一版写错路径，36 个库
+          # 全部"没有 git checkout"空转（iOS 06:37 run 实锤）。
+          # ref 是**分支名**的库不适用这段（rev-parse 只能对到本地已有的旧 tip），
           # 分支 ref 必须像上面 flixel/lime/openfl 那样无条件强制重装。
           while read -r lib ref; do
             [ -n "$lib" ] || continue
             case " polymod thx.core thx.semver FlxPartialSound json2object flixel lime openfl " in
               *" $lib "*) continue ;;  # 上面已经无条件钉过，跳过
             esac
-            lib_dir="$HAXELIB_ROOT/$lib/git"
+            lib_dir=".haxelib/$lib/git"
             [ -d "$lib_dir/.git" ] || { echo "::warning::$lib 没有 git checkout（$lib_dir）"; continue; }
             head_sha=$(git -C "$lib_dir" rev-parse HEAD 2>/dev/null || echo "")
             ref_sha=$(git -C "$lib_dir" rev-parse "$ref" 2>/dev/null || git -C "$lib_dir" rev-parse "origin/$ref" 2>/dev/null || echo "")
@@ -293,10 +296,11 @@ jobs:
             haxelib --global run hmm reinstall --force ${{ steps.cache_strategy.outputs.libs_to_update }}
           fi
 
-          # 库在 haxelib 根目录，不是工作区里的 .haxelib/。
-          echo "lime revision: $(git -C "$HAXELIB_ROOT/lime/git" rev-parse HEAD 2>/dev/null || echo 'n/a')"
-          echo "openfl revision: $(git -C "$HAXELIB_ROOT/openfl/git" rev-parse HEAD 2>/dev/null || echo 'n/a')"
-          echo "hxcpp revision: $(git -C "$HAXELIB_ROOT/hxcpp/git" rev-parse HEAD 2>/dev/null || echo 'n/a')"
+          # 回显关键 fork 的真实工作树位置：hmm newrepo 装的是工作区 .haxelib/<lib>/git，
+          # 全局 $HAXELIB_ROOT 里没有依赖（上面第一版 echo 打的全是 n/a）。
+          echo "lime revision: $(git -C ".haxelib/lime/git" rev-parse HEAD 2>/dev/null || echo 'n/a')"
+          echo "openfl revision: $(git -C ".haxelib/openfl/git" rev-parse HEAD 2>/dev/null || echo 'n/a')"
+          echo "hxcpp revision: $(git -C ".haxelib/hxcpp/git" rev-parse HEAD 2>/dev/null || echo 'n/a')"
 
       - name: Configure Android
         if: inputs.name == 'Android'
