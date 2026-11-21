@@ -258,6 +258,35 @@ jobs:
             haxelib --global run hmm reinstall --force "$library"
           done
 
+          # 剩下的 git 依赖（hxcpp / hxp / luahscript / spinehaxe / haxeui-* / moonchart /
+          # flxanimate / hxvlc ...）全是钉 commit 的，这里逐库校验 HEAD 是否等于 hmm.json
+          # 的 ref，不符就强制重装。为什么必须校验：
+          # - haxelib 对已存在的 git 库做 update 只会 fetch，未必把工作树真正切到钉住的
+          #   commit —— 2026-11-21 iOS 实锤：日志明明打了 "hxcpp was updated"，Immix.cpp
+          #   还是旧的，GameplayGC 的 __hxcpp_gc_is_gameplay_mode 等三个符号直接
+          #   "use of undeclared identifier"。
+          # - deps 缓存 restore-key 命中旧快照、或缓存由失败 run 存出（save 步骤在
+          #   2026-11-21 之前没有 success 门禁）都会带来漂移的工作树。
+          # 干净缓存下这段零成本：每库两次本地 rev-parse；只有真漂了才付 hmm 重装的钱。
+          # 注意：ref 是**分支名**的库不适用这段（rev-parse 只能对到本地已有的旧 tip），
+          # 分支 ref 必须像上面 flixel/lime/openfl 那样无条件强制重装。
+          while read -r lib ref; do
+            [ -n "$lib" ] || continue
+            case " polymod thx.core thx.semver FlxPartialSound json2object flixel lime openfl " in
+              *" $lib "*) continue ;;  # 上面已经无条件钉过，跳过
+            esac
+            lib_dir="$HAXELIB_ROOT/$lib/git"
+            [ -d "$lib_dir/.git" ] || { echo "::warning::$lib 没有 git checkout（$lib_dir）"; continue; }
+            head_sha=$(git -C "$lib_dir" rev-parse HEAD 2>/dev/null || echo "")
+            ref_sha=$(git -C "$lib_dir" rev-parse "$ref" 2>/dev/null || git -C "$lib_dir" rev-parse "origin/$ref" 2>/dev/null || echo "")
+            if [ -z "$ref_sha" ] || [ "$head_sha" != "$ref_sha" ]; then
+              echo "::notice::$lib HEAD=$head_sha 与 hmm.json pin=$ref 不符，强制重装"
+              haxelib --global run hmm reinstall --force "$lib"
+            fi
+          done < <(awk '/"name":/ {n=$0; sub(/.*"name": *"/,"",n); sub(/".*/,"",n)}
+                        /"type": *"git"/ {g=1}
+                        g && /"ref":/ {r=$0; sub(/.*"ref": *"/,"",r); sub(/".*/,"",r); print n, r; g=0}' hmm.json)
+
           if [ "${{ steps.cache_strategy.outputs.update_libs }}" = "true" ] && \
              [ "${{ steps.cache_strategy.outputs.skip_deps_cache }}" = "false" ]; then
             echo "更新指定依赖: ${{ steps.cache_strategy.outputs.libs_to_update }}"
@@ -267,6 +296,7 @@ jobs:
           # 库在 haxelib 根目录，不是工作区里的 .haxelib/。
           echo "lime revision: $(git -C "$HAXELIB_ROOT/lime/git" rev-parse HEAD 2>/dev/null || echo 'n/a')"
           echo "openfl revision: $(git -C "$HAXELIB_ROOT/openfl/git" rev-parse HEAD 2>/dev/null || echo 'n/a')"
+          echo "hxcpp revision: $(git -C "$HAXELIB_ROOT/hxcpp/git" rev-parse HEAD 2>/dev/null || echo 'n/a')"
 
       - name: Configure Android
         if: inputs.name == 'Android'
@@ -407,8 +437,11 @@ jobs:
 
       # 依赖没变时 key 和上面 restore 一样、缓存已存在，save 会报"已存在"——
       # 那属于正常情况（该缓存的正是那份），continue-on-error 兜住。
+      # 必须挂 success()：失败 run 的依赖状态没经过编译验证，存出去就是毒缓存——
+      # 2026-11-21 iOS 那颗 nf-deps-macOS-ios-6a557844… 就是失败 run 存的旧 hxcpp，
+      # 缓存 key 不可覆盖，之后每次 push 都精确命中它，普通重跑永远修不好。
       - name: Save dependency cache
-        if: steps.cache_strategy.outputs.skip_deps_cache == 'false'
+        if: success() && steps.cache_strategy.outputs.skip_deps_cache == 'false'
         continue-on-error: true
         uses: actions/cache/save@v4
         with:
